@@ -39,7 +39,7 @@ Un'applicazione desktop per navigare e smistare rapidamente file multimediali in
 ### Metodo rapido (consigliato)
 
 ```bash
-git clone https://github.com/TUO_USERNAME/image-sorter.git
+git clone https://github.com/orionriggers/image-sorter.git
 cd image-sorter
 bash installa.sh
 ```
