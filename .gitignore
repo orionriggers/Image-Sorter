@@ -46,3 +46,10 @@ desktop.ini
 
 # File temporanei generati dall'installazione
 image_sorter_icon_build.ico
+image_sorter_config.json
+image_sorter_error.log
+ToDoSorter.txt
+__pycache__/
+*.pyc
+deck_icons/
+image_sorter_1.10.py

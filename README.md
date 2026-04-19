@@ -1,4 +1,4 @@
-# Image Sorter v1.11
+# Image Sorter v1.12
 
 **Visualizzatore e smistatore di immagini, video e PDF per Linux**
 
