@@ -1,0 +1,282 @@
+
+importa/esporta impostazioni
+
+cartelle con anteprima proibita
+ 
+
+verificare compatibilità altre versioni Linux
+
+verificare BUILD STANDALONE EXECUTABLE
+
+scaricare tutti i file necessari 
+guidare passo passo a github
+
+
+
+
+tasto destro su file in cartella di sistema e sorting 
+
+pulsanti con simboli / icone disegnate
+
+stream deck:
+- ora che non abbiamo la gestione dello stream deck quando image sorter è spento, metterei l'attivazione di streamdeck ui come facevamo quanche versione fa
+
+chiudere deck da finestra streamdeck
+
+apertura file ovunque più leggibile
+
+
+
+_____________OK___________________________
+
+
+
+
+
+ctrl+z per annullo crop
+
+impostazioni / tab manuale e lingua:
+accorpale e cambia nome al tab: "Info"
+
+togliere la frase "posiziona i file readme nella stessa cartella di imager_sorter.py" e metti con un carattere più leggibile e grande:
+
+(metti il logo)
+Un programma per gestione immagini e file 
+IMAGE SORTER - Ver. (metti la versione)
+Creative Commons By Carlo Porrone - 2026 
+mailto: greencarlo@gmail.com
+
+Questo programma non fornisce nessuna garanzia di utilizzo
+
+
+
+
+
+
+con il tasto destro sui risultati, "cancella" e "apri in file manager" non funzionano
+
+apri tutte le cartelle coinvolte nel gruppo di doppioni
+
+la spunta cancella diretto in questa sessione 
+
+nella finestra che si apre con tasto detro: mettere "ritaglia" per primo in alto, e aggiungi "cancella" sotto "ruota 90 antiorario"
+
+ora canc non funziona più
+
+confronto a+b anche dimensione
+
+confronto doppioni più completo e su colonne , scelta più pratica
+
+no avvio automatico video e pdf
+
+ridurre icone in giro 
+
+Aggiungi un alert su Impostazion-Destinazioni se ci sono modifiche alle destinazioni/etichette ancora da salvare e si cerca di chiudere la finestra.
+
+Finestra broswer: è sparito il tasto per scegliere il tipo di visualizzazione delle anteprime.
+
+non serve che si attivino i comandi di copia / rinomina ecc alla selezione della cartella "su di un livello" 
+
+impostazioni preset - avvisa salva config 
+
+parametro navigazione: next prev e numero pagina se creata, con scelta a tendina e no [...]
+
+vista broswer con data e dimensioni 
+
+tre preset principali in ordine RGB
+
+nome etichetta preset, se vuoto, prende il nome della cartella selzionata, ma è poi modificabile
+
+impostazione - tasti - scroll con rotella o pad
+
+nome preset non in vista quando spostamento inibito
+
+cancella con canc+canc o canc+invio
+
+file video e pdf predefiniti non forzati su stream deck
+
+ritaglia: annulla accanto agli altri bottoni
+
+ritaglia: barra copre parte bassa dell'immagine 
+
+chiusura di una finestra sorter con altre aperte
+
+priorità del preset sul sorter aperto
+
+OK - scattino dell'immagine all'apertura del programma
+
+OK - Ricerca in corso: chiedi conferma uscita dal programma
+
+OK - tasto "Originale" cambia colore quando l'immagine è rimpicciolita
+
+OK - log ultimi 30 spostamenti e rimedia
+
+OK - broswer: aggiungere elimina da sel e sel multipla
+
+OK - correzione automatica rotazione immagine da exif
+
+OK - le finestre di configurazione che portano a scegliere tra le cartelle (quelle con i 3 ...) le vorrei tutte nello stesso stile più articolato e non quello di sistema
+
+OK - la ricerca delle immagini delle icone per lo stream deck la farei partire di defautl dalla cartella del programma
+
+OK- preset e destinazioni hanno due volte il bottone chiudi
+
+OK - Deck attivo uguale, deck video chiuso stream deck con funzioni programmabili e che rimane così anche sul resto (disattivabile ) 
+
+OK - jpeg - non correggere jpg
+
+OK - Traduzione multilingue e inglese 
+
+OK - integrare PyMuPDF (fitz), che è molto più veloce e non richiede la creazione di file temporanei su disco.
+
+OK - per i file pdf di una sola pagina non mettere barra e frecce
+
+OK - per i file pdf non caricare tutto per l'anteprima
+
+OK - Per i pdf barra laterale con le miniature attivabile 
+
+OK - nella transizione per caricare una nuova immagine rimanere sulla vecchia 
+
+OK - i nomi del rinomina non sono automaticamente editabili
+
+OK - modifica file - assegna programma (gimp)
+
+OK - nelle info mettere anche data file
+
+OK - cliccando Info ricarica l'immagine
+
+OK - file immagini con estensione sbagliata - aprire lo stesso e chiedere sostituzione estensione
+
+OK - il tastino operativo tasto dx nella ricerca duplicati non è funzionante
+
+OK - anche finestra apri file con comodità dell'interfaccia (acceso rapido, ultima usata, tasto back)
+
+OK - pdf, scorrimento per le pagine successive
+
+OK - Bypass visualizzazione file in base al tipo
+
+OK - finestrella destinazione apribile con tasto dx su deck, che si apra vicino o almeno sopra al deck  
+
+OK - deck asimettrico se con tasti vuoti
+
+OK - immagine senza estensione non si apre
+
+OK - Sulla Sidebar e sul tastierino sarebbe molto comodo fare click con il tasto destro sul preset e cambia velocemente destinazione preset
+
+OK - mancano le barre per far scorrere l'immagine una volta ingrandita
+
+OK - farebbe comodo uno scrolling rapido per spostarsi tra le immagini, soprattutto quando sono tante e di grandi dimensioni, tipo fader nella zona con le indicazioni di quante immagini ci sono nella cartella
+
+OK - Tutte le finestre di impostazioni (come quella dei preset) che hanno ok da cliccare sarebbe meglio funzionassero anche con l'invio
+
+OK - vorrei poter visualizzare anche l'anteprima pdf e ordinarli nelle stesse modalità
+
+OK - Se il preset è vuoto e si prova ad usarlo per spostare un'immagine, sarebbe comodo un avviso che informa che non c'è preset salvato e chiedere quale destinazione dargli, eventualmente con una finestra simile a quella che apre il tasto destro
+
+OK - Sulla Sidebar e sul tastierino fare click con il tasto destro sul preset e cambia velocemente destinazione preset
+
+OK mettere tasto "Crea nuova cartella" nella finestra di assegnazione preset che si apre da "destinazioni"
+
+OK il numero 1/45 cambia in base al contenuto totale della cartella - OK diventa spostate su totale - rimanenti può sparire(?) 
+
+OK file di grandi dimensioni non devono bloccare tutto
+
+OK elenca e numera anche i pdf nelle anteprime
+
+OK il salva dimensioni ritaglio deve mantenere anche la posizione relativa all'immagine precedente
+
+OK aggiungere un pulsante taglia e taglia successiva
+
+OK Ctrl+numero o tastino - Copia invece di spostare
+
+OK "scegli una directory" fatta meglio
+
+OK aggiorna anche il file di spiegazioni con le ultime modifiche  
+
+
+
+-----------------------------------------------------------------------------------
+
+
+Ho analizzato i file che hai caricato. Il tuo programma è un'ottima base, molto strutturato e con una gestione avanzata per lo Stream Deck e i preset.
+
+Tuttavia, ho riscontrato un errore critico nel file di log e alcune aree del codice che possono essere migliorate per rendere il programma più stabile e moderno.
+
+Ecco un'analisi dettagliata e le proposte di modifica:
+
+1. Risoluzione dell'Errore (Crash con PDF)
+Il tuo image_sorter_error.log indica un crash quando provi a usare la funzione "Ritaglia" su un file PDF.
+
+Il problema: La funzione _open_crop cerca di aprire il file con Image.open() (Pillow), che non supporta nativamente i PDF per operazioni di editing, causando un UnidentifiedImageError.
+
+La soluzione: Dobbiamo aggiungere un controllo nel menu contestuale per disabilitare il "Ritaglio" e la "Rotazione" se il file corrente è un PDF o un video, poiché Pillow non può manipolarli come immagini semplici.
+
+2. Migliorie alla Gestione PDF e Video
+Attualmente il programma usa pdftoppm (da poppler-utils) per le anteprime PDF e ffmpeg per i video.
+
+PDF: Il fallback attuale usa Pillow che spesso fallisce sui PDF multipagina o complessi. Ti consiglio di integrare PyMuPDF (fitz), che è molto più veloce e non richiede la creazione di file temporanei su disco.
+
+Video: L'anteprima estrae solo il primo frame (tempo 0). Se il video inizia con il nero, l'anteprima sarà inutile. Possiamo modificarlo per estrarre un frame al secondo 1 o 2.
+
+3. Ottimizzazione della "Sidebar" e "Deck"
+Il codice gestisce i preset in modo dinamico, ma la navigazione tra i preset con PagSu/PagGiu potrebbe essere resa più visiva.
+
+Proposta: 
+4. Pulizia del Codice e UI
+
+Percorsi Hardcoded: Nel file .desktop e in alcune parti del codice ci sono percorsi assoluti riferiti all'utente carlo (es. /home/carlo/Scrivania/...). Questo impedisce al programma di funzionare su altri PC senza modifiche manuali. Possiamo sostituirli con variabili d'ambiente come $HOME.
+
+Gestione Cestino:
+
+
+
+
+
+Ecco i suggerimenti raggruppati per categoria:
+
+**Navigazione e ricerca**
+- Ricerca file per nome nella cartella corrente (barra cerca con filtro live)
+- Cronologia delle cartelle visitate (tipo browser web, frecce avanti/indietro)
+- Segnalibri: aggiungere/rimuovere cartelle preferite persistenti
+- Salto rapido a un numero di file specifico (es. "vai al file 47")
+
+segnalibri nel deck
+
+
+**Visualizzazione**
+- Confronto fianco a fianco di due immagini (split view)
+- Modalità presentazione automatica con timer configurabile
+- Zoom con lente d'ingrandimento sotto il cursore (senza cambiare la vista principale)
+- Histogram colori sull'overlay EXIF
+
+**Gestione file**
+OK - Rinomina multipla batch (es. aggiungere prefisso/suffisso o numerazione ai file selezionati)
+- Duplica file nella stessa cartella
+OK - Apertura cartella corrente in Nemo/Nautilus con un tasto
+- Stampa immagine direttamente dall'app
+
+**Smistamento avanzato**
+- Regole automatiche: sposta automaticamente i file in base a estensione, data o dimensione
+- Preset temporanei ("sessione") che non salvano nel config
+- Esportazione report CSV di cosa è stato spostato dove
+
+**Stream Deck**
+- Mostrare l'anteprima dell'immagine corrente su un tasto del deck
+- Tasto "Undo" fisico sul deck per Ctrl+freccia sinistra
+- immangine sul deck descrittiva del preset o della cartella di destinazione
+
+**Qualità dell'esperienza**
+- Tema chiaro alternativo
+- Ricorda posizione e dimensione della finestra tra le sessioni
+OK - Notifica sonora opzionale allo spostamento
+- Statistiche sessione (quante immagini viste, spostate, tempo trascorso)
+
+Quale di questi ti interessa di più?
+
+- ctrl+z con memoria delle ultime 10
+- cartelle aperte recentemente dal menù
+
+
+
+
+

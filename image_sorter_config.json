@@ -1,0 +1,441 @@
+{
+  "active_preset": "Rigging",
+  "presets": {
+    "Rigging": {
+      "7": {
+        "label": "TECH",
+        "path": "/home/carlo/Immagini/Smistati/TECH"
+      },
+      "8": {
+        "label": "Progetti Slide",
+        "path": ""
+      },
+      "9": {
+        "label": "Luoghi",
+        "path": ""
+      },
+      "4": {
+        "label": "Scary DPI",
+        "path": ""
+      },
+      "5": {
+        "label": "Scary Rig",
+        "path": "/media/dati/foto/000___000  Container temp/Scary rigging"
+      },
+      "6": {
+        "label": "Scary Circo",
+        "path": ""
+      },
+      "1": {
+        "label": "DPI",
+        "path": ""
+      },
+      "2": {
+        "label": "Rope Access",
+        "path": ""
+      },
+      "3": {
+        "label": "Circo",
+        "path": ""
+      },
+      "0": {
+        "label": "Lavori da ordinare",
+        "path": "/media/dati/foto/0000 lavori vari da riordinare"
+      }
+    },
+    "RAPIDO": {
+      "7": {
+        "label": "AmiciX",
+        "path": "/media/dati/foto/000___000  Container temp/Amicix"
+      },
+      "8": {
+        "label": "Foto GP",
+        "path": "/media/dati/foto/000___000  Container temp/FOTO GP"
+      },
+      "9": {
+        "label": "LAVORI",
+        "path": "/media/dati/foto/000___000  Container temp/FOTO lavori"
+      },
+      "4": {
+        "label": "MIE",
+        "path": "/media/dati/foto/000___000  Container temp/FOTO mie"
+      },
+      "5": {
+        "label": "STUNT",
+        "path": "/media/dati/foto/000___000  Container temp/FOTO Stunt"
+      },
+      "6": {
+        "label": "RIGGING TRANSITO",
+        "path": "/media/dati/foto/Rigging transito"
+      },
+      "1": {
+        "label": "GIUH",
+        "path": "/media/dati/foto/GiuliaSarah"
+      },
+      "2": {
+        "label": "MURI SCRITTI",
+        "path": "/media/dati/foto/muri scritti"
+      },
+      "3": {
+        "label": "PERSONE AMICI",
+        "path": "/media/dati/foto/persone"
+      },
+      "0": {
+        "label": "BELLE",
+        "path": "/media/dati/--- 000  file da riordinare  000 ---/belle"
+      }
+    },
+    "Stunt": {
+      "7": {
+        "label": "Cartella_7",
+        "path": ""
+      },
+      "8": {
+        "label": "Cartella_8",
+        "path": ""
+      },
+      "9": {
+        "label": "Cartella_9",
+        "path": ""
+      },
+      "4": {
+        "label": "Cartella_4",
+        "path": ""
+      },
+      "5": {
+        "label": "Per slide",
+        "path": "/home/carlo/Scrivania/MATERIALE/per slide"
+      },
+      "6": {
+        "label": "Cartella_6",
+        "path": "/home/carlo/Scrivania/Image_Sorter/motivazionali (copia re)"
+      },
+      "1": {
+        "label": "Effetti",
+        "path": "/media/dati/foto/2026 03 23 stunt/Effetti"
+      },
+      "2": {
+        "label": "Slide e teoria",
+        "path": "/media/dati/foto/2026 03 23 stunt/Slide Teoria"
+      },
+      "3": {
+        "label": "Cartella_3",
+        "path": ""
+      },
+      "0": {
+        "label": "Materiali oggetti",
+        "path": "/media/dati/foto/2026 03 23 stunt/Materiali e oggetti"
+      }
+    },
+    "Circo": {
+      "7": {
+        "label": "Scary Aerea",
+        "path": "/home/carlo/Scrivania/MATERIALE/foto e video in ordine/scary circo aerea eventi"
+      },
+      "8": {
+        "label": "Cartella_8",
+        "path": ""
+      },
+      "9": {
+        "label": "Cartella_9",
+        "path": ""
+      },
+      "4": {
+        "label": "Time lapse Prova",
+        "path": "/media/dati/foto/2024 08 14 stadio time lapse 2 schermi/secondo"
+      },
+      "5": {
+        "label": "Sorter Prova",
+        "path": "/home/carlo/Scrivania/Image_Sorter"
+      },
+      "6": {
+        "label": "MOTIVAZ Prova",
+        "path": "/home/carlo/Scrivania/Image_Sorter/motivazionali (copia re)"
+      },
+      "1": {
+        "label": "Performance",
+        "path": "/home/carlo/Scrivania/MATERIALE/foto e video in ordine/video performance"
+      },
+      "2": {
+        "label": "Scary strutture",
+        "path": "/home/carlo/Scrivania/MATERIALE/foto e video in ordine/scary strutture"
+      },
+      "3": {
+        "label": "Cartella_3",
+        "path": ""
+      },
+      "0": {
+        "label": "TimeLapse",
+        "path": "/media/dati/foto/2024 08 14 stadio time lapse 2 schermi/tempSchermi"
+      }
+    },
+    "PersonInsta": {
+      "7": {
+        "label": "Cartella_7",
+        "path": ""
+      },
+      "8": {
+        "label": "Cartella_8",
+        "path": ""
+      },
+      "9": {
+        "label": "Cartella_9",
+        "path": ""
+      },
+      "4": {
+        "label": "Cartella_4",
+        "path": ""
+      },
+      "5": {
+        "label": "Cartella_5",
+        "path": ""
+      },
+      "6": {
+        "label": "Cartella_6",
+        "path": ""
+      },
+      "1": {
+        "label": "Mie D3",
+        "path": "/home/carlo/Scrivania/transito DATI/foto/Inet già bkup/mie d3"
+      },
+      "2": {
+        "label": "Cartella_2",
+        "path": ""
+      },
+      "3": {
+        "label": "Cartella_3",
+        "path": ""
+      },
+      "0": {
+        "label": "Henke",
+        "path": "/home/carlo/Scrivania/transito DATI/foto/Inet già bkup/henke"
+      }
+    },
+    "Preset 1": {
+      "7": {
+        "label": "Muri",
+        "path": ""
+      },
+      "8": {
+        "label": "Shibari mie",
+        "path": ""
+      },
+      "9": {
+        "label": "Shibari",
+        "path": ""
+      },
+      "4": {
+        "label": "MegaTech",
+        "path": ""
+      },
+      "5": {
+        "label": "Polemiche",
+        "path": ""
+      },
+      "6": {
+        "label": "Amici",
+        "path": ""
+      },
+      "1": {
+        "label": "Casetta",
+        "path": ""
+      },
+      "2": {
+        "label": "Ecologia",
+        "path": ""
+      },
+      "3": {
+        "label": "Camperiz",
+        "path": ""
+      },
+      "0": {
+        "label": "Mistone",
+        "path": ""
+      }
+    },
+    "Preset 2": {
+      "7": {
+        "label": "Posti",
+        "path": "/home/carlo/Scrivania/transito DATI/foto/soppralluoghi posti interessanti"
+      },
+      "8": {
+        "label": "Bardassano",
+        "path": "/home/carlo/Scrivania/transito DATI/foto/bardassano"
+      },
+      "9": {
+        "label": "Animali",
+        "path": "/home/carlo/Scrivania/transito DATI/foto/Gigi e altri animali"
+      },
+      "4": {
+        "label": "Fumetti",
+        "path": "/home/carlo/Scrivania/transito DATI/foto/fumetti"
+      },
+      "5": {
+        "label": "NaturaBella",
+        "path": "/home/carlo/Immagini/Smistati"
+      },
+      "6": {
+        "label": "OPS",
+        "path": "/home/carlo/Immagini/Smistati"
+      },
+      "1": {
+        "label": "Mie",
+        "path": "/home/carlo/Scrivania/transito DATI/foto/mie"
+      },
+      "2": {
+        "label": "Giulia",
+        "path": "/home/carlo/Scrivania/transito DATI/foto/giuh"
+      },
+      "3": {
+        "label": "Bellesimpa",
+        "path": "/home/carlo/Scrivania/transito DATI/foto/belle e simpa"
+      },
+      "0": {
+        "label": "Nodi",
+        "path": "/home/carlo/Scrivania/performersss/nodi"
+      }
+    }
+  },
+  "last_source": "/home/carlo/Scrivania/Image_Sorter",
+  "last_browse_dir": "/home/carlo/Scrivania/Image_Sorter",
+  "keypad_cols": 3,
+  "sidebar_mode": "hidden",
+  "sidebar_presets": 3,
+  "crop_remember": true,
+  "show_images": true,
+  "show_videos": true,
+  "show_no_ext": false,
+  "show_pdfs": true,
+  "edit_with": "gimp",
+  "pdf_thumbs_open": false,
+  "deck_model": "Stream Deck Original",
+  "deck_idle_pages": [
+    [
+      {
+        "label": "Desktop",
+        "action": "folder",
+        "param": "/home/carlo/Scrivania",
+        "color": [
+          15,
+          20,
+          40
+        ],
+        "image": "/media/dati/tastierino/Companion/StreamDeck/folder.jpg"
+      },
+      null,
+      {
+        "label": "Download",
+        "action": "folder",
+        "param": "/home/carlo/Scaricati",
+        "color": [
+          15,
+          20,
+          40
+        ],
+        "image": "/home/carlo/Scrivania/Image_Sorter/sorter_icons/folder.jpg"
+      },
+      {
+        "label": "FOTO",
+        "action": "folder",
+        "param": "/home/carlo/Scrivania/transito DATI/foto",
+        "color": [
+          15,
+          20,
+          40
+        ],
+        "image": "/home/carlo/Scrivania/Image_Sorter/deck_icons/folder.jpg"
+      },
+      {
+        "label": "FOTO DATI",
+        "action": "folder",
+        "param": "/media/dati/foto",
+        "color": [
+          15,
+          20,
+          40
+        ],
+        "image": "/home/carlo/Scrivania/Image_Sorter/deck_icons/folder.jpg"
+      },
+      {
+        "label": "",
+        "action": "sorter",
+        "param": "",
+        "color": [
+          15,
+          20,
+          40
+        ],
+        "image": null
+      },
+      null,
+      null,
+      null,
+      {
+        "label": "",
+        "action": "mute",
+        "param": "",
+        "color": [
+          15,
+          20,
+          40
+        ],
+        "image": null
+      },
+      null,
+      null,
+      null,
+      null,
+      {
+        "label": "",
+        "action": "page",
+        "param": "next",
+        "color": [
+          15,
+          20,
+          40
+        ],
+        "image": "/media/dati/tastierino/Companion/StreamDeck/Play verde.jpg"
+      }
+    ],
+    [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "label": "",
+        "action": "page",
+        "param": "prev",
+        "color": [
+          15,
+          20,
+          40
+        ],
+        "image": "/home/carlo/Scrivania/Image_Sorter/deck_icons/page.png"
+      },
+      null,
+      null,
+      null,
+      null
+    ]
+  ],
+  "deck_brightness": 73,
+  "language": "it",
+  "crop_size": [
+    2079,
+    4549
+  ],
+  "crop_pos": [
+    0.13775,
+    0.16966666666666666,
+    0.397625,
+    0.9278333333333333
+  ],
+  "deck_restart_sc": false
+}

@@ -1,0 +1,48 @@
+# Image Sorter — .gitignore
+
+# Configurazione utente (specifica per ogni installazione)
+image_sorter_config.json
+
+# Log errori
+image_sorter_error.log
+*.log
+
+# Backup crop temporanei
+*._crop_backup
+
+# Lock file Stream Deck
+.deck_owner.lock
+
+# Cache Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Build PyInstaller
+build/
+dist/
+*.spec
+
+# Ambienti virtuali
+.venv/
+venv/
+env/
+
+# File di sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# File temporanei generati dall'installazione
+image_sorter_icon_build.ico

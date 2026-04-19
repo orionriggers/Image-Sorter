@@ -1,0 +1,334 @@
+==============================================================================
+  IMAGE SORTER v1.12
+  Visualizzatore e smistatore di immagini, video e PDF per Linux
+==============================================================================
+
+DESCRIZIONE
+-----------
+Image Sorter è un'applicazione desktop per Linux che permette di visualizzare,
+navigare e smistare rapidamente immagini, video e PDF in cartelle di
+destinazione usando la tastiera, il mouse o uno Stream Deck Elgato.
+
+Formati supportati:
+  Immagini : JPG, PNG, GIF, BMP, TIFF, WEBP  (+ formati aggiuntivi da conf.)
+  Video    : MP4, MOV, AVI, MKV, WEBM, M4V, FLV  (richiede ffmpeg)
+  PDF      : PDF multipagina                       (richiede poppler-utils)
+  Altro    : file senza estensione rilevati via magic bytes
+
+
+==============================================================================
+  INSTALLAZIONE RAPIDA
+==============================================================================
+
+1. Installa le dipendenze di sistema:
+     bash installa_su_altro_pc.sh
+
+2. Installa icona, menu e associazioni file:
+     bash installa_avviatore.sh
+
+3. Riavvia il PC (necessario per lo Stream Deck e le associazioni MIME).
+
+DIPENDENZE PYTHON (installate automaticamente)
+     pip3 install pillow streamdeck send2trash
+
+DIPENDENZE DI SISTEMA
+     sudo apt install ffmpeg poppler-utils libhidapi-hidraw0 python3-tk
+
+COMPILARE ESEGUIBILE STANDALONE
+     pip3 install pyinstaller
+     bash compila_eseguibile.sh
+Produce "image_sorter_bin" — non richiede Python sul PC di destinazione.
+
+
+==============================================================================
+  TASTI E COMANDI
+==============================================================================
+
+NAVIGAZIONE
+  Freccia DESTRA             File successivo (loop)
+  Freccia SINISTRA           File precedente (loop)
+  C                          Ruota 90° orario (Clockwise)
+  A                          Ruota 90° antiorario (Anticlockwise)
+  Ctrl + ←  o  Ctrl + X     Annulla ultimo spostamento e ripristina il file
+  Freccia SU                 Pagina precedente (solo PDF multipagina)
+  Freccia GIU                Pagina successiva (solo PDF multipagina)
+  PagSu / PagGiu             Cicla al preset precedente / successivo
+  Tab  o  N                  Preset successivo
+  Shift+Tab                  Preset precedente
+  Rotella mouse              Avanza/torna tra i file (scrolla se zoom > 1)
+
+SMISTAMENTO  [richiede Sidebar o Tastierino attivi]
+  Tasti 1–9, 0               Sposta il file nella destinazione del preset attivo
+  Ctrl + 1–9, 0              Copia il file (senza spostarlo)
+  CANC × 2                   Sposta il file nel cestino di sistema
+  CANC + Invio               Cestina (conferma alternativa)
+
+ZOOM E VISUALIZZAZIONE
+  +  /  −                    Zoom in / out
+  Z                          Adatta al canvas (fit)
+  X                          Dimensione originale (1:1 pixel)
+  F                          Schermo intero (solo immagini)
+  Invio                      Schermo intero / Player esterno (video/PDF)
+  H                          Mostra/nascondi barra intestazione
+
+INFO
+  I                          Overlay EXIF (dati tecnici immagine)
+
+MENU TASTO DESTRO  (sul file visualizzato)
+  Rinomina                   Rinomina file inline
+  Ruota 90 orario            Ruota e salva (solo immagini)
+  Ruota 90 antiorario        Ruota e salva (solo immagini)
+  Ritaglia...                Ritaglio interattivo (solo immagini)
+  Apri cartella              Mostra il file nel file manager
+  Modifica con...            Apre con editor configurabile (default: GIMP)
+  Copia percorso             Copia percorso completo negli appunti
+
+FINESTRE E PANNELLI
+  O  o  B                    Browser cartelle (albero + anteprime)
+  S                          Sidebar (cicla: inline / popup / nascosta)
+  D  o  P                    Tastierino (cicla 1/2/3 colonne)
+  Ctrl + D                   S-Deck: attiva/disattiva modalità preset sul fisico
+  R                          Impostazioni
+  Ctrl + R                   Rinomina file corrente direttamente
+  Q  o  Esc                  Esci
+
+BROWSER CARTELLE
+  Ctrl + A                   Seleziona tutti i file
+  Ctrl + C                   Copia file selezionati
+  Ctrl + X                   Taglia file selezionati
+  Ctrl + V                   Incolla nella cartella corrente
+  Canc                       Cestina file selezionati
+  Click singolo              Seleziona file o cartella (sfondo verde)
+  Ctrl + click               Aggiunge/rimuove dalla selezione multipla
+  Doppio click               Apre file / naviga nella cartella
+  1–9, 0  (con cartella sel.)  Sposta la cartella nel preset corrispondente
+
+==============================================================================
+  IMPOSTAZIONI  (tasto R)
+==============================================================================
+
+TAB PRESET
+  Gestione e selezione dei preset di smistamento.
+  Doppio click o Invio per attivare il preset selezionato.
+
+TAB DESTINAZIONI
+  Configura etichetta e percorso per ogni tasto 1-9/0 del preset attivo.
+  - Bottone "..."    : apre browser cartelle con accesso rapido e dischi
+  - Bottone "X"      : cancella la destinazione del tasto
+  - Campo etichetta  : nome visualizzato sul tasto (auto-compilato dal nome cartella)
+  Premi Applica (o Invio) per salvare.
+
+TAB VISUALIZZA
+  Scegli quali tipi di file mostrare:
+  - Immagini, Video, PDF, File senza estensione
+  Ogni filtro ha un bottone ON/OFF ben visibile.
+  Estensioni aggiuntive: aggiungi formati extra (es. .heic, .arw, .cr2).
+  Le impostazioni sono salvate e ricordate tra le sessioni.
+
+
+==============================================================================
+  BROWSER CARTELLE  (tasto O)
+==============================================================================
+
+BARRA RAPIDA
+  Bottoni di accesso rapido: ~, Immagini, Video, Scrivania, Documenti, /
+  Dischi montati rilevati automaticamente da /media/ e /mnt/
+  Ultima cartella visitata indicata con "< nome"
+
+NAVIGAZIONE ALBERO
+  Click sull'albero          Mostra il contenuto a destra
+  Doppio click sull'albero   Apre la cartella come sorgente principale
+  Doppio click su anteprima  Apre il file nella finestra principale
+  Tasto destro su cartella   Rinomina la cartella
+
+INDICATORI NELL'ALBERO
+  [+]    Contiene immagini    [v]  Contiene video    [p]  Contiene PDF
+  [+v]   Immagini e video    [+p]  Immagini e PDF   [vp]  Video e PDF
+  [+vp]  Tutti i tipi        [ ]  Cartella vuota
+
+SELEZIONE MULTIPLA
+  Click singolo              Seleziona / deseleziona (sfondo verde)
+  Ctrl+A                     Seleziona tutti i file della cartella
+
+  Barra azioni (appare quando ci sono file selezionati):
+  - Bottoni preset colorati  Sposta i file selezionati nella destinazione
+  - Rinomina serie           Rinomina con prefisso + numerazione progressiva
+  - Copia                    Copia i file in una cartella a scelta
+  - Deseleziona tutto        Azzera la selezione
+
+PANNELLO ASSEGNAZIONE  (bottone "Assegna")
+  3 righe di preset con menu a tendina e bottoni colorati 1-9/0.
+  Tasto destro su un bottone per rinominarne l'etichetta.
+
+
+==============================================================================
+  ANALISI CARTELLE  (tasto "Analisi cartelle" nel browser)
+==============================================================================
+
+Apre una finestra separata con grafico a torta sunburst e treemap navigabile.
+
+GRAFICO (sunburst o treemap, selezionabile in alto)
+  Click su spicchio           Naviga dentro la cartella
+  Doppio click su spicchio    Apre la cartella nel browser Image Sorter
+  Tasto destro su spicchio    Menu: naviga / apri nel file manager / browser
+  ▲ su (centro)               Torna alla cartella superiore
+  Slider Livelli (1–6)        Profondità delle corone visualizzate
+
+ALBERO CARTELLE (pannello destra, ridimensionabile con il divisore)
+  Doppio click su riga        Naviga nella cartella
+  Freccia ▸                   Espande le sottocartelle (senza chiudere gli altri livelli)
+  Colonne Nome / Dim. / File  Ridimensionabili trascinando l'intestazione
+
+BARRA INFERIORE
+  Nome cartella corrente      Mostrato in grande a sinistra
+  Dimensione + file           Accanto al nome: 128 MB | 4 cartelle | 47 (12 immagini...)
+  Tooltip hover               Nome + dimensione della cartella sotto il cursore
+  Apri nel browser            Apre la cartella nel browser Image Sorter (se aperto)
+
+==============================================================================
+  RITAGLIO
+==============================================================================
+
+Tasto destro > Ritaglia  (solo immagini)
+  - 8 handle per definire l'area, griglia dei terzi
+  - "Ritaglia"              : chiede se sovrascrivere o nuovo nome
+  - "Ritaglia e avanza"     : sovrascrive e passa al file successivo
+  - "Ritaglia prossimo"     : sovrascrive e apre il crop sul prossimo file
+  - Checkbox "Ricorda"      : riusa posizione e dimensioni relative
+  - ESC o Annulla           : esce senza modifiche
+
+
+==============================================================================
+  PDF MULTIPAGINA
+==============================================================================
+
+  Freccia SU / GIU          Naviga tra le pagine
+  Slider pagine (barra)     Salta direttamente a una pagina
+  Bottoni < >               Pagina precedente / successiva
+  Badge "PDF N/TOT"         Mostra pagina corrente e totale (angolo basso sx)
+
+  Alla prima pagina:  Freccia SU torna al file precedente
+  All'ultima pagina:  Freccia GIU avanza al file successivo
+
+
+==============================================================================
+  STREAM DECK  (opzionale)
+==============================================================================
+
+MODALITÀ DI FUNZIONAMENTO
+  Il deck fisico opera in due modalità distinte:
+
+  Modalità IDLE (default)
+    Attiva quando il softdeck grafico è chiuso.
+    Mostra le pagine configurabili liberamente (2-3 pagine con < >).
+    Ogni tasto può eseguire: apri cartella, apri app, scorciatoia tastiera,
+    apri URL, muto/smuto audio, apri Image Sorter su una cartella.
+
+  Modalità PRESET
+    Attiva quando il softdeck grafico è aperto (tasto D/P).
+    Mostra i tasti di smistamento file (1-9, navigazione, ecc.).
+
+COME ATTIVARE LA MODALITÀ PRESET
+  Metodo 1: Apri il softdeck con D o P → deck passa automaticamente a preset.
+  Metodo 2: Premi il bottone "Deck [P]" nella barra superiore per
+            attivare/disattivare la modalità preset sul fisico senza
+            aprire il softdeck grafico.
+
+LAYOUT IN MODALITÀ PRESET  (Standard 15 tasti, 3 righe × 5 colonne)
+  Riga 1:  [1]  [2]  [3]  [Preset attivo]  [Canc]
+  Riga 2:  [4]  [5]  [6]  [^ Preset prec]  [v Preset succ]
+  Riga 3:  [7]  [8]  [9]  [<< Indietro  ]  [>> Avanti    ]
+
+  Tasto destro su un tasto  Cambia etichetta e destinazione al volo
+
+CONFIGURAZIONE PAGINE IDLE
+  Apri Impostazioni (R) → tab "Stream Deck"
+  - Visualizza il modello connesso e la luminosità
+  - Griglia visuale di tutte le pagine idle
+  - Click su ogni tasto per configurarlo:
+      Etichetta, azione, parametro, colore RGB, immagine sfondo
+  - Bottone "+ Pagina" per aggiungere pagine
+  - Gli ultimi 2 tasti di ogni pagina diventano < Pag / > N/TOT
+    se ci sono più pagine configurate
+
+AZIONI SUPPORTATE SUI TASTI IDLE
+  Apri cartella        Apre nel file manager
+  Apri applicazione    Avvia un programma (es: "gimp", "firefox")
+  Scorciatoia taste.   Es: "ctrl+c", "ctrl+alt+t" (richiede xdotool)
+  Apri URL             Apre nel browser predefinito
+  Muto audio           Alterna muto/non muto (richiede pactl)
+  Image Sorter         Apre su una cartella specifica
+  Cambia pagina        next / prev tra le pagine idle
+
+CONFIGURAZIONE
+  1. Installa StreamController 2.0.6+
+  2. Avvia: streamdeck --no-ui
+  3. Apri Image Sorter: prende il controllo automaticamente
+  4. Alla chiusura il deck torna in modalità idle
+  5. Alla chiusura di Image Sorter StreamController riprende
+
+PERMESSI  (se il deck non viene riconosciuto)
+  sudo udevadm trigger  +  scollega/ricollega USB
+  Verifica gruppo: groups | grep plugdev
+  Se mancante: sudo usermod -aG plugdev $USER  (poi riavvia)
+
+
+==============================================================================
+  CONFIGURAZIONE  (image_sorter_config.json)
+==============================================================================
+
+Salvata automaticamente nella stessa cartella dello script/eseguibile.
+Contiene: preset, destinazioni, ultima cartella, filtri visualizzazione,
+          modalità sidebar, dimensioni ritaglio, impostazioni estensioni.
+
+Per portare i preset su un altro PC:
+  Copia image_sorter_config.json insieme all'eseguibile.
+  I percorsi si adattano automaticamente all'utente corrente.
+
+
+==============================================================================
+  RISOLUZIONE PROBLEMI
+==============================================================================
+
+"Stream Deck non trovato"
+  sudo udevadm trigger  +  scollega/ricollega USB
+  groups | grep plugdev  (se mancante: sudo usermod -aG plugdev $USER)
+
+"Anteprime video non visibili"
+  sudo apt install ffmpeg
+
+"Anteprime PDF non visibili"
+  sudo apt install poppler-utils
+
+"StreamController non riprende il controllo"
+  ps aux | grep streamdeck  poi  streamdeck --no-ui
+
+"Errore all'avvio (modulo non trovato)"
+  pip3 install pillow streamdeck send2trash --break-system-packages
+
+"Doppio click non apre il file"
+  bash installa_avviatore.sh
+  Poi: tasto destro sul file > Apri con > Image Sorter > Imposta come default
+
+"Programma lento con file grandi"
+  Le thumbnail usano cache e draft mode automaticamente.
+  Per video molto grandi, ffmpeg viene interrotto dopo 8 secondi.
+
+
+==============================================================================
+  NOTE TECNICHE
+==============================================================================
+
+Versione        : 1.12
+Linguaggio      : Python 3.8+
+Dipendenze      : Pillow, tkinter, streamdeck*, send2trash*  (*opzionali)
+Sistema         : Linux (testato su Ubuntu 24 e Linux Mint)
+Anteprime video : ffmpeg (sudo apt install ffmpeg)
+Anteprime PDF   : pdftoppm + pdfinfo (sudo apt install poppler-utils)
+Cestino         : Standard freedesktop.org (~/.local/share/Trash)
+Stream Deck     : Elgato Standard 15 tasti, StreamController v2.0.6+
+Icone UI        : Generate con Pillow (nessun file esterno)
+Cache thumbnail : LRU in memoria, max 200 entry
+NOTA IMPORTANTE : Non usare emoji nei widget tkinter (crash X11 RenderAddGlyphs)
+
+==============================================================================
