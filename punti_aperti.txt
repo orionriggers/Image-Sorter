@@ -1,0 +1,187 @@
+===========================================================================
+PUNTI APERTI — Image Sorter
+Verificato contro il codice in data 2026-08-22, versione core v1.42.0.
+Sostituisce e aggiorna: last journals/report_punti_aperti_v2.txt (v1.30.12).
+Verifica fatta leggendo direttamente il codice (grep + lettura mirata),
+non per memoria di sessioni precedenti.
+===========================================================================
+
+PARTE 1 — BUG SCROLLABLE AREA (segnalato in v1.30.x)
+===========================================================================
+
+  Entrambe le cause erano già risolte al momento di questo controllo:
+
+  1a. Doppio bind dello scroll su bbox("all"): risolto, il bind è uno
+      solo su self.win (non bind_all).
+  1b. bbox("all") includeva anche elementi fuori dall'area visibile:
+      risolto, _update_thumb_scrollregion() evita esplicitamente
+      bbox("all") — commento nel codice che cita il vecchio bug e la
+      correzione.
+
+  STATO: RISOLTO, confermato con commenti espliciti nel codice che
+  documentano il vecchio bug.
+
+
+PARTE 2 — DIFETTI SEGNALATI IN v1.30.12
+===========================================================================
+
+  2. Reset del minsize colonna: risolto. Ora usa
+     range(max(200, COLS, self._thumb_max_col + 1))
+     (image_sorter.py, vicino alla riga 8674), sullo stesso schema già
+     usato per il tracking delle righe.
+     STATO: RISOLTO.
+
+  3. Storico non registrava gli spostamenti multipli da tasto numerico
+     in Timeline: risolto. _make_preset_handler (timeline.py) ora chiama
+     self._register_moves(batch), che richiama append_history()
+     (importata da image_sorter).
+     STATO: RISOLTO.
+
+  4. Bypass del filtro privacy (conseguenza del punto 3): risolto come
+     diretta conseguenza del punto 3. Verificato il meccanismo esatto:
+     append_history() (image_sorter.py righe ~2405-2422) carica le
+     cartelle private e, se uno qualsiasi dei file dell'entry è in una
+     cartella privata (_is_private()), abortisce silenziosamente la
+     registrazione — prima del fix del punto 3 questo percorso non
+     veniva nemmeno attraversato dai movimenti da tastierino Timeline.
+     STATO: RISOLTO.
+
+
+PARTE 3 — BACKLOG FUNZIONALITÀ
+===========================================================================
+
+  A. TRADUZIONI IN FORMATO TABELLARE (CSV/.po)
+     translations.py è ancora un dict Python annidato (LANG = {...}).
+     STATO: APERTO, invariato.
+
+  B. CAMBIO LINGUA SENZA RIAVVIO
+     Nessun codice trovato per un ricaricamento dinamico dei testi UI
+     al cambio lingua.
+     STATO: APERTO, invariato.
+
+  C. DOLPHIN in installa.sh
+     ORA IMPLEMENTATO: step "7d. DOLPHIN SERVICE MENU" (installa.sh,
+     righe 702-746) installa un service menu .desktop in
+     ~/.local/share/kservices5 (o equivalente), analogo a quanto già
+     fatto per Nemo/Nautilus/Thunar.
+     STATO: RISOLTO (era APERTO nel vecchio report).
+
+  D. PREVIEW HOVER NEL BROWSER (_show_thumb_preview/_hide_thumb_preview)
+     Codice rimosso. Commento esplicito in image_sorter.py (vicino alla
+     riga 9480): erano disattivate dalla v1.17 e rimosse nella v1.31.0,
+     sostituite dal pannello anteprima laterale (checkbox "Anteprima" in
+     Naviga e Timeline).
+     STATO: RISOLTO/CHIUSO (il vecchio report proponeva esattamente
+     questa soluzione: "DA CHIUDERE" → chiuso).
+
+  E. ThreadPoolExecutor PER LE MINIATURE DI TIMELINE
+     Confermato invariato: timeline.py usa ancora 6 threading.Thread
+     liberi, nessun ThreadPoolExecutor.
+     STATO: APERTO, invariato. Rilevante solo su cartelle molto grandi.
+
+  F. SEPARAZIONE GUI/LOGICA (SorterEngine)
+     Nessuna classe SorterEngine trovata.
+     STATO: APERTO, invariato, bassa priorità.
+
+  G. ANTEPRIMA FOTO NEL POPUP DELLA MAPPA GPS
+     ORA IMPLEMENTATA: build_map() (timeline.py) genera un tag <img>
+     con la miniatura in base64 (_map_thumb_b64) sia nel popup del
+     marker sia, se la mappa è abbastanza ingrandita, nel marker stesso
+     (DivIcon a dimensione fissa). Limite MAP_THUMB_MAX oltre il quale
+     si rinuncia alle anteprime per non generare un HTML troppo pesante.
+     STATO: RISOLTO (era APERTO nel vecchio report).
+
+  H. MINIATURE NELLE RIGHE DI DuplicateFinder
+     Le righe restano un tk.Listbox testuale (limite di Tk confermato,
+     invariato: niente immagini dentro le righe). MA è stato aggiunto un
+     pannello anteprima laterale (a fianco della lista) che mostra le
+     miniature di tutti i file del gruppo selezionato con click, con
+     bordo evidenziato sul file corrispondente alla riga selezionata.
+     STATO: PARZIALMENTE RISOLTO — il limite tecnico originale resta,
+     ma il bisogno pratico (vedere cosa sono i duplicati) è coperto
+     dalla stessa soluzione già usata per il punto D (pannello laterale
+     invece di miniature inline).
+
+  I. FILTRO/RICERCA RAPIDA PER NOME nella cartella corrente
+     ORA IMPLEMENTATO: _apply_name_filter() (image_sorter.py, riga
+     ~7999) — confronto case-insensitive, più termini separati da
+     spazio devono comparire tutti in qualsiasi ordine, cartelle
+     filtrate come i file tranne "..". Usato nel caricamento miniature
+     di Naviga.
+     STATO: RISOLTO (era "DA DECIDERE" nel vecchio report).
+
+
+PARTE 4 — LIMITAZIONI NOTE
+===========================================================================
+
+  1. Cancellazione di un'INTERA CARTELLA: va dritta al cestino di
+     sistema, non passa dal transito → non compare nello Storico.
+     STATO: INVARIATO. Eccezione deliberata e documentata, non un bug.
+
+  2. disk_analyzer.py: IMG_EXT non includeva .heic/.heif/.avif.
+     ORA RISOLTO: aggiunti alla riga ~281, con commento esplicito che
+     cita il problema precedente ("erano assenti: i file in questi
+     formati finivano in 'Altro'").
+     STATO: RISOLTO (era APERTO da 3+ versioni nel vecchio report).
+
+  3. exif_editor.py: IPTC nativo sempre vuoto.
+     STATO: INVARIATO. Limite di piexif (non gestisce IPTC), confermato
+     dal commento in read_iptc_xmp(). Servirebbe iptcinfo3 come
+     dipendenza aggiuntiva se si vuole risolvere.
+
+  4. Undo crop dallo Storico: funziona solo se il backup esiste ancora.
+     STATO: INVARIATO, riverificato. _history_do_undo() (image_sorter.py,
+     azione "cropped"/"resized"): se backup non è un file esistente,
+     aggiunge errore "Backup non trovato: ..." invece di ripristinare —
+     fallisce in modo pulito (nessun crash), ma resta un limite di
+     fondo: se l'utente ha premuto "Pulisci backup" (Impostazioni →
+     Storico) nel frattempo, l'undo di quelle entry non è più possibile.
+
+  5. Cestino di transito condiviso fra istanze multiple.
+     STATO: nessun elemento di codice trovato relativo a coordinamento
+     fra istanze sul cestino di transito (nessun lock/owner dedicato,
+     a differenza del lock del deck fisico). Non riprofilato con più
+     istanze aperte in parallelo in questa sessione: resta accettato
+     come comportamento noto, non verificabile solo da lettura statica.
+
+  6. Testo di stato in Timeline non visibile (frame coperto da
+     nav_canvas).
+     ORA RISOLTO: in timeline.py (~riga 878-891) il frame di stato
+     (_bl, con _count_lbl e _status_lbl) viene impacchettato con
+     side="bottom" PRIMA che nav_canvas venga impacchettato con
+     side="left", fill="both", expand=True — quindi nav_canvas riempie
+     solo lo spazio residuo sopra e non copre più lo stato. Il commento
+     nel codice ("va dichiarato prima di nav_canvas") conferma che è
+     una correzione intenzionale, non un caso.
+     STATO: RISOLTO (era "sospeso per tua scelta dalla v1.17" nel
+     vecchio report).
+
+  7. Scroll del tab Storico: possibili fluttuazioni alla prima apertura
+     su sistemi lenti.
+     STATO: nessuna modifica trovata in _build_history_tab() (riga
+     ~17458) rispetto al meccanismo di scroll già noto. Non
+     riproducibile solo da lettura statica del codice (serve un
+     sistema lento reale): resta un'ipotesi non riconfermata né
+     smentita in questa sessione.
+
+  8. Tab "Destinazioni" delle Impostazioni: il più lento, ricostruito
+     da zero ad ogni apertura (_build_dest_tab fa copy.deepcopy() dei
+     preset più rebuild completo dei widget).
+     STATO: INVARIATO strutturalmente (nessuna cache/lazy-load
+     aggiunta), non riprofilato in ms in questa sessione.
+
+  9. Apertura del Deck: mai profilata.
+     STATO: nessun codice di profiling/timing trovato per l'apertura
+     del deck fisico. Resta un'ipotesi in attesa di conferma reale da
+     parte tua (serve profilare col deck fisico collegato).
+
+
+===========================================================================
+PARTE 5 — DEBITO DI DOCUMENTAZIONE E VERSIONING
+===========================================================================
+
+  Chiuso in questa sessione: journal_generale.txt è stato riscritto da
+  zero integrando la cronologia mancante v1.39.0→v1.41.0 (trovata in
+  last journals/journal_generale41.txt) e aggiornato a v1.42.0 con bump
+  coordinato dei 5 file core. Vedi journal_generale.txt per i dettagli
+  architetturali e la cronologia condensata.

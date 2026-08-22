@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """disk_analyzer.py — Analizzatore utilizzo disco"""
-VERSION = "1.42.0"
+VERSION = "1.43.0"
 
 import os, sys, threading
 import tkinter as tk

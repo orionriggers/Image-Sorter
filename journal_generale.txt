@@ -1,6 +1,6 @@
 IMAGE SORTER - JOURNAL GENERALE DI PROGETTO
 ======================================================================
-Aggiornato a: v1.42.0 (bump coordinato)
+Aggiornato a: v1.43.0 (bump coordinato di chiusura sessione 22/08/2026)
 Autore: Carlo Porrone
 
 Questo file sostituisce, come quadro d'insieme, i singoli journal di
@@ -21,7 +21,7 @@ Carlo Porrone con Claude come programmatore, su Linux Mint/Ubuntu
 (Cinnamon, X11), lanciata di solito con doppio clic, non da terminale.
 
 ===========================================================================
-STRUTTURA DEL PROGETTO (v1.42.0)
+STRUTTURA DEL PROGETTO (v1.43.0)
 ===========================================================================
   image_sorter.py    Programma principale (~25.800 righe), GUI Tkinter
   timeline.py         Timeline e mappa GPS
@@ -195,6 +195,270 @@ thread separati (generation counter DEDICATO, _cmp_generation - vedi
 KEY LEARNINGS sul perche' non condividere quello dell'immagine
 principale) e si riadattano da sole al ridimensionamento della
 finestra senza rileggere il file.
+
+PLACEHOLDER ISTANTANEO (22/08, stessa sessione): Carlo ha segnalato che
+il centro carica sempre piu' lento dei due laterali durante lo scroll
+(centro: draft() fino a 2x risoluzione canvas per zoom di qualita';
+laterali: draft() fisso 700x700), tanto piu' vistoso quanto piu' il
+file e' pesante — l'anteprima leggera "entrante" diventa di colpo
+l'immagine centrale pesante. Soluzione scelta (fra due proposte,
+l'altra era il prefetch a piena risoluzione mentre e' ancora solo
+anteprima — scartata per il rischio di decodifiche sprecate se si
+torna indietro): appena _show_image() legge il filepath, se coincide
+con _cmp_left_fp o _cmp_right_fp (letto PRIMA che
+_update_compare_panels() li sovrascriva per i nuovi vicini), il PIL
+gia' decodificato a bassa risoluzione viene disegnato subito,
+ingrandito, come placeholder (nuovo metodo _draw_placeholder_image) —
+poi _finish_show_image() lo sostituisce col disegno vero non appena
+pronto, senza altro coordinamento perche' cancella "all" e ridisegna.
+Verificato con py_compile/pyflakes/confronto AST; test funzionale
+scritto (test_placeholder_compare.py, gira in una copia isolata di
+image_sorter.py per non toccare il vero image_sorter_config.json).
+Xvfb installato da Carlo durante la sessione: il test e' stato poi
+eseguito per davvero. Prima esecuzione: salto residuo di qualche
+pixel confermato — causa i due bug seguenti, ENTRAMBI corretti nello
+stesso _draw_placeholder_image():
+  1. margine diverso da _finish_show_image() (che riserva 16px, il
+     placeholder riempiva tutto il canvas) — corretto usando la
+     stessa formula (cw-16)/(ch-16) e lo stesso zoom_factor;
+  2. _show_image() leggeva le dimensioni del canvas SENZA
+     update_idletasks() prima, mentre _finish_show_image() lo fa —
+     durante un cambio di layout ancora in assestamento (es. colonne
+     pesate di "Confronta" appena navigato) le due letture potevano
+     differire; aggiunta la stessa chiamata anche in _show_image().
+Il confronto finale nw/nh (debug temporaneo, poi rimosso) ha
+confermato che con entrambi i fix i due disegni combaciano
+esattamente. NOTA sul test: il primo confronto per dimensione usava
+canvas.bbox("all"), che include anche l'indicatore "..." e gli
+eventuali pallini GPS/formato — falsava il confronto anche a fix
+applicato; corretto filtrando solo gli item canvas di tipo "image".
+Test finale: OK, nessuna eccezione, dimensioni coincidenti.
+
+INCIDENTE (22/08, stessa sessione): in pulizia post-test ho lanciato
+"rm -f test_placeholder_compare.py image_sorter_config.json"
+assumendo che il config fosse anch'esso residuo del test (il test in
+realta' scrive solo su una copia isolata in /tmp, per design — vedi
+sopra). Il file cancellato era invece il VERO config di Carlo,
+modificato quella mattina, non protetto da git (in .gitignore).
+Nessun backup automatico recente disponibile (il .bak dell'app si
+crea solo prima di un'importazione config, risaliva al 1 luglio).
+Recuperato prima da un backup manuale di Carlo in
+"Image_Sorter (backup)/image_sorter_config.json" (21/08 18:30), poi
+sostituito con uno ANCORA piu' recente e piu' completo trovato in
+"1.42/image_sorter_config.json" (22/08 01:33, 3 chiavi in piu':
+deck_ratings_page_added, timeline_show_tag_row,
+timeline_show_preset_row) - stessi preset in entrambi. Restano perse
+solo le eventuali modifiche fatte fra le 01:33 e le 11:46 del 22/08,
+da ricontrollare a mano da Carlo. PRINCIPIO: mai cancellare un file
+durante la pulizia di un
+test solo perche' il nome corrisponde a quello atteso — verificare
+SEMPRE che sia stato creato durante la sessione corrente (es. mtime)
+prima di un rm, specialmente per image_sorter_config.json che vive
+nella cartella di lavoro reale e non e' mai residuo di test.
+
+Cestinati "confronta" (22/08, stessa sessione), due bug segnalati da
+Carlo e presenti anche nel suo ToDoSorter.txt:
+  1. _delete_previous() (Ctrl+Canc) faceva il giro dall'ultimo file al
+     primo, come _go_back(): sul primo file cestinava l'ULTIMA
+     immagine della cartella senza nessun indizio a video (non e'
+     quella mostrata). Tolto il giro SOLO qui (la navigazione con le
+     frecce continua a farlo, e' un'altra cosa): sul primo file ora
+     mostra "Nessuna immagine precedente da cestinare" e non tocca
+     nulla.
+  2. _delete_previous() non chiama mai _show_image() di proposito (il
+     centro non deve cambiare) ma il pannello SINISTRO di "Confronta"
+     mostra proprio il file "precedente" appena cestinato, e restava a
+     video perche' solo _show_image() aggiorna i pannelli. Aggiunta
+     chiamata esplicita a _update_compare_panels() dopo la
+     cancellazione (in entrambi i rami: cancellazione riuscita e file
+     gia' sparito).
+Verificato con py_compile/pyflakes/confronto AST e test funzionale
+reale con Xvfb: sul primo file nessuna immagine sparisce; cancellando
+il precedente con Confronta attivo, il pannello sinistro si aggiorna
+subito (sincrono, nessun thread coinvolto quando non c'e' un vicino).
+
+Auto-chiusura conferma "Configurazione salvata" (22/08, stessa
+sessione): Impostazioni -> Destinazioni -> salvataggio preset restava
+a video finche' non si clicca OK a mano; Carlo la voleva capace di
+sparire da sola dopo 1.5s "se tutto e' OK". _hud_alert() e' condivisa
+da errori e conferme in tutto il programma (tre implementazioni: due
+deleganti in FolderBrowser/SettingsDialog, quella vera in
+ImageSorter) — non toccato il comportamento di default (gli errori
+restano chiusi solo a mano), aggiunto un parametro opzionale
+auto_close_ms=None che se impostato schedula un dlg.after() aggiuntivo
+(non sostitutivo di OK/Invio/Esc) con guardia winfo_exists() per non
+esplodere se il dialogo e' gia' stato chiuso a mano. Passato
+auto_close_ms=1500 nel SOLO punto di salvataggio destinazioni; nessun
+altro chiamante di _hud_alert toccato. Verificato con py_compile/
+pyflakes/confronto AST e test funzionale reale con Xvfb: chiusura
+automatica confermata (~0.4s su richiesta di 400ms), click manuale su
+OK ancora funzionante e piu' veloce del timer, nessuna eccezione dal
+timer "orfano" quando scatta su un dialogo gia' chiuso a mano.
+
+Barre preset/tag della Timeline non a tutta larghezza (22/08, stessa
+sessione, timeline.py): Carlo ha segnalato (con screenshot) che la
+barra in basso con preset e tag inizia sotto la seconda colonna
+(griglia/anteprima) invece che dal bordo sinistro della finestra.
+Causa: self._sort_bar e self._tag_row_frame sono gridate su "body"
+(che ha due colonne: nav sinistra 185px fissa, e right_paned
+espandibile) con column=1 ma SENZA columnspan — quindi non coprono la
+colonna sinistra. Il commento sopra al codice dichiarava esplicitamente
+l'intento "a tutta larghezza" (per un motivo gia' risolto in
+precedenza: gridarle dentro "right" invece che "body" tagliava le due
+righe quando l'anteprima era piu' alta della griglia), ma
+l'implementazione non ci arrivava: mancava columnspan=2. Confermato
+confrontando con l'equivalente gia' corretto, FolderBrowser.
+_tag_row_frame (image_sorter.py riga 6714), che usa
+"column=0, columnspan=2" — esatto pattern applicato qui a entrambe le
+barre. Verificato con py_compile/pyflakes/confronto AST e test
+funzionale reale con Xvfb (grid_info() delle due barre dopo aver
+simulato una selezione, che le rende visibili: column=0 columnspan=2
+confermato per entrambe).
+
+Stelle/flag non sincronizzate fra miniatura, anteprima e menu tasto
+destro nella Timeline (22/08, stessa sessione, timeline.py): Carlo ha
+segnalato che il colore di stelle e pallini non si aggiorna
+"relativamente all'immagine selezionata". Diagnosticato con un test
+reale (non solo lettura del codice) che riproduce i tre percorsi:
+  - Click diretto su una stella/pallino DELLA MINIATURA
+    (_click_rating_star/_click_colorlabel_dot): aggiornava solo la
+    riga della griglia (_refresh_rating_row), MAI il pannello
+    anteprima anche quando il file cliccato era quello mostrato li' —
+    confermato dal test (griglia=3 stelle, anteprima rimasta a 0).
+  - Overlay valutazione del menu tasto destro (_context_menu,
+    attach_rating_overlay): stesso problema, il suo on_change
+    aggiornava solo _refresh_rating_row sui target, mai l'anteprima.
+  - Direzione opposta (click su stella/pallino DELL'ANTEPRIMA) era gia'
+    corretta: _click_preview_star/_click_preview_colorlabel chiamano
+    gia' sia _sync_grid_item sia _refresh_preview_rating.
+Fix: aggiunta la chiamata a self._refresh_preview_rating() alla fine
+di _click_rating_star, _click_colorlabel_dot e dell'on_change
+dell'overlay nel menu tasto destro — innocua da chiamare sempre,
+perche' si basa su self._preview_current_path (ridipinge quello che
+c'e' davvero in anteprima, indipendente dal file appena cliccato).
+Verificato con py_compile/pyflakes/confronto AST e test funzionale
+reale con Xvfb sui tre percorsi: tutti confermati sincronizzati dopo
+il fix.
+
+Rating/colorlabel via tasto destro in Timeline non si salvavano
+davvero (22/08, stessa sessione): Carlo ha segnalato che, a differenza
+di Naviga, assegnare un rating o un colore dal menu tasto destro della
+Timeline sembrava non toccare il file. RECIDIVA della stessa classe di
+bug gia' documentata sopra (doppio import di deck_core/timeline con
+metadata_store scollegato): l'iniezione esistente
+"_db_mod.metadata_store = metadata_store" (vedi sopra) sistema SOLO i
+riferimenti al nome metadata_store scritti dentro timeline.py stesso.
+attach_rating_overlay() pero' e' una funzione CONDIVISA definita in
+image_sorter.py e importata PER VALORE da timeline.py ("from
+image_sorter import (..., attach_rating_overlay, ...)"): quella riga
+di import viene eseguita durante il caricamento di _db_mod, PRIMA che
+l'iniezione di metadata_store avvenga, quindi prende la funzione dal
+duplicato ricorsivo di image_sorter.py (creato dallo stesso meccanismo
+"__main__" gia' descritto) — con un __globals__, quindi un
+metadata_store, tutto suo, mai sistemato. L'overlay del tasto destro
+scriveva percio' su un database in memoria mai collegato a quello
+letto dal resto del programma (che pero' SALVA comunque su disco: da
+qui l'illusione "niente si salva", quando in realta' e' un'ISTANZA
+sbagliata a scrivere, invisibile al resto dell'app finche' non si
+riavvia). Confermato con un test reale che confronta le identita' di
+oggetto (id() e __globals__), non assunto dal solo leggere il codice —
+prima del fix: _db_mod.attach_rating_overlay is not
+mod.attach_rating_overlay (False). Fix: NON si poteva aggiungere
+l'iniezione accanto a quella di metadata_store (attach_rating_overlay
+e' definita centinaia di righe piu' sotto nello stesso file, non
+ancora esistente a quel punto dell'esecuzione) — aggiunta invece
+subito dopo la sua definizione (dopo "return ov"), stesso principio,
+guardia "if _DEEP_BROWSER_AVAILABLE and _METADATA_STORE_AVAILABLE".
+Verificato con py_compile/pyflakes/confronto AST, test di identita'
+(ora True) e test end-to-end reale con Xvfb — usando il MEDESIMO
+trucco di caricamento di image_sorter.py come "__main__" via
+importlib (neutralizzando solo la chiamata finale a main()/mainloop())
+per riprodurre fedelmente le condizioni vere, non un semplice "import
+image_sorter": un normale test con "import image_sorter as mod"
+registra il modulo come sys.modules["image_sorter"], che elimina da
+solo la condizione che genera il duplicato ricorsivo, mascherando
+esattamente questo tipo di bug — verificato PRIMA che questo accorgi-
+mento venisse introdotto, il test "normale" risultava (erroneamente)
+sempre verde. Simulato il click reale su una stella dell'overlay:
+rating salvato su metadata_store, overlay e miniatura entrambi
+ridipinti correttamente dopo il fix.
+PRINCIPIO aggiuntivo: quando si inietta un riferimento condiviso per
+correggere un modulo caricato con module_from_spec, non basta
+correggere le variabili lette DIRETTAMENTE dal modulo scollegato —
+vanno cercate anche le funzioni CONDIVISE (definite altrove e
+importate per valore) che catturano al loro interno lo stesso
+riferimento, perche' portano con se' il proprio __globals__ scollegato
+indipendentemente da qualunque iniezione successiva sull'attributo del
+modulo che le ospita.
+
+Overlay valutazione (menu tasto destro) a due righe (22/08, stessa
+sessione): Carlo ha segnalato che stelle+X+pallini colore, tutti sulla
+stessa riga, ogni tanto sbordavano fuori dalla finestra del menu — sia
+in Naviga che in Timeline (funzione condivisa, attach_rating_overlay()
+in image_sorter.py, un solo posto da correggere per entrambe). Fix:
+  - add_rating_row_reserve() ora riserva DUE righe vuote nel menu reale
+    (non una), per lo spazio verticale della riga sotto;
+  - attach_rating_overlay() calcola l'altezza dell'overlay leggendo
+    yposition(row_index + 2) invece di +1 (due righe riservate, non
+    una), e organizza stelle+X in una sotto-riga "stars_row" impacchet-
+    tata sopra, pallini colore in "dots_row" impacchettata sotto
+    (prima tutto in un'unica riga "row" orizzontale).
+Nessun cambiamento nei due punti chiamanti (FolderBrowser in
+image_sorter.py, DeepBrowser._context_menu in timeline.py): passano
+gli stessi argomenti di prima, il layout a due righe e' interamente
+interno alla funzione condivisa. Verificato con py_compile/pyflakes/
+confronto AST e test funzionale reale con Xvfb (stessa tecnica di
+caricamento "__main__" del fix precedente) su ENTRAMBI i menu: pallini
+sempre sotto le stelle (confrontate le coordinate assolute
+winfo_rooty(), non winfo_y() che e' relativo al proprio genitore
+diretto e quindi inutile per confrontare due sotto-frame diversi).
+
+Rifinitura overlay valutazione (22/08, stessa sessione, subito dopo il
+fix a due righe sopra): Carlo ha segnalato tre cose sullo stesso
+overlay, con screenshot per la terza:
+  1. pallini disallineati con l'inizio delle stelle (~8px di
+     differenza: stelle padx=(10,3), pallini pad=2 uniforme, righe
+     diverse quindi nessun riferimento comune);
+  2. stelle un po' piccole (font 12);
+  3. in Timeline (probabilmente anche in Naviga, non solo li'
+     screenshottato) una leggera "cucitura" fastidiosa dove i bordi
+     dell'overlay si sovrappongono al vero tk.Menu sottostante — quasi
+     certamente un disallineamento di un paio di pixel fra le due
+     finestre sovrapposte (bordi/tema nativi del window manager per il
+     tk.Menu, mai perfettamente prevedibili da Tk).
+Fix, tutti nella stessa funzione condivisa attach_rating_overlay():
+  1. dots_row.pack(..., padx=(10,0)) — stesso margine sinistro della
+     prima stella;
+  2. font stelle 12 -> 15;
+  3. hud_apply(ov) sull'overlay — lo stesso bordo ciano usato da OGNI
+     altro popup dell'app: rende il confine deliberato invece che un
+     difetto di allineamento, senza dover inseguire pixel imprevedibili
+     del tema del window manager.
+Verificato con py_compile/pyflakes/confronto AST e test funzionale
+reale con Xvfb: highlightthickness=2 presente, font stella
+actual size=15, differenza x fra prima stella e primo pallino scesa
+da ~8px a 2px.
+
+CORREZIONE alla rifinitura qui sopra (22/08, stessa sessione, subito
+dopo): il bordo hud_apply() era troppo spesso/vistoso e a schermo
+mostrava una "doppia linea" in alto (screenshot di Carlo) dove
+l'overlay tocca il vero tk.Menu sopra di lui — il bordo netto rendeva
+PIU' visibile un piccolo disallineamento invece di nasconderlo, e i
+pallini restavano "addosso" ai bordi. Fix definitivo: bordo tolto del
+tutto (niente hud_apply); l'overlay e' ora sempre un po' PIU' PICCOLO
+dell'area riservata (_inset = 5px su tutti i lati, mai a contatto con
+i bordi del vero menu), e un piccolo padding interno (padx/pady=3) al
+contenuto. Con lo stesso bg=PANEL_COLOR del menu e nessun bordo,
+l'overlay si confonde con lo sfondo ovunque non ci sia contenuto: la
+cucitura sparisce a prescindere dall'allineamento pixel-perfetto, che
+resta comunque impossibile da garantire con certezza fra due finestre
+X11 distinte. Verificato con py_compile/pyflakes/confronto AST; il
+test funzionale con Xvfb per QUESTA correzione specifica non e' stato
+completato nella sessione: il disco di Carlo (partizione /) e' risultato
+pieno al 100% (2.2GB liberi su 274GB, non causato da questa sessione -
+i residui di test erano ~26MB, gia' puliti), causando timeout ripetuti
+nei processi Xvfb/Tk. Da confermare visivamente da Carlo sul sistema
+reale, o da riprovare in una sessione futura dopo aver liberato spazio.
 
 ===========================================================================
 KEY LEARNINGS & PRINCIPI CODIFICATI (validi per TUTTO il progetto)
@@ -592,7 +856,72 @@ CRONOLOGIA CONDENSATA (per orientarsi nei journal di sessione)
             deck_core.py e poi timeline.py con metadata_store
             scollegato dalla copia vera, scrittura GPS parziale
             silenziosamente mostrata come riuscita in Timeline)
-  v1.42.0   Bump coordinato di chiusura fase - stato attuale
+  v1.42.0   Bump coordinato di chiusura fase
+  v1.42.1   Trovato in image_sorter_error.log un TclError reale (dopo
+            la v1.42.0, causato dal nuovo browse_icon_hud): chiudendo
+            il selettore icone mentre l'anteprima grande sta ancora
+            caricando in background, il callback _show() scriveva su
+            un canvas gia' distrutto. Fix: guardia
+            win.winfo_exists()/prev_canvas.winfo_exists() a inizio
+            _show(), applicata sia in browse_icon_hud sia nello stesso
+            punto preesistente in browse_file_hud. Riprodotto il
+            crash col codice vecchio e confermato risolto col fix,
+            in una copia scratch isolata.
+            AGGIORNAMENTO (stesso giorno, log del 22/08 02:37): lo
+            stesso identico TclError ("invalid command name" sul
+            canvas) e' ricomparso NONOSTANTE la guardia
+            winfo_exists() gia' in vigore — quindi il controllo
+            "esiste ancora?" da solo non basta: puo' passare e il
+            widget puo' comunque sparire prima della chiamata Tk
+            successiva nello stesso callback (piu' thread di
+            caricamento miniatura concorrenti che chiamano
+            win.after() in corsa fra loro sono il sospetto piu'
+            probabile). Fix aggiuntivo: avvolto il corpo di _show()
+            (dopo la guardia) in try/except tk.TclError, in entrambi
+            i punti (browse_file_hud e browse_icon_hud) — difesa in
+            profondita', non un sostituto della guardia. Verificato
+            con py_compile/pyflakes e confronto AST (nessuna funzione
+            persa); niente ambiente grafico disponibile in questa
+            sessione per il test funzionale xvfb, da confermare sul
+            sistema reale. Principio generale: quando un
+            winfo_exists() e' seguito da UNA sola chiamata Tk
+            sull'oggetto controllato, la guardia basta; quando e'
+            seguito da PIU' chiamate Tk in sequenza (delete + create +
+            config, come qui), va comunque protetto anche con
+            try/except perche' la finestra fra controllo e ultima
+            chiamata resta aperta a un widget distrutto a meta'.
+  v1.43.0   Bump coordinato di chiusura fase (22/08). Sessione lunga,
+            tutta in un giorno: TclError race in browse_icon_hud/
+            browse_file_hud (try/except aggiuntivo); scroll rotella
+            mancante nelle righe di browse_icon_hud; placeholder
+            istantaneo in "Confronta" (con due fix di allineamento
+            pixel: margine e update_idletasks mancante) per il
+            caricamento lento dell'immagine centrale; _delete_previous()
+            non fa piu' il giro sull'ultima immagine ed aggiorna il
+            pannello sinistro di "Confronta"; auto-chiusura (1.5s) del
+            popup "Configurazione salvata" in Destinazioni; due bug di
+            layout nella finestra Naviga (sash miniature/anteprima
+            corrotto quando l'albero e' spento; nome file unito a
+            stelle/pallino sulla stessa riga); barre preset/tag della
+            Timeline non a tutta larghezza; stelle/pallini non
+            sincronizzati fra miniatura/anteprima/tasto destro in
+            Timeline; RECIDIVA del bug di metadata_store scollegato per
+            doppio import (stavolta su attach_rating_overlay, non
+            metadata_store diretto) che faceva sembrare "non salvato"
+            un rating/colore assegnato dal tasto destro in Timeline;
+            overlay valutazione del tasto destro riorganizzato su due
+            righe (stelle sopra, pallini sotto, prima sbordava dal
+            menu) con rifiniture di allineamento/dimensione/bordo.
+            INCIDENTE nella sessione: cancellato per errore il vero
+            image_sorter_config.json durante una pulizia post-test
+            (recuperato da un backup di Carlo, perse solo le modifiche
+            fra le 01:33 e le 11:46 del 22/08) — vedi il principio
+            dedicato piu' sotto. Verificato quasi tutto con test
+            funzionali reali via Xvfb (installato da Carlo a meta'
+            sessione); l'ultima rifinitura (overlay senza bordo/inset)
+            non ha completato il test grafico per disco pieno al 100%
+            sul sistema di Carlo (non causato da questa sessione),
+            da confermare a mano o in una sessione futura.
 
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE

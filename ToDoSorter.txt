@@ -1,22 +1,16 @@
 
+CORREZIONI E PICCOLE MODIFICHE
+
+verifica completa tasti funzione senza chiamate da tastiera 
 tasti Ctrl+F per le Flag e Ctrl+T per i Tag
 
 
-leggere periodicamente il log error
-
-
-
 main:
-
-- confronta - ricarico lento dell'immagine centrale.. se cestinata con ctrl+canc non sparisce
-- l'ultima non è mai accanto alla prima - l'ultima non si cancella con ctrl+canc
+appena clicco su un preset della finestra deck si perde il focus per usare la freccia e andare avanti saltando l'immagine successiva
 
 
 
-- appena clicco su un preset della finestra deck si perde il focus per usare la freccia e andare avanti saltando l'immagine successiva
-
-
-- sulla finestra main aggiungi un bottone che visualizza una nuova barra strumenti con le funzioni più importanti (ritaglio, ridimensiona, rinomina, ruota ecc)  sul fianco della foto; ad ogni click, a rotazione, la finestra viene messa a destra, a sinistra, flottante e poi chiusa.
+finestra tag più leggibile ed impaginata
 
 
 quando zooom in un immagine in principale, l'immagine si può spostare di pochi pixel con mouse rotella
@@ -26,8 +20,62 @@ ridimensiona: proporzioni pop up
 
 dopo rinomina si è perso il focus per frecce avanzamento 
 
-screenshot schermo - area selezionata
 
+cerca doppioni: ordina / dimensioni ..manca altro?
+
+
+naviga:
+dopo un ritaglio l'anteprima è corretta ma la miniatura è rimasta alla vecchia versione
+in naviga freccia home e fine vanno a selezionare il primo o l'ultimo.  - anche in main - 
+naviga tra cartelle non tiene indietro come prima cartella aperta
+copia incolla nella stessa cartella: duplica file con stesso_nome_copia
+
+aprire una cartella in naviga con molti video ha sventolato
+
+cliccando sulle cartelle, le miniature saltano tutte
+
+caricamento in tempo reale in naviga di nuovi file che arrivano nella cartella
+caricamento in tempo reale del rating e del flag
+
+
+logo esplora cartelle aperto da sistema operativo
+
+
+SideBar:
+altezza finestra flottante va corretta in base alla reale necessità
+
+
+Timeline:
+
+
+naviga e timeline:
+
+nome del testo sotto anteprima / miniatura più accogliente
+grafica della riga in basso tag e rating
+taglia - copia - incolla file
+
+
+
+
+pulizia del Codice da commenti come "richiesto da"/"segnalato da/ screenshot di " e simili 
+
+os.rename() compare in oltre 10 punti diversi di image_sorter.py, non centralizzati in un'unica funzione
+
+
+
+
+
++++++++++++++++++++++++++++++++++++++++++++++++++++
+NUOVE IMPLEMENTAZIONI
+
+
+barra anteprime sotto o laterale su finestra principale, sceglibile con bottone 
+
+- sulla finestra main aggiungi un bottone che visualizza una nuova barra strumenti con le funzioni più importanti (ritaglio, ridimensiona, rinomina, ruota ecc)  sul fianco della foto; ad ogni click, a rotazione, la finestra viene messa a destra, a sinistra, flottante e poi chiusa.
+
+leggere periodicamente il log error
+
+screenshot schermo - area selezionata
 
 
 impostazioni: 
@@ -45,39 +93,13 @@ tag
 
 tali scelte vanno memorizzate tra sessioni - di default sono tutte attive
 
-impostazioni - destinazioni - nuovo percorso di destinazione: la finestra di conferma "Salvato / configurazione salvata" può sparire da sola dopo 1.5 sec se tutto è OK
-
 nuova sezione per modificare i preferiti
 
 
-naviga:
-dopo un ritaglio l'anteprima è corretta ma la miniatura è rimasta alla vecchia versione
-in naviga freccia home e fine vanno a selezionare il primo o l'ultimo.  - anche in main - 
-naviga tra cartelle non tiene indietro come prima cartella aperta
-copia incolla nella stessa cartella: duplica file con stesso_nome_copia
+cartelle naviga colorabili come i flag
 
 
-
-cartelle colorabili
-
-
-Timeline:
-tasto destro con barra flag troppo larga
-
-naviga e timeline:
-
-nome del testo sotto anteprima / miniatura più accogliente
-grafica della riga in basso tag e rating
-taglia - copia - incolla file
-
-
-privacy:
-
-- protezione con pw
-
-
-
-cerca doppioni: ordina / dimensioni ..manca altro?
+privacy:- protezione con pw
 
 
 Deck: 
@@ -96,35 +118,9 @@ aggiungere last e first
 
 comando diretto per taglia
 drag&drop tra bottoni e pagine
-rotella mouse nella finestra scelta icone
 
 bottoni nome proprio assegnato (icone mie però)
 
-
-
-pulizia da Codice commenti "richiesto da"/"segnalato da " e simili 
-
-
-
--------------------------------
-
-caricamento in tempo reale in naviga di nuovi file che arrivano nella cartella
-caricamento in tempo reale del rating e del flag
-
-
-
-
-SideBar:
-altezza finestra flottante va corretta in base alla reale necessità
-
-
-
-aprire una cartella in naviga con molti video ha sventolato
-
-
-
-indicato in readme.md ma verifica: 
-- **Albero** — lista navigabile con dimensione e conteggio file per tipo
 
 
 minifinestra comandi flottante, sempre sopra la finestra main e con lo stesso focus, con 15 pulsanti quadrati (5 colonne, 3 file, come lo stream Deck fisico) 
@@ -135,41 +131,11 @@ tutte le schermate sempre a vista, con drag&drop dei bottoni
 pagine esclusive per image sorter, che spariscono se chiuso
 
 
-barra anteprime sotto o laterale su finestra principale, sceglibile con bottone 
 
 gestione duplicati avanzata (grafica e report)
 
 
-------------------------------
-
-Flatpak / AppImage Packaging: Su Reddit (specialmente su r/linux, r/apps, r/software, r/selfhosted) l'accessibilità immediata è fondamentale. Avere un pacchetto Flatpak su Flathub o un’AppImage pronta raddoppia l'interesse.
-
-Auto-Categorizzazione Smart (AI / Clip locale): Un modello ONNX/CLIP locale e leggero per suggerire la cartella di destinazione (es. auto-riconoscimento meme, scontrini, paesaggi, documenti).
-
-CLI & Scripting Hooks: La possibilità di eseguire uno script bash personalizzato dopo lo spostamento di un file (es. conversione automatica WebP -> JPG o invio notifica).
-
-Command Palette (Ctrl+Shift+P): Un campo di ricerca rapida stile VS Code / Obsidian per eseguire qualsiasi comando da tastiera senza toccare il mouse.
-
-
-
-
-------------------------------------
-
-
-
-verifica canc con check alle immagini pre e post
-
-logo esplora cartelle
-
 pulsanti con simboli / icone disegnate
-
-os.rename() compare in oltre 10 punti diversi di image_sorter.py, non centralizzati in un'unica funzione
-
-Undo crop richiede backup ancora esistente
-Scroll tab Storico — piccole fluttuazioni su sistemi lenti
-
-Sistema traduzione in formato tabellare (CSV/.po) per nuove lingue
-Support Nautilus/Dolphin in installa.sh
 
 
 
@@ -182,12 +148,29 @@ Rilevamento duplicati visivi (phash) — oltre al SHA256, riconosce foto quasi i
 
 Modalità presentazione — slideshow automatico con intervallo configurabile, utile per revisione rapida
 
+
+
+------------------------------------
+
+
 File grouping (an image having jpeg, RAW and xmp files will appear as a single entity).
 Selectable exif auto-rotation of images.
 Basic editing in the form of lossless 90/180-degree rotation and flipping is supported; 
  Finding duplicates ignoring the rotation of images
-Speed of operation can be increased by caching thumbnails and similarity data of images. When Geeqie is run as a stand-alone command line program (GQ_CACHE_MAINTENANCE=y geeqie --cache-maintenance=&lt;path&gt;) these data will be recursively created from the defined start point. This program can be called from cron or anacron so that cache updating is automatically done at specified intervals.
+Speed of operation can be increased by caching thumbnails and similarity data of images. 
+When Geeqie is run as a stand-alone command line program (GQ_CACHE_MAINTENANCE=y geeqie --cache-maintenance=&lt;path&gt;) 
+these data will be recursively created from the defined start point. 
+This program can be called from cron or anacron so that cache updating is automatically done at specified intervals.
 
+------------------------------
+
+Flatpak / AppImage Packaging: Su Reddit (specialmente su r/linux, r/apps, r/software, r/selfhosted) l'accessibilità immediata è fondamentale. Avere un pacchetto Flatpak su Flathub o un’AppImage pronta raddoppia l'interesse.
+
+Auto-Categorizzazione Smart (AI / Clip locale): Un modello ONNX/CLIP locale e leggero per suggerire la cartella di destinazione (es. auto-riconoscimento meme, scontrini, paesaggi, documenti).
+
+CLI & Scripting Hooks: La possibilità di eseguire uno script bash personalizzato dopo lo spostamento di un file (es. conversione automatica WebP -> JPG o invio notifica).
+
+Command Palette (Ctrl+Shift+P): Un campo di ricerca rapida stile VS Code / Obsidian per eseguire qualsiasi comando da tastiera senza toccare il mouse.
 
 
 ------------------------------
@@ -284,11 +267,24 @@ Esportazione delle presentazioni come presentazioni HTML o Flash per la pubblica
 Sincronizzazione degli album con le controparti web, sia di terze parti (come Flickr) che specifiche dell'applicazione (come Lightroom o Phase One Media Pro).
 
 
-- se collego un altro deck, o più di uno?
-
 
 _____________OK___________________________
 
+
+
+
+Sia in timeline che in Naviga ogni tanto la barra rating e flag sbordano fuori dalla finestra del tasto destro, vorrei dividerele su due righe: sopra le stelle e subito sotto i pallini (sia in timeline che in Naviga)
+
+In Timeline sembra che non si aggiorni il colore delle stelle e delle flag relativamente all'immagine selezionata, sia tra tasto destro e miniatura che tra miniatura e anteprima . 
+
+grafica della riga in basso tag e rating
+
+impostazioni - destinazioni - nuovo percorso di destinazione: la finestra di conferma "Salvato / configurazione salvata" può sparire da sola dopo 1.5 sec se tutto è OK
+
+- confronta - ricarico lento dell'immagine centrale.. se cestinata con ctrl+canc non sparisce
+- l'ultima non è mai accanto alla prima - l'ultima non si cancella con ctrl+canc
+
+rotella mouse nella finestra scelta icone
 
 verifica finestra Tag in main e nuova tab in impostazioni con creazione, modifica, eliminazione, gruppo
 

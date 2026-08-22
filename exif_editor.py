@@ -1,5 +1,5 @@
 # exif_editor.py — Dialog modifica EXIF
-VERSION = "1.42.0"
+VERSION = "1.43.0"
 # Dialog per modifica EXIF: data scatto, GPS, autore, descrizione
 # Dipendenze: piexif (pip install piexif)
 

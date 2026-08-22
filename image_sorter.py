@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.42.0"
+VERSION = "1.43.0"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -242,6 +242,10 @@ try:
         # da "from image_sorter import" e' il duplicato ricorsivo, da
         # ignorare, non da inseguire).
         _db_mod.metadata_store = metadata_store
+        # NON BASTA per attach_rating_overlay() — vedi l'iniezione
+        # aggiuntiva subito dopo la sua definizione piu' sotto in questo
+        # stesso file (va fatta li' perche' qui la funzione non esiste
+        # ancora: e' definita piu' avanti).
 except Exception:
     _METADATA_STORE_AVAILABLE = False
     class _StubMetadataStore:
@@ -3041,14 +3045,19 @@ def browse_file_hud(parent, title="Scegli file", initial_dir=None,
                 img.thumbnail((190, 190), Image.Resampling.LANCZOS)
                 tk_img = ImageTk.PhotoImage(img)
                 def _show():
-                    _prev_img[0] = tk_img
-                    prev_canvas.delete("all")
-                    cw = prev_canvas.winfo_width() or 190
-                    ch = prev_canvas.winfo_height() or 190
-                    prev_canvas.create_image(cw//2, ch//2,
-                        anchor="center", image=tk_img)
-                    prev_lbl.config(text=f"{img.width}x{img.height}  "
-                                        f"{os.path.getsize(full)//1024} KB")
+                    if not win.winfo_exists() or not prev_canvas.winfo_exists():
+                        return
+                    try:
+                        _prev_img[0] = tk_img
+                        prev_canvas.delete("all")
+                        cw = prev_canvas.winfo_width() or 190
+                        ch = prev_canvas.winfo_height() or 190
+                        prev_canvas.create_image(cw//2, ch//2,
+                            anchor="center", image=tk_img)
+                        prev_lbl.config(text=f"{img.width}x{img.height}  "
+                                            f"{os.path.getsize(full)//1024} KB")
+                    except tk.TclError:
+                        pass
                 win.after(0, _show)
             except Exception: pass
         import threading
@@ -3205,14 +3214,19 @@ def browse_icon_hud(parent, title="Scegli immagine", initial_dir=None):
                 img.thumbnail((190, 190), Image.Resampling.LANCZOS)
                 tk_img = ImageTk.PhotoImage(img)
                 def _show():
-                    _prev_img[0] = tk_img
-                    prev_canvas.delete("all")
-                    cw = prev_canvas.winfo_width() or 190
-                    ch = prev_canvas.winfo_height() or 190
-                    prev_canvas.create_image(cw//2, ch//2,
-                        anchor="center", image=tk_img)
-                    prev_lbl.config(text=f"{img.width}x{img.height}  "
-                                        f"{os.path.getsize(full)//1024} KB")
+                    if not win.winfo_exists() or not prev_canvas.winfo_exists():
+                        return
+                    try:
+                        _prev_img[0] = tk_img
+                        prev_canvas.delete("all")
+                        cw = prev_canvas.winfo_width() or 190
+                        ch = prev_canvas.winfo_height() or 190
+                        prev_canvas.create_image(cw//2, ch//2,
+                            anchor="center", image=tk_img)
+                        prev_lbl.config(text=f"{img.width}x{img.height}  "
+                                            f"{os.path.getsize(full)//1024} KB")
+                    except tk.TclError:
+                        pass
                 win.after(0, _show)
             except Exception:
                 pass
@@ -3254,6 +3268,13 @@ def browse_icon_hud(parent, title="Scegli immagine", initial_dir=None):
         for w in (row, holder, thumb_lbl, txt_lbl):
             w.bind("<Button-1>", lambda e, i=idx: _select_index(i))
             w.bind("<Double-Button-1>", lambda e, i=idx: (_select_index(i), _confirm()))
+            # Le righe coprono tutta l'area del canvas: senza questi
+            # bind la rotella funziona solo sui pochi pixel di canvas
+            # scoperti, non sopra le righe stesse.
+            w.bind("<Button-4>", lambda e: list_canvas.yview_scroll(-3, "units"))
+            w.bind("<Button-5>", lambda e: list_canvas.yview_scroll(3, "units"))
+            w.bind("<MouseWheel>",
+                   lambda e: list_canvas.yview_scroll(-1 if e.delta > 0 else 1, "units"))
 
     def _nav(directory):
         if not os.path.isdir(directory):
@@ -3484,13 +3505,17 @@ def _post_menu(menu, x, y, root_win=None):
 
 def add_rating_row_reserve(menu):
     """Da chiamare mentre si costruisce il menu, nel punto esatto in cui
-    deve comparire la riga 'Valutazione' — aggiunge una voce vuota e
-    disabilitata che riserva lo spazio verticale di una riga, e ritorna
-    il suo indice. Serve solo a dare a Tk uno spazio da misurare con
-    yposition(): il contenuto vero (le stelle) lo disegna
-    attach_rating_overlay() sopra questa riga, non e' mai visibile."""
+    deve comparire la riga 'Valutazione' — aggiunge DUE voci vuote e
+    disabilitate che riservano lo spazio verticale di due righe (stelle
+    sopra, pallini colore sotto — divisi su due righe perche' tutti
+    insieme su una riga sola a volte sbordavano fuori dalla finestra
+    del menu, segnalato da Carlo), e ritorna l'indice della prima.
+    Serve solo a dare a Tk uno spazio da misurare con yposition(): il
+    contenuto vero (stelle e pallini) lo disegna attach_rating_overlay()
+    sopra queste righe, non e' mai visibile."""
     _before = menu.index("end")
     _idx = 0 if _before is None else _before + 1
+    menu.add_command(label="", state="disabled")
     menu.add_command(label="", state="disabled")
     return _idx
 
@@ -3534,10 +3559,12 @@ def attach_rating_overlay(menu, row_index, targets, on_change=None):
         mw = menu.winfo_width()
         row_y = menu.yposition(row_index)
         try:
-            next_y = menu.yposition(row_index + 1)
-            row_h = max(18, next_y - row_y)
+            # +2, non +1: add_rating_row_reserve() ora riserva DUE righe
+            # (stelle sopra, pallini sotto), non una sola.
+            next_y = menu.yposition(row_index + 2)
+            row_h = max(36, next_y - row_y)
         except Exception:
-            row_h = 22
+            row_h = 44
     except Exception:
         return None
 
@@ -3545,6 +3572,13 @@ def attach_rating_overlay(menu, row_index, targets, on_change=None):
     ov.withdraw()
     ov.wm_overrideredirect(True)
     ov.configure(bg=PANEL_COLOR)
+    # NIENTE bordo (ne' hud_apply ne' altro): un bordo netto rendeva
+    # ANCORA piu' visibile un eventuale disallineamento di un paio di
+    # pixel con il vero tk.Menu sottostante ("doppia linea in alto"),
+    # invece di nasconderlo — segnalato da Carlo. Senza bordo, con lo
+    # stesso identico bg=PANEL_COLOR del menu, l'overlay si confonde
+    # con lo sfondo del menu ovunque non ci sia contenuto: nessuna
+    # cucitura da vedere, a prescindere dall'allineamento esatto.
 
     # Rating corrente: mostrato pieno solo se TUTTI i target hanno lo
     # stesso valore, coerente col criterio gia' usato altrove per
@@ -3569,7 +3603,18 @@ def attach_rating_overlay(menu, row_index, targets, on_change=None):
                 pass
 
     row = tk.Frame(ov, bg=PANEL_COLOR)
-    row.pack(fill="both", expand=True)
+    row.pack(fill="both", expand=True, padx=3, pady=3)
+    # Due righe, non una sola: stelle+X sopra, pallini colore subito
+    # sotto — prima erano tutti sulla stessa riga e a volte sbordavano
+    # fuori dalla finestra del menu (segnalato da Carlo, sia in Naviga
+    # che in Timeline: funzione condivisa, un solo posto da correggere).
+    stars_row = tk.Frame(row, bg=PANEL_COLOR)
+    stars_row.pack(side="top", fill="x")
+    dots_row = tk.Frame(row, bg=PANEL_COLOR)
+    # padx=(10,0): stesso margine sinistro della prima stella qui sotto
+    # (padx=(10,3)) — senza, i pallini iniziavano piu' a sinistra delle
+    # stelle, disallineati (segnalato da Carlo).
+    dots_row.pack(side="top", fill="x", pady=(2, 0), padx=(10, 0))
     # Niente etichetta "Valutazione:" qui (a differenza del menu
     # dell'immagine principale, dove c'e' spazio): tolta su richiesta di
     # Carlo per risolvere lo spazio quando il menu e' piu' stretto della
@@ -3577,21 +3622,21 @@ def attach_rating_overlay(menu, row_index, targets, on_change=None):
     # (dopo "Ruota antiorario") gia' da' il contesto.
     for _i in range(1, 6):
         _fg = HUD_CYAN if _cur[0] >= _i else MUTED_COLOR
-        _star = tk.Label(row, text="*", font=("TkFixedFont", 12, "bold"),
+        _star = tk.Label(stars_row, text="*", font=("TkFixedFont", 15, "bold"),
                          bg=PANEL_COLOR, fg=_fg, cursor="hand2")
         _star.pack(side="left", padx=(10,3) if _i == 1 else 3)
         _star.bind("<Button-1>", lambda e, v=_i: _set_rating(v))
         _star_widgets.append(_star)
-    _xlbl = tk.Label(row, text="X", font=("TkFixedFont", 9),
+    _xlbl = tk.Label(stars_row, text="X", font=("TkFixedFont", 9),
                      bg=PANEL_COLOR, fg=MUTED_COLOR, cursor="hand2")
     _xlbl.pack(side="left", padx=(8,8))
     _xlbl.bind("<Button-1>", lambda e: _set_rating(0))
 
-    # Colorlabel: stessa riga, subito dopo la "X" del rating. Multiple,
-    # non escludenti (segnalato da Carlo): _cur_colors parte
-    # dall'intersezione dei colori comuni a TUTTI i target (coerente col
-    # criterio "presente su tutti" gia' usato da bulk_toggle_color per
-    # decidere se aggiungere o togliere in blocco).
+    # Colorlabel: riga propria, subito sotto quella di stelle+X (vedi
+    # sopra). Multiple, non escludenti (segnalato da Carlo): _cur_colors
+    # parte dall'intersezione dei colori comuni a TUTTI i target
+    # (coerente col criterio "presente su tutti" gia' usato da
+    # bulk_toggle_color per decidere se aggiungere o togliere in blocco).
     _colors_per_target = [set(metadata_store.get_meta(t)["colors"]) for t in targets]
     _cur_colors = [set.intersection(*_colors_per_target) if _colors_per_target else set()]
     def _set_color(cid):
@@ -3606,7 +3651,7 @@ def attach_rating_overlay(menu, row_index, targets, on_change=None):
                 on_change()
             except Exception:
                 pass
-    _color_dots = draw_colorlabel_dots(row, _cur_colors[0], _set_color)
+    _color_dots = draw_colorlabel_dots(dots_row, _cur_colors[0], _set_color)
 
     # La larghezza dell'overlay deve essere ALMENO quella richiesta dal
     # contenuto (etichetta + 5 stelle + X): se si usasse solo la
@@ -3618,9 +3663,20 @@ def attach_rating_overlay(menu, row_index, targets, on_change=None):
     ov.update_idletasks()
     _req_w = ov.winfo_reqwidth()
     _req_h = ov.winfo_reqheight()
-    _final_w = max(mw, _req_w)
-    _final_h = max(row_h, _req_h)
-    ov.geometry(f"{_final_w}x{_final_h}+{mx}+{my + row_y}")
+    # _inset: l'overlay resta sempre un po' PIU' PICCOLO dell'area
+    # riservata, staccato dai bordi del menu su tutti i lati, invece di
+    # toccarli esattamente — un margine di sfondo del menu tutto
+    # intorno nasconde meglio un eventuale disallineamento di un paio
+    # di pixel di quanto potesse fare un bordo (tolto qui sopra), e
+    # anche senza disallineamenti si vede meno "incollato" al menu
+    # (segnalato da Carlo). Il contenuto resta comunque garantito
+    # cliccabile: l'inset si applica solo quando c'e' gia' abbastanza
+    # spazio (max(...) non scende mai sotto quanto richiesto da
+    # contenuto + il suo stesso padding interno qui sotto).
+    _inset = 5
+    _final_w = max(mw - 2 * _inset, _req_w)
+    _final_h = max(row_h - 2 * _inset, _req_h)
+    ov.geometry(f"{_final_w}x{_final_h}+{mx + _inset}+{my + row_y + _inset}")
     ov.deiconify()
     ov.lift()
 
@@ -3657,6 +3713,27 @@ def attach_rating_overlay(menu, row_index, targets, on_change=None):
         pass
 
     return ov
+
+
+if _DEEP_BROWSER_AVAILABLE and _METADATA_STORE_AVAILABLE:
+    # Iniezione differita fino a qui (va fatta DOPO che
+    # attach_rating_overlay e' definita — vedi il commento accanto a
+    # "_db_mod.metadata_store = metadata_store" molto piu' sopra in
+    # questo file). timeline.py importa questa funzione PER VALORE
+    # ("from image_sorter import (..., attach_rating_overlay, ...)"),
+    # eseguito durante il caricamento di _db_mod ancora PRIMA che
+    # l'iniezione di metadata_store qui sopra avvenisse: quella riga di
+    # import ha quindi preso la funzione dal duplicato ricorsivo di
+    # image_sorter.py (stesso meccanismo del doppio import di
+    # deck_core/timeline gia' documentato), con un __globals__ — quindi
+    # un metadata_store — tutto suo, mai iniettato. L'overlay
+    # valutazione del menu tasto destro di Timeline scriveva percio' su
+    # un metadata_store SBAGLIATO: rating/colorlabel assegnati da li'
+    # sembravano non salvarsi mai (segnalato da Carlo — "in naviga
+    # funziona senza problemi" perche' li' non c'e' nessun duplicato di
+    # mezzo). Confermato confrontando le identita' di oggetto con un
+    # test reale, non assunto dal solo leggere il codice.
+    _db_mod.attach_rating_overlay = attach_rating_overlay
 
 
 def rating_row_sizes(cell_width):
@@ -6495,13 +6572,20 @@ class FolderBrowser:
             "<Double-Button-1>",
             lambda e: self._open_image(self._preview_current_path)
                       if self._preview_current_path else None)
-        # Nome del file sotto l'anteprima: nella griglia e' troncato a 12
-        # caratteri, qui c'e' lo spazio per mostrarlo intero.
-        self._preview_name = tk.Label(self._preview_pane, text="",
+        # Riga UNICA sotto l'anteprima con stelle, nome file e pallino
+        # colore insieme (richiesto da Carlo — prima il nome stava da
+        # solo su una riga sopra a stelle/pallino, ora e' tutto sulla
+        # stessa riga in basso: stelle a sinistra, nome al centro,
+        # pallino a destra).
+        self._preview_rating_row = tk.Frame(self._preview_pane, bg=PANEL_COLOR)
+        self._preview_rating_row.grid(row=1, column=0, sticky="ew",
+                                      padx=6, pady=(4, 4))
+        # Nome del file: nella griglia e' troncato a 12 caratteri, qui
+        # c'e' lo spazio per mostrarlo (quasi) intero.
+        self._preview_name = tk.Label(self._preview_rating_row, text="",
                                       font=("TkFixedFont", 9),
                                       bg=PANEL_COLOR, fg=TEXT_COLOR,
                                       wraplength=1, justify="center")
-        self._preview_name.grid(row=1, column=0, sticky="ew", pady=(4, 2))
         # Stelle + pallini colore: visualizzazione e modifica diretta
         # anche dall'anteprima ingrandita, non solo dalla griglia o dal
         # menu. Widget PERSISTENTI (costruiti una volta sola qui, non ad
@@ -6511,9 +6595,6 @@ class FolderBrowser:
         # momento del click (mai catturato in anticipo), cosi' restano
         # corretti anche dopo che l'anteprima e' passata ad un altro file.
         if _METADATA_STORE_AVAILABLE:
-            self._preview_rating_row = tk.Frame(self._preview_pane, bg=PANEL_COLOR)
-            self._preview_rating_row.grid(row=2, column=0, sticky="ew",
-                                          padx=6, pady=(0, 4))
             _prf_stars = tk.Frame(self._preview_rating_row, bg=PANEL_COLOR)
             _prf_stars.pack(side="left", padx=(0, 10))
             self._preview_stars = []
@@ -6529,6 +6610,11 @@ class FolderBrowser:
             _prf_dots.pack(side="right", padx=(10, 0))
             self._preview_color_dots = draw_colorlabel_dots(
                 _prf_dots, "", lambda cid: self._click_preview_colorlabel(cid))
+            # Impacchettato per ultimo cosi' prende lo spazio centrale
+            # rimasto fra stelle e pallino, invece di spingerli via.
+            self._preview_name.pack(side="left", fill="x", expand=True)
+        else:
+            self._preview_name.pack(fill="x", expand=True)
         # Info EXIF su richiesta (menu tasto destro): riquadro nascosto
         # finche' non serve, cosi' a pannello aperto l'anteprima usa tutto
         # lo spazio disponibile.
@@ -6551,26 +6637,34 @@ class FolderBrowser:
         # Sash: larghezza pannello albero ricordata da config (default:
         # metà finestra, se non c'è ancora nulla di salvato)
         def _set_sash():
-            try:
-                paned.update_idletasks()
-                saved_tree_w = self.sorter.config.get("nav_tree_width")
-                if saved_tree_w:
-                    pos = saved_tree_w
-                else:
-                    pos = paned.winfo_width() // 2
-                if pos > 50:
-                    paned.sashpos(0, pos)
-            except Exception:
-                pass
+            # Sash 0 e' quello albero/miniature SOLO se l'albero e'
+            # davvero un pannello del paned (colonna visibile) — se e'
+            # spento non e' mai stato aggiunto (vedi paned.add(tf, ...)
+            # sopra), quindi il sash 0 e' in realta' quello miniature/
+            # anteprima: impostarlo qui con la larghezza salvata
+            # dell'albero lo faceva saltare da solo all'apertura (bug
+            # reale, segnalato da Carlo).
+            if self.sorter.config.get("nav_show_tree", True):
+                try:
+                    paned.update_idletasks()
+                    saved_tree_w = self.sorter.config.get("nav_tree_width")
+                    if saved_tree_w:
+                        pos = saved_tree_w
+                    else:
+                        pos = paned.winfo_width() // 2
+                    if pos > 50:
+                        paned.sashpos(0, pos)
+                except Exception:
+                    pass
             # _set_sash può alterare indirettamente anche la posizione del
-            # divisore anteprima (sash 1) quando ridistribuisce lo spazio:
-            # la riapplica subito dopo, se l'anteprima è visibile, per non
+            # divisore anteprima quando ridistribuisce lo spazio: la
+            # riapplica subito dopo, se l'anteprima è visibile, per non
             # vanificare il ripristino fatto da _toggle_preview_pane.
             if getattr(self, '_preview_visible', False):
                 saved_preview = self.sorter.config.get("nav_preview_sash")
                 if saved_preview:
                     try:
-                        self._paned.sashpos(1, saved_preview)
+                        self._paned.sashpos(self._preview_sash_index(), saved_preview)
                     except Exception:
                         pass
         self.win.after(150,  _set_sash)
@@ -7137,9 +7231,11 @@ class FolderBrowser:
                 "di image_sorter.py",
                 parent=self.win)
 
-    def _hud_alert(self, title, message, btn_label="OK", parent=None):
+    def _hud_alert(self, title, message, btn_label="OK", parent=None,
+                   auto_close_ms=None):
         """Delega a ImageSorter._hud_alert."""
-        self.sorter._hud_alert(title, message, btn_label, parent or self.win)
+        self.sorter._hud_alert(title, message, btn_label, parent or self.win,
+                               auto_close_ms=auto_close_ms)
 
     def _hud_yesno(self, title, message, yes_label="Si", no_label="No", parent=None):
         """Delega a ImageSorter._hud_yesno."""
@@ -9060,6 +9156,20 @@ class FolderBrowser:
             except Exception:
                 continue
 
+    def _preview_sash_index(self):
+        """Indice del sash "anteprima" nel PanedWindow: dipende da quanti
+        pannelli lo precedono. Se l'albero e' nel paned (colonna
+        visibile) i pannelli sono [albero, miniature, anteprima] e il
+        sash anteprima e' il secondo (indice 1); se l'albero e' spento
+        e quindi MAI aggiunto al paned, sono solo [miniature, anteprima]
+        e il sash anteprima e' il primo e unico (indice 0). Usare
+        sempre questo invece di un indice fisso — un indice sbagliato
+        sposta per errore il divisore miniature/anteprima invece di
+        quello albero/miniature (bug reale, segnalato da Carlo: la
+        linea divisoria si riposiziona da sola all'apertura, solo
+        quando la colonna albero e' spenta)."""
+        return 1 if self.sorter.config.get("nav_show_tree", True) else 0
+
     def _toggle_preview_pane(self):
         """Mostra/nasconde il pannello di anteprima ingrandita a destra.
         Stato e proporzioni (posizione del divisore) vengono ricordati in
@@ -9070,7 +9180,7 @@ class FolderBrowser:
             # pannello, così la prossima volta si riapre alla stessa
             # proporzione.
             try:
-                cfg["nav_preview_sash"] = self._paned.sashpos(1)
+                cfg["nav_preview_sash"] = self._paned.sashpos(self._preview_sash_index())
             except Exception:
                 pass
             try:
@@ -9088,7 +9198,7 @@ class FolderBrowser:
             if saved_pos:
                 def _restore_sash():
                     try:
-                        self._paned.sashpos(1, saved_pos)
+                        self._paned.sashpos(self._preview_sash_index(), saved_pos)
                     except Exception:
                         pass
                 # Doppio tentativo: il layout del pannello appena
@@ -12072,13 +12182,18 @@ class FolderBrowser:
         # Ogni lettura in un try/except SEPARATO: se una fallisce (es. il
         # widget è già in fase di distruzione), le altre — e soprattutto
         # il salvataggio finale su disco — devono comunque procedere.
-        try:
-            self.sorter.config["nav_tree_width"] = self._paned.sashpos(0)
-        except Exception:
-            pass
+        if self.sorter.config.get("nav_show_tree", True):
+            # Sash 0 e' quello albero/miniature SOLO se l'albero e'
+            # davvero nel paned — altrimenti e' quello miniature/
+            # anteprima, e salvarlo qui sotto "nav_tree_width"
+            # corromperebbe la larghezza ricordata dell'albero.
+            try:
+                self.sorter.config["nav_tree_width"] = self._paned.sashpos(0)
+            except Exception:
+                pass
         if getattr(self, '_preview_visible', False):
             try:
-                self.sorter.config["nav_preview_sash"] = self._paned.sashpos(1)
+                self.sorter.config["nav_preview_sash"] = self._paned.sashpos(self._preview_sash_index())
             except Exception:
                 pass
         try:
@@ -14647,9 +14762,11 @@ class SettingsDialog:
                 self._apply_dest()
         self.win.destroy()
 
-    def _hud_alert(self, title, message, btn_label="OK", parent=None):
+    def _hud_alert(self, title, message, btn_label="OK", parent=None,
+                   auto_close_ms=None):
         """Delega a ImageSorter._hud_alert."""
-        self.sorter._hud_alert(title, message, btn_label, parent or self.win)
+        self.sorter._hud_alert(title, message, btn_label, parent or self.win,
+                               auto_close_ms=auto_close_ms)
 
     def _hud_yesno(self, title, message, yes_label="Si", no_label="No", parent=None):
         """Delega a ImageSorter._hud_yesno."""
@@ -18535,7 +18652,8 @@ class SettingsDialog:
             if self.sorter.keypad_popup:
                 self.sorter.keypad_popup.refresh_labels()
 
-        self._hud_alert("Salvato", "Configurazione salvata.", parent=self.win)
+        self._hud_alert("Salvato", "Configurazione salvata.", parent=self.win,
+                        auto_close_ms=1500)
 
 # =============================================================================
 # APPLICAZIONE PRINCIPALE
@@ -20008,6 +20126,28 @@ class ImageSorter:
             self._zoom_factor = 1.0 / base_scale
         self._show_image()
 
+    def _draw_placeholder_image(self, img, cw, ch):
+        """Disegna subito, ingrandendola per riempire il canvas,
+        un'anteprima gia' decodificata a bassa risoluzione (700x700,
+        presa da un pannello laterale di "Confronta") come placeholder
+        mentre la versione a piena qualita' dell'immagine centrale
+        carica in background — vedi _show_image(). Il prossimo
+        _finish_show_image() cancella "all" e ridisegna, sostituendola
+        a tutti gli effetti; niente da ripulire esplicitamente qui.
+        Scala con lo STESSO margine (cw-16/ch-16) e zoom_factor usati
+        li' per il disegno finale: valori diversi producevano un
+        salto visibile di qualche pixel al passaggio placeholder ->
+        immagine vera (bug reale, segnalato da Carlo)."""
+        zf = getattr(self, '_zoom_factor', 1.0)
+        scale = min((cw - 16) / img.width, (ch - 16) / img.height) * zf
+        nw = max(1, int(img.width * scale))
+        nh = max(1, int(img.height * scale))
+        disp = img.resize((nw, nh), Image.Resampling.LANCZOS)
+        self._placeholder_tk_img = ImageTk.PhotoImage(disp)   # mantiene riferimento
+        self.canvas.delete("all")
+        self.canvas.create_image(cw // 2, ch // 2, anchor="center",
+                                 image=self._placeholder_tk_img)
+
     def _show_image(self, force=False):
         # Se crop overlay attivo, normalmente ridisegna solo il crop (non
         # ricostruisce il canvas, per restare fluido durante il
@@ -20038,6 +20178,21 @@ class ImageSorter:
         if not filepath or not os.path.isfile(filepath):
             self._advance()
             return
+        # Placeholder istantaneo: se il file che sta per diventare
+        # centrale e' gia' stato decodificato (a bassa risoluzione) come
+        # anteprima laterale di "Confronta" un istante fa, lo si tiene
+        # da parte per mostrarlo subito ingrandito mentre la versione a
+        # piena qualita' carica in background — evita lo scatto
+        # percepito quando l'anteprima leggera (700x700) diventa di
+        # colpo l'immagine centrale pesante. Va letto PRIMA della
+        # chiamata a _update_compare_panels() qui sotto, che sovrascrive
+        # questi stessi attributi per i NUOVI vicini.
+        placeholder_img = None
+        if getattr(self, "_cmp_right_fp", None) == filepath:
+            placeholder_img = self._cmp_right_pil
+        elif getattr(self, "_cmp_left_fp", None) == filepath:
+            placeholder_img = self._cmp_left_pil
+
         # Modalita' Confronta: le due anteprime laterali si aggiornano
         # indipendentemente dal caricamento (asincrono) dell'immagine
         # principale qui sotto, non dopo — niente attesa in piu'.
@@ -20061,6 +20216,15 @@ class ImageSorter:
             self._pending_finish_job = None
         # Mostra solo un piccolo indicatore nell'angolo, senza cancellare l'immagine
         self.canvas.delete("loading")
+        # update_idletasks() PRIMA di leggere le dimensioni: senza,
+        # durante un cambio di layout ancora in assestamento (es.
+        # colonne pesate di "Confronta" appena attivato/navigato)
+        # questa lettura puo' restare quella pre-assestamento, mentre
+        # _finish_show_image() la rilegge dopo il proprio
+        # update_idletasks() — la discrepanza produceva il salto
+        # visibile fra placeholder e immagine finale (bug reale,
+        # segnalato da Carlo).
+        self.canvas.update_idletasks()
         cw2 = max(self.canvas.winfo_width(), 100)
         ch2 = max(self.canvas.winfo_height(), 100)
         # Dimensioni per img.draft(): lette QUI, sul main thread. Il worker
@@ -20074,6 +20238,8 @@ class ImageSorter:
         draft_h = max(self.canvas.winfo_height(), self.root.winfo_height(), 480)
         _diag(f"lettura disco  {os.path.basename(filepath)}  "
               f"canvas {cw2}x{ch2}  draft {draft_w*2}x{draft_h*2}")
+        if placeholder_img is not None:
+            self._draw_placeholder_image(placeholder_img, cw2, ch2)
         self.canvas.create_text(cw2 - 8, ch2 - 8,
                                 anchor="se",
                                 text="...",
@@ -21266,10 +21432,13 @@ class ImageSorter:
         prima e' peggiore di questo che stai guardando. Un solo tasto,
         senza dover tornare indietro, cestinare, e poi rifare avanti.
 
-        Usa la STESSA logica di indice di _go_back() per trovare "qual
-        e' il file precedente" — compreso il rientro dall'ultimo file
-        se ci si trova sul primo — ma non chiama mai _show_image():
-        quello che vedi sullo schermo non cambia. Instradato attraverso
+        A differenza di _go_back() (che dall'ultimo file rientra sul
+        primo), qui il giro NON si fa: sul primo file non esiste un
+        "precedente" da cestinare, altrimenti si rischierebbe di
+        cancellare l'ULTIMA immagine della cartella senza nessun
+        indizio a video, perche' non e' quella mostrata (segnalato da
+        Carlo). Non chiama mai _show_image(): quello che vedi sullo
+        schermo non cambia. Instradato attraverso
         move_to_transit()/append_history() come ogni altra eliminazione
         del programma, quindi resta annullabile con Ctrl+Z.
 
@@ -21279,14 +21448,11 @@ class ImageSorter:
         il toast dopo, con il nome del file appena cestinato.
         """
         self._cancel_delete_pending()
-        if len(self.images) <= 1:
+        if len(self.images) <= 1 or self.current_index == 0:
             self._show_toast("Nessuna immagine precedente da cestinare",
                              color=WARNING, duration=1400)
             return
-        prev_idx = (self.current_index - 1 if self.current_index > 0
-                   else len(self.images) - 1)
-        if prev_idx == self.current_index:
-            return   # non dovrebbe mai capitare con piu' di un'immagine
+        prev_idx = self.current_index - 1
         prev_path = self.images[prev_idx]
 
         if not os.path.isfile(prev_path):
@@ -21295,6 +21461,7 @@ class ImageSorter:
             self.images.pop(prev_idx)
             if prev_idx < self.current_index:
                 self.current_index -= 1
+            self._update_compare_panels()
             return
 
         dest = move_to_transit(prev_path, self.config)
@@ -21318,6 +21485,13 @@ class ImageSorter:
             # altrimenti current_index finirebbe per puntare al file
             # sbagliato (quello dopo quello che si sta guardando).
             self.current_index -= 1
+        # _delete_previous() non chiama _show_image() (il centro non
+        # deve cambiare), ma il pannello SINISTRO di "Confronta" mostra
+        # proprio il file appena cestinato — senza questa chiamata resta
+        # a video anche se non esiste piu' (bug reale, segnalato da
+        # Carlo). _update_compare_panels() non fa nulla se la modalita'
+        # e' spenta.
+        self._update_compare_panels()
 
         self._show_toast(tk_safe(f"Cestinata: {os.path.basename(prev_path)}"),
                          color=HIGHLIGHT, duration=1600)
@@ -24913,8 +25087,15 @@ class ImageSorter:
         except Exception as ex:
             self._hud_alert("Errore", str(ex), parent=par)
 
-    def _hud_alert(self, title, message, btn_label="OK", parent=None):
-        """Dialog informativo HUD con solo bottone OK."""
+    def _hud_alert(self, title, message, btn_label="OK", parent=None,
+                   auto_close_ms=None):
+        """Dialog informativo HUD con solo bottone OK.
+
+        auto_close_ms: se impostato, il dialogo si chiude anche da solo
+        dopo quel tempo (in aggiunta a OK/Invio/Esc, non al loro posto)
+        — pensato per conferme "tutto ok" senza nulla da leggere con
+        calma (es. "Configurazione salvata"), non per gli errori, che
+        restano chiusi solo a mano."""
         par = parent or self.root
         dlg = tk.Toplevel(par)
         dlg.withdraw()
@@ -24960,6 +25141,9 @@ class ImageSorter:
         dlg.deiconify()
         dlg.lift()
         dlg.grab_set()
+        if auto_close_ms:
+            dlg.after(auto_close_ms,
+                     lambda: dlg.winfo_exists() and dlg.destroy())
         self.root.wait_window(dlg)
 
     def _ask_empty_transit(self, n, tdir):

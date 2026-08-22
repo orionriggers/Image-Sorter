@@ -1,5 +1,5 @@
 # timeline.py — Timeline, mappa GPS, scansione ricorsiva
-VERSION = "1.42.0"
+VERSION = "1.43.0"
 # Visualizzazione profonda: scansione ricorsiva, timeline per data/luogo, mappa GPS
 # Dipendenze: reverse_geocode, folium (pip install reverse-geocode folium)
 
@@ -1009,7 +1009,13 @@ class DeepBrowser:
         body.rowconfigure(2, weight=0)
         if self.sorter:
             self._sort_bar = tk.Frame(body, bg=PANEL_COLOR)
-            self._sort_bar.grid(row=1, column=1, sticky="ew")
+            # A TUTTA LARGHEZZA (colonna 0 e 1: nav sinistra + griglia/
+            # anteprima), non solo column=1 — altrimenti inizia sotto la
+            # colonna destra invece che dal bordo sinistro della
+            # finestra (bug reale, segnalato da Carlo). Stesso principio
+            # gia' corretto in FolderBrowser._tag_row_frame
+            # (image_sorter.py), da cui questa barra e' stata adattata.
+            self._sort_bar.grid(row=1, column=0, columnspan=2, sticky="ew")
             self._sort_bar.grid_remove()
 
         # Nuvola di tag cliccabili per la selezione corrente — stesso
@@ -1017,7 +1023,9 @@ class DeepBrowser:
         # checkbox "Tag" e _build_tag_row).
         if self.sorter and _METADATA_STORE_AVAILABLE:
             self._tag_row_frame = tk.Frame(body, bg=BG_COLOR)
-            self._tag_row_frame.grid(row=2, column=1, sticky="ew")
+            # Stesso motivo del _sort_bar qui sopra: a tutta larghezza,
+            # non solo sotto la colonna destra.
+            self._tag_row_frame.grid(row=2, column=0, columnspan=2, sticky="ew")
             self._tag_row_frame.grid_remove()
             self._tag_btn_refs = {}
             self._tag_row_inner = None
@@ -2002,6 +2010,12 @@ class DeepBrowser:
         else:
             metadata_store.set_rating(fpath, new_val)
             self._refresh_rating_row(item)
+        # Se il file appena modificato e' anche quello mostrato in
+        # anteprima, quel pannello restava con le stelle vecchie finche'
+        # non si cambiava immagine — segnalato da Carlo.
+        # _refresh_preview_rating() si basa su _preview_current_path, e'
+        # innocua da chiamare anche quando non c'entra nulla col click.
+        self._refresh_preview_rating()
 
     def _click_colorlabel_dot(self, item, cid):
         """Click su un pallino colore: stessa estensione alla selezione
@@ -2016,6 +2030,8 @@ class DeepBrowser:
         else:
             metadata_store.toggle_color(fpath, cid)
             self._refresh_rating_row(item)
+        # Stesso motivo di _click_rating_star qui sopra.
+        self._refresh_preview_rating()
 
     def _refresh_rating_row(self, item):
         """Ridipinge SOLO la riga di stelle e pallini della cella indicata
@@ -3257,9 +3273,14 @@ class DeepBrowser:
         menu.bind("<Unmap>", lambda e: (_cleanup(), _on_menu_unmap()), add="+")
         _post_menu(menu, event.x_root, event.y_root, self.win)
         if _rating_row_idx is not None:
+            # on_change aggiorna sia le miniature dei file coinvolti sia,
+            # se fra loro c'e' quello mostrato in anteprima, il pannello
+            # anteprima stesso — prima restava con le stelle vecchie
+            # finche' non si cambiava immagine (segnalato da Carlo).
             attach_rating_overlay(menu, _rating_row_idx, _rt_paths,
-                                  on_change=lambda its=list(targets):
-                                      [self._refresh_rating_row(it) for it in its])
+                                  on_change=lambda its=list(targets): (
+                                      [self._refresh_rating_row(it) for it in its],
+                                      self._refresh_preview_rating()))
 
     def _show_properties(self, filepath):
         """Popup proprieta file — withdraw/deiconify evita scatto visivo."""
