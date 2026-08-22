@@ -1,8 +1,473 @@
 
-importa/esporta impostazioni
+tasti Ctrl+F per le Flag e Ctrl+T per i Tag
+
+
+leggere periodicamente il log error
+
+
+
+main:
+
+- confronta - ricarico lento dell'immagine centrale.. se cestinata con ctrl+canc non sparisce
+- l'ultima non è mai accanto alla prima - l'ultima non si cancella con ctrl+canc
+
+
+
+- appena clicco su un preset della finestra deck si perde il focus per usare la freccia e andare avanti saltando l'immagine successiva
+
+
+- sulla finestra main aggiungi un bottone che visualizza una nuova barra strumenti con le funzioni più importanti (ritaglio, ridimensiona, rinomina, ruota ecc)  sul fianco della foto; ad ogni click, a rotazione, la finestra viene messa a destra, a sinistra, flottante e poi chiusa.
+
+
+quando zooom in un immagine in principale, l'immagine si può spostare di pochi pixel con mouse rotella
+finestra proprietà aperta da tst dx su naviga: si apre e subito si ricarica più in basso
+riordina tasti destro
+ridimensiona: proporzioni pop up
+
+dopo rinomina si è perso il focus per frecce avanzamento 
+
+screenshot schermo - area selezionata
+
+
+
+impostazioni: 
+ visualizza in naviga la barra di Sorting-preset
+ aggiungere scelta programmi esterni per aprire video/pdf/modifica immagini
+
+visualizzare su tasto destro .destinazioni preset - rating - label:
+vorrei inerire in "proprietà/visualizza" una nuova area sotto a quella già esistente con "Funzioni tasto destro visibili" e permettere di mettere o togliere (usando lo stesso sistema di bottoni "on / off") le seguenti funzioni già presenti sul tasto destro:
+
+conversione (jpg-gif)
+destinazioni preset
+rating 
+label
+tag
+
+tali scelte vanno memorizzate tra sessioni - di default sono tutte attive
+
+impostazioni - destinazioni - nuovo percorso di destinazione: la finestra di conferma "Salvato / configurazione salvata" può sparire da sola dopo 1.5 sec se tutto è OK
+
+nuova sezione per modificare i preferiti
+
+
+naviga:
+dopo un ritaglio l'anteprima è corretta ma la miniatura è rimasta alla vecchia versione
+in naviga freccia home e fine vanno a selezionare il primo o l'ultimo.  - anche in main - 
+naviga tra cartelle non tiene indietro come prima cartella aperta
+copia incolla nella stessa cartella: duplica file con stesso_nome_copia
+
+
+
+cartelle colorabili
+
+
+Timeline:
+tasto destro con barra flag troppo larga
+
+naviga e timeline:
+
+nome del testo sotto anteprima / miniatura più accogliente
+grafica della riga in basso tag e rating
+taglia - copia - incolla file
+
+
+privacy:
+
+- protezione con pw
+
+
+
+cerca doppioni: ordina / dimensioni ..manca altro?
+
+
+Deck: 
+tasti funzione assegnabili / con testo e/o immagine
+menù a tendina vs. bottone con nome sotto
+scelta se sempre sopra tutte le finestre
+bordo rosso privacy su tutto il blocco di destinazioni? 
+bottone on_press
+
+
+
+Stream deck:
+- mantenere pagina Pag, al riavvio demone
+prev e next messi come suggerimenti 
+aggiungere last e first
+
+comando diretto per taglia
+drag&drop tra bottoni e pagine
+rotella mouse nella finestra scelta icone
+
+bottoni nome proprio assegnato (icone mie però)
+
+
+
+pulizia da Codice commenti "richiesto da"/"segnalato da " e simili 
+
+
+
+-------------------------------
+
+caricamento in tempo reale in naviga di nuovi file che arrivano nella cartella
+caricamento in tempo reale del rating e del flag
+
+
+
+
+SideBar:
+altezza finestra flottante va corretta in base alla reale necessità
+
+
+
+aprire una cartella in naviga con molti video ha sventolato
+
+
+
+indicato in readme.md ma verifica: 
+- **Albero** — lista navigabile con dimensione e conteggio file per tipo
+
+
+minifinestra comandi flottante, sempre sopra la finestra main e con lo stesso focus, con 15 pulsanti quadrati (5 colonne, 3 file, come lo stream Deck fisico) 
+prende i comandi e le icone impostate in una Pag speciale (visualizzabile o meno con un tick) tra quelle create da impostazioni/stream deck 
+Per crearla/modificarla un nuovo bottone uguale e a destra di "+Pag" leggermente staccato
+
+tutte le schermate sempre a vista, con drag&drop dei bottoni
+pagine esclusive per image sorter, che spariscono se chiuso
+
+
+barra anteprime sotto o laterale su finestra principale, sceglibile con bottone 
+
+gestione duplicati avanzata (grafica e report)
+
+
+------------------------------
+
+Flatpak / AppImage Packaging: Su Reddit (specialmente su r/linux, r/apps, r/software, r/selfhosted) l'accessibilità immediata è fondamentale. Avere un pacchetto Flatpak su Flathub o un’AppImage pronta raddoppia l'interesse.
+
+Auto-Categorizzazione Smart (AI / Clip locale): Un modello ONNX/CLIP locale e leggero per suggerire la cartella di destinazione (es. auto-riconoscimento meme, scontrini, paesaggi, documenti).
+
+CLI & Scripting Hooks: La possibilità di eseguire uno script bash personalizzato dopo lo spostamento di un file (es. conversione automatica WebP -> JPG o invio notifica).
+
+Command Palette (Ctrl+Shift+P): Un campo di ricerca rapida stile VS Code / Obsidian per eseguire qualsiasi comando da tastiera senza toccare il mouse.
+
+
+
+
+------------------------------------
+
+
+
+verifica canc con check alle immagini pre e post
+
+logo esplora cartelle
+
+pulsanti con simboli / icone disegnate
+
+os.rename() compare in oltre 10 punti diversi di image_sorter.py, non centralizzati in un'unica funzione
+
+Undo crop richiede backup ancora esistente
+Scroll tab Storico — piccole fluttuazioni su sistemi lenti
+
+Sistema traduzione in formato tabellare (CSV/.po) per nuove lingue
+Support Nautilus/Dolphin in installa.sh
+
+
+
+Confronto A/B — split view con due immagini affiancate, utile per scegliere tra scatti simili. Tasto rapido per eliminare/tenere ciascuna
+
+Statistiche cartella — piccolo pannello con totale file, dimensione, distribuzione per tipo e anno, accessibile dal browser
+Anteprima video — thumbnail del primo frame nei video invece del'icona generica
+
+Rilevamento duplicati visivi (phash) — oltre al SHA256, riconosce foto quasi identiche con leggere differenze di esposizione/ritaglio
+
+Modalità presentazione — slideshow automatico con intervallo configurabile, utile per revisione rapida
+
+File grouping (an image having jpeg, RAW and xmp files will appear as a single entity).
+Selectable exif auto-rotation of images.
+Basic editing in the form of lossless 90/180-degree rotation and flipping is supported; 
+ Finding duplicates ignoring the rotation of images
+Speed of operation can be increased by caching thumbnails and similarity data of images. When Geeqie is run as a stand-alone command line program (GQ_CACHE_MAINTENANCE=y geeqie --cache-maintenance=&lt;path&gt;) these data will be recursively created from the defined start point. This program can be called from cron or anacron so that cache updating is automatically done at specified intervals.
+
+
+
+------------------------------
+
+
+Metadata AutoFill enables you to create and maintain sets of tags and values for these tags. You can then apply these values in the Metadata Panel, filling multiple tags at once with minimal effort.
+
+https://www.photools.com/help/imatch/index.html#md_autofill.htm
+
+Metadata Templates
+Metadata Templates are a time-saver feature.
+
+They enable you to quickly fill in pre-defined metadata into individual or sets of files, change collection assignments or ratings and labels for single or hundreds of files at once. IMatch can apply metadata templates on file import, which enables you to fill in your photographer or studio info automatically when you add images to your database.
+
+Uses
+Metadata Templates are a powerful tool in your toolbox. You can use them for things like:
+
+Adding, updating and removing metadata via Favorites
+Adding and removing files from collections
+Copying metadata between tags
+Fill metadata tags using Variables
+Automatically setting metadata when new or updated files are processed
+Automatically setting a rating and label for new files
+Update metadata after AutoTagger has processed an image
+
+https://www.photools.com/help/imatch/index.html#md_templates.htm
+
+
+
+_____________________________________________________________
+
+
+Support all common photo formats (including RAW)
+Advanced settings to create cache preview.
+Create Thumbnails for Windows explorer
+Quickly review and sort your photos
+Best Photo culling software
+Support touchscreen to rate up or down pictures with a gesture.
+Add one to five stars to each photo to sort.
+Filter photos by rating, number of likes or the shooten date.
+Quickly Compare photos with left and right key.
+Delete, copy or upload photos based on their ratings
+Write ratings to Lightroom catalog
+Works on all major versions of Windows ( up to Microsoft Windows 11 )
+
+
+JPEG (.jpg, .jpeg)
+TIFF (.tif, .tiff)
+PNG (.png)
+GIF (.gif)
+Bitmap (.bmp)
+JPEG 2000 (.jp2, .j2k)
+JPEG XL (.jxl)
+JPEG XR (.jxr)
+WebP (.webp)
+AVIF (.avif)
+HEIC (.heic, .heif)
+Camera RAW (.dng, .cr2, .cr3, .crw, .erf, .raf, .mrw, .nef, .orf, .pef, .sr2, .srf)
+
+
+
+3FR ANI ARW AVIF BMP CR2 CR3 CRW CUR DDS DJVU DNG ERF EXR FIT FITS FTS GIF GQV HEIC HEIF ICO JP2 JPE JPEG JPG JPS JXL KDC MEF MOS MPO MRW NEF NPY NRW ORF PBM PDF PEF PGM PNG PNM PPM PSD QIF QTIF RAF RAW RW2 SCR SR2 SRF SVG SVGZ TGA TIF TIFF WEBP XBM XPM.
+Display images in archive files (.ZIP, .RAR etc.).
+Animated GIF and WEBP files are supported.
+
+
+Viewing and navigation
+
+Thumbnail, fullscreen, and filmstrip image browsing
+Slideshow creation with transition effects
+Side-by-side comparison of up to four* images
+
+Image transformation: resizing, rotation, and cropping, including Lossless JPEG transformation
+Color adjustment: brightness, contrast, gamma, auto-levels/contrast, and color depth/palette modification
+Image filters and effects
+Drawing tool for adding lines, circles, arrows, speech bubbles, and watermarks
+
+Metadata and Thumbnails caching
+EXIF, IPTC and XMP* metadata support[16]
+Embedded ICC color profile support
+Albums* and Keyword Sets*
+Face detection*
+
+Batch renaming
+Batch conversion[17]
+Batch timestamp modification
+
+Contact sheet, image strip, and video thumbnail gallery generation
+File listing and archives creation
+Screen capture
+
+
+Esportazione delle presentazioni come presentazioni HTML o Flash per la pubblicazione sul web
+Sincronizzazione degli album con le controparti web, sia di terze parti (come Flickr) che specifiche dell'applicazione (come Lightroom o Phase One Media Pro).
+
+
+- se collego un altro deck, o più di uno?
+
+
+_____________OK___________________________
+
+
+verifica finestra Tag in main e nuova tab in impostazioni con creazione, modifica, eliminazione, gruppo
+
+naviga: sotto check per visualizzare barra preset - mettere accanto anche rating
+anteprima: di default seleziona prima immagine della cartella
+
+tst dx/apri: se video mandalo direttamente al suo programma di visualizz
+
+modifica con ... puntini vanno sostituiti con nome, se c'è salvato un programma
+
+
+- sposta bottone privacy
+- se cartella privata, non aprirla come prima immagine all'avvio
+- in analizza, spicchio bordato di rosso 
+
+spotamento/rinomina di un file non aggiorna tag e rating
+
+
+DECK: cambiando pagina da menu a tendina del deck e poi facendo tasto destro su un preset per modificarne la destinazione, da vecchi valori non aggiornati
+- pagina preallestita con funzioni rating . pulsanti reattivi al rating dell'immagine visualizzata in main / selezionata in naviga o timeline
+
+comando diretto per assegnare rating/label
+
+dopo ritaglio: rinomina-nuovo nome - rotto
+
+bordo verde solo attorno a immagine, non nome e ratings
+barra preset in basso - verifica spazio vuoto
+
+
+rinomina: incollando sovrascrive diretto il vecchio nome
+
+Rating: cambia etichetta + visualizzabile anche se valori assenti stelle colorate + pallini vuoti (no "nessuna") + impostabile 
+
+selez multipla non assegna stesso rating / colortag
+
+resize
+
+comando diretto per invia immagine alla modifica
+file -> modifica con : gimp - lo chiede ogni volta
+
+lucchetto per proporzioni uguali all'originale nel resize/crop
+
+non mantiene memoria su albero visibile/nascosto alla riapertura
+
+in proprietà su tasto dx finestra main
+
+proprietA
+
+timeline, filtro laterale per rating e flag
+naviga: filtro anche in base a rating e flag
+
+
+1. Gestione del Concorrenza e UI Thread
+Il programma fa un uso corretto dei thread per operazioni I/O (caricamento immagini, analisi disco), ma la comunicazione con il thread principale (tkinter) deve essere sempre monitorata per evitare micro-blocchi.
+
+Ottimizzazione della coda: Se noti rallentamenti quando vengono generate molte notifiche o aggiornamenti di stato (_status), considera l'implementazione di una coda di messaggi (queue.Queue) thread-safe. Il thread principale legge la coda periodicamente (usando root.after) invece di ricevere chiamate dirette widget.config da thread secondari.
+
+Limiti espliciti nei thread: Nel disk_analyzer.py e deep_browser.py, le scansioni ricorsive possono saturare l'I/O. Potresti implementare un limite massimo di thread simultanei (es. concurrent.futures.ThreadPoolExecutor con max_workers) anziché lanciare thread liberi.
+
+2. Cache e Gestione Memoria (Pillola di Ottimizzazione)
+Il programma usa già delle cache (_thumb_cache, _icon_cache, _video_cache), che è fondamentale.
+
+Cache LRU (Least Recently Used): Invece di una gestione manuale della dimensione della cache (_THUMB_CACHE_MAX), usa functools.lru_cache (se la funzione è pura) o una struttura dati collections.OrderedDict per gestire automaticamente l'evizione degli elementi meno recenti in modo più efficiente.
+
+Rilascio memoria immagini: Quando si caricano immagini ad altissima risoluzione (Image.MAX_IMAGE_PIXELS = None), il consumo di RAM può salire rapidamente. Assicurati che ogni oggetto PIL Image creato nei thread venga esplicitamente chiuso (img.close()) una volta generata la thumbnail o dopo la visualizzazione.
+
+3. I/O e Prestazioni File
+Evitare os.path.isdir/isfile ripetuti: In un ciclo di scansione su cartelle con migliaia di file, richiamare ripetutamente os.path può rallentare il programma. Usa os.scandir() (che già utilizzi in parte) e memorizza l'intero oggetto DirEntry per accedere a stat() e is_file() senza ulteriori chiamate di sistema (system calls).
+
+Sincronizzazione I/O Video: La gestione del lock per ffmpeg (_ffmpeg_lock) è un'ottima pratica. Assicurati che il timeout del lock sia adeguato al carico di sistema.
+
+4. Robustezza UI e User Experience (UX)
+Separazione delle logiche: Il modulo image_sorter.py è molto denso (include GUI e logica). Per una manutenibilità a lungo termine, potresti voler isolare la logica di smistamento (es. il calcolo dei path di destinazione) in una classe SorterEngine separata dalla GUI (ImageSorter classe).
+
+Feedback visivo su operazioni lunghe: Nelle operazioni di "cestinamento" di molti file, la UI potrebbe apparire congelata. Assicurati che queste operazioni (se fatte in batch) rilascino il controllo al loop di eventi di tkinter usando root.update() o meglio, delegando l'intera operazione a un thread che invia progressivi aggiornamenti.
+
+5. Controllo delle Soluzioni Adottate (Code Review)
+Uso di subprocess: La tecnica di iterare su una lista di gestori file (nautilus, nemo, ecc.) per aprire percorsi è solida e portabile. Una piccola ottimizzazione potrebbe essere quella di memorizzare il file manager trovato la prima volta, evitando di controllare ogni volta (which) se l'eseguibile esiste.
+
+Gestione exif_editor.py: L'approccio di importare dinamicamente il modulo (importlib.util) è corretto per gestire dipendenze opzionali. Assicurati che, in caso di errori di scrittura EXIF, il rollback del file (se necessario) sia atomico o gestito con un file temporaneo, per evitare di corrompere l'immagine originale in caso di crash durante la scrittura
+
+
+
+installa.sh — supporto Nautilus/Thunar — lo step 7b installa l'azione solo per Nemo. Se l'utente usa un altro file manager non succede nulla (viene saltato), ma non c'è supporto equivalente per Nautilus scripts o Thunar custom actions.
+
+Cache video _video_cache — funziona ma è una LRU "naive" (rimuove il primo inserito, non il meno usato). Con cartelle molto grandi potrebbe tenere in RAM frame inutili. Da valutare se serve una vera LRU con collections.OrderedDict.
+
+Sanitizzazione caratteri nei nomi file — tk_safe() ora copre i blocchi Unicode più comuni ma è una lista manuale. Caratteri in blocchi non ancora mappati potrebbero ancora causare crash. Una soluzione più robusta sarebbe filtrare tutto ciò che non è ASCII + latino esteso (U+0000–U+024F).
+
+Selezione rapida per data nel browser — click sull'header del mese nella timeline per selezionare tutti i file di quel mese
+
+Geotag batch — nella timeline, seleziona un gruppo di foto e assegna le coordinate GPS di una sola a tutte, utile per foto scattate senza GPS nello stesso posto
+
+
+
+
+stream deck:
+-pag in più non eliminabile (se vuota sparisce?)
+-posizione del testo: alto mezzo basso
+-cartella delle icone sempre quella giusta
+-inserimento dell'icona avviene solo al "salva tasto" . meglio metterlo appena si apre il file scelto
+-Attivabile sempre tasti per i tasti funzione, oppure destinazioni -> sempre prima pagina funzioni operative tipiche pagine successive vari preset
+-tasto inserisci testo non scrive nulla
+-salva tasto serve per forza?
+
+
+
+storico, timeline, ecc si aprono al click e poi si chiudono al click successivo
+stesso comportamento con lo stream deck
+
+sidebar linee di testo con solo nome preset 
+
+cartelle preset con segno se disco non disponibile/non connesso
+
+drag&drop di box preset
+
+togliere spazio inutile attorno alle cartelle miniature di naviga
+
+storico raggiungibile direttamente
+
+rinommina e conversione multipla di file
+
+file recenti
+
+anteprima grande accanto a miniature naviga e timeline
+
+controllo hash con pre controllo veloce
+
+importa/esporta impostazioni Export preset — salva/carica configurazioni preset in un file JSON per portarle su un altro sistema o fare backup
+
+file pnm e conversione
+
+Cambio lingua senza riavvio
+
+_move_selected() in deep_browser — stub non implementato, lo spostamento file dalla Timeline avviene solo via menu contestuale, non con i tasti preset.
+
+Ordina per data EXIF nel browser — attualmente ordina per nome/dimensione/data file, manca la data scatto
+
+TASTO Assegna anche in finestra timeline
+
+cartella temp per annulla canc/crop
+
+broswer con albero nascondibile
+
+al cambio con bip, aspetta che ricarichi la successiva per nuovo spostamento - o aspetta di fare il bip
+
+se non c'è immagine in vista, non spostare 
+
+etichetta tastierino non rinomina da tst dx
 
 cartelle con anteprima proibita
- 
+
+cartelle private (accesso con pop up di conferma / pw?)
+(Le foto e i video nella cartella privata sono nascosti e non vengono visualizzati mentre navighi o cerchi nella tua libreria.)
+
+apertura file ovunque più leggibile
+
+tutte immagini per data (barra per range) da cartella in giù
+
+nomi cartelle in analizza disco: ora nei posti sbagliati, magari metterli con mouse sopra cartella
+
+nome file altrove così barra alta più sottile
+
+ruota da finestra tasto ds lenta a chiudersi con file grossi
+
+impostazioni:
+info scorre anche se non serve
+
+destinazioni: 
+visualizzare meglio i nomi delle cartelle di preset
+
+analisi cartelle:
+barra/fader per selezionare quanti livelli visualizzare, che allarga o stringe il diametro delle corone
+
+doppioni: 
+ordina risultati anche per cartelle e per nome file
+
+
+enter non con focus su finestra cerca doppioni
 
 verificare compatibilità altre versioni Linux
 
@@ -10,26 +475,6 @@ verificare BUILD STANDALONE EXECUTABLE
 
 scaricare tutti i file necessari 
 guidare passo passo a github
-
-
-
-
-tasto destro su file in cartella di sistema e sorting 
-
-pulsanti con simboli / icone disegnate
-
-stream deck:
-- ora che non abbiamo la gestione dello stream deck quando image sorter è spento, metterei l'attivazione di streamdeck ui come facevamo quanche versione fa
-
-chiudere deck da finestra streamdeck
-
-apertura file ovunque più leggibile
-
-
-
-_____________OK___________________________
-
-
 
 
 

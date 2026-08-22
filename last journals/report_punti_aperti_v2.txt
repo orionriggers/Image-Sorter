@@ -1,0 +1,216 @@
+===========================================================================
+IMAGE SORTER — QUADRO DEI PUNTI NON RISOLTI (rev. 2)
+Verificato SUL CODICE REALE, non solo sui journal
+===========================================================================
+Data: 2026-08-05
+Base: image_sorter 1.30.12 · timeline 1.30.4 · translations 1.30.2 ·
+      disk_analyzer 1.30.0 · exif_editor 1.30.0
+
+Stato di salute generale (verificato adesso):
+  - py_compile pulito su tutti e 5 i file
+  - pyflakes: solo i 3 warning noti e voluti (pillow_avif ×2, fitz)
+  - LANG: parità perfetta IT/EN, 225 chiavi ciascuno, nessun orfano
+  - Nessuna chiave T() usata nel codice e mancante in translations.py
+  - Tutti i nuovi pulsanti di Naviga hanno la traduzione ("< Indietro",
+    "Avanti >", "+ Nuova cartella", "Anteprima")
+Il codice è in buono stato: quello che segue sono punti aperti, non
+emergenze.
+
+
+===========================================================================
+PARTE 1 — L'UNICO BUG APERTO DICHIARATO, E COSA HO TROVATO
+===========================================================================
+
+BUG: area scorrevole che si "gonfia" in Naviga (cartelle vuote)
+---------------------------------------------------------------
+Stato: ANCORA APERTO dopo 3 tentativi. Confermo che il codice attuale
+contiene già il tentativo di fix (riga ~5453: update_idletasks + set
+esplicito di scrollregion + yview_moveto(0) nel ramo "Cartella vuota").
+
+Rileggendo quella zona ho trovato DUE difetti concreti che prima non
+erano stati notati. Non posso garantire che siano LA causa (senza
+tkinter qui non posso testare), ma sono difetti reali a prescindere e
+stanno entrambi esattamente nel meccanismo dello scroll.
+
+  (a) DOPPIO BINDING DELLA ROTELLA — e per di più GLOBALE
+      Righe 4368-4373: la rotella è legata al canvas miniature
+      (Button-4/Button-5).
+      Righe 4381-4382: le STESSE due azioni sono legate una seconda
+      volta con bind_all().
+      Conseguenze:
+        1. Con il puntatore sulla griglia, ogni scatto di rotella
+           esegue yview_scroll DUE volte (il canvas riceve l'evento sia
+           dal proprio bindtag sia da quello "all") → scroll doppio.
+        2. bind_all è per INTERO INTERPRETE, non per finestra: finché
+           Naviga è aperta, la rotella mossa in QUALSIASI altra finestra
+           del programma (visualizzatore principale, Timeline,
+           Impostazioni, Deck) fa scorrere anche la griglia di Naviga.
+        3. Il binding non viene mai rimosso alla chiusura di Naviga: c'è
+           solo una guardia winfo_exists() dentro la callback.
+      È esattamente la categoria di problema già identificata in una
+      sessione precedente per il menu contestuale di Timeline, dove
+      bind_all/unbind_all era stato sostituito con binding mirati (vedi
+      il commento esplicito in timeline.py riga 1936). Qui è rimasto.
+
+  (b) scrollregion CALCOLATA CON bbox("all"), CHE PUÒ RESTITUIRE None
+      Righe 4494 e 5459: scrollregion = self._thumb_canvas.bbox("all").
+      Se bbox restituisce None, Tkinter NON scrive una scrollregion
+      vuota: scarta silenziosamente l'opzione (nel suo _options() i
+      valori None vengono saltati). Risultato: resta in vigore la
+      scrollregion PRECEDENTE — cioè quella della cartella piena da cui
+      si è appena arrivati. Che è precisamente il sintomo descritto:
+      area vuota scorribile in una cartella vuota.
+      Fix suggerito (deterministico, niente bbox): impostare
+      scrollregion esplicitamente a (0, 0, larghezza_canvas,
+      max(altezza_contenuto, altezza_canvas)) usando
+      self._thumb_inner.winfo_reqheight(), sia qui sia nel gestore
+      <Configure>. Così l'area non può mai restare più grande del
+      contenuto, qualunque cosa faccia bbox.
+
+  DOMANDA CHE MI SERVE DAL TEST (quella che avevo già chiesto):
+  succede SOLO arrivando in una cartella vuota/quasi vuota da una
+  cartella PIENA, o anche partendo da una cartella piccola? Se succede
+  solo nel primo caso, l'ipotesi (b) è quasi certamente giusta.
+
+
+===========================================================================
+PARTE 2 — DIFETTI TROVATI ADESSO, MAI SEGNALATI PRIMA
+===========================================================================
+
+1. RESET INCOMPLETO DEL minsize DELLE COLONNE  [il punto 4.2 del report
+   precedente: confermato, il problema esiste]
+   Riga 5498: il reset delle colonne gira su range(12) — solo le prime
+   12 colonne.
+   Riga 5505: la configurazione con minsize gira su range(COLS), dove
+   COLS = larghezza_pannello // (dimensione_miniatura + 12).
+   Con le miniature "S" (90px → cella 102px) bastano ~1.250px di
+   pannello per superare le 12 colonne — sul tuo setup a tre monitor con
+   la finestra larga è uno scenario normale, non un caso limite.
+   Quando succede, le colonne dalla 13ª in poi ricevono un minsize che
+   NON viene mai più azzerato: restano configurate anche passando a
+   miniature "L" (5-6 colonne) o restringendo la finestra. È lo stesso
+   identico meccanismo dell'accumulo verticale già corretto per le
+   righe, ma sull'asse orizzontale e ancora attivo.
+   Fix: usare lo stesso schema delle righe — range(max(400, COLS)) o
+   comunque un intervallo generoso, non il 12 fisso.
+
+2. SPOSTAMENTO MULTIPLO DA TIMELINE COI TASTI NUMERICI: NON VA NELLO
+   STORICO
+   timeline.py riga 410: premendo 1-9 con più file selezionati in
+   Timeline si chiama sorter._move_to_preset_file() per ogni file.
+   Quella funzione (image_sorter.py 13509) registra solo in
+   self.history (la cronologia IN MEMORIA per Ctrl+Z, max 30 voci) e
+   NON chiama append_history() — quindi questi spostamenti non
+   compaiono nella finestra Storico, non sono annullabili da lì e non
+   generano miniatura.
+   Incoerenza: gli stessi file spostati dal MENU CONTESTUALE di
+   Timeline passano invece da _move_selected_to(), che chiama
+   regolarmente append_history (timeline.py 1538). Stessa azione, due
+   esiti diversi a seconda di come la lanci.
+   Stessa funzione, altri due effetti collaterali già noti e confermati:
+   non aggiorna il bordo attivo del Deck e non fa scattare l'avviso
+   "altre istanze aperte".
+
+3. FILTRO DELLE CARTELLE PRIVATE AGGIRATO SULLO STESSO PERCORSO
+   Conseguenza diretta del punto 2: la protezione privacy ("i file in
+   cartelle private non vengono registrati nello storico") è
+   implementata dentro append_history(). Non passando da lì,
+   _move_to_preset_file non ha nemmeno il problema... ma non ha neanche
+   la protezione se un domani gli si aggiunge la registrazione. Da
+   tenere presente quando si chiude il punto 2: va aggiunto
+   append_history, non una scrittura diretta.
+
+
+===========================================================================
+PARTE 3 — BACKLOG FUNZIONALITÀ (verificato nel codice)
+===========================================================================
+
+  A. TRADUZIONI IN FORMATO TABELLARE (CSV/.po)
+     translations.py è ancora un dict annidato di 1.210 righe.  APERTO
+
+  B. CAMBIO LINGUA SENZA RIAVVIO                                APERTO
+
+  C. DOLPHIN in installa.sh (Nemo e Nautilus OK)                APERTO
+
+  D. PREVIEW HOVER NEL BROWSER
+     _show_thumb_preview / _hide_thumb_preview esistono ancora
+     (righe 5801 e 5851) ma non sono legati a nessun evento: codice
+     morto da 13 versioni. Ora che c'è il pannello anteprima laterale,
+     la scelta sensata è CANCELLARLI, non implementarli.  DA CHIUDERE
+
+  E. ThreadPoolExecutor PER LE MINIATURE DI TIMELINE
+     Confermato: timeline.py usa ancora threading.Thread liberi (6
+     punti). Rilevante solo su cartelle molto grandi.            APERTO
+
+  F. SEPARAZIONE GUI/LOGICA (SorterEngine)      APERTO, bassa priorità
+
+  G. ANTEPRIMA FOTO NEL POPUP DELLA MAPPA GPS                   APERTO
+
+  H. MINIATURE NELLE RIGHE DI DuplicateFinder
+     Bloccato da tk.Listbox (non supporta immagini nelle righe).
+     Servirebbe un widget custom.                               APERTO
+
+  I. FILTRO/RICERCA RAPIDA PER NOME nella cartella corrente
+     (tua idea messa da parte, non implementata)      DA DECIDERE
+
+  Nota: le scorciatoie Alt+Sinistra / Alt+Destra risultano già
+  implementate — quella voce del resoconto si può depennare.
+
+
+===========================================================================
+PARTE 4 — LIMITAZIONI NOTE ANCORA IN PIEDI
+===========================================================================
+
+  1. Cancellazione di un'INTERA CARTELLA: va dritta al cestino di
+     sistema, non passa dal transito → non compare nello Storico.
+     Eccezione deliberata e documentata.
+  2. disk_analyzer.py riga 188: IMG_EXT non include .heic/.heif/.avif →
+     quei file finiscono in "Altro" nel grafico a torta. Fix da una
+     riga, segnalato dalla v1.28, mai fatto.
+  3. exif_editor.py: IPTC nativo sempre vuoto (piexif non lo supporta),
+     legge solo XMP. Servirebbe iptcinfo3 come dipendenza.
+  4. Undo crop dallo Storico: funziona solo se il backup esiste ancora.
+  5. Cestino di transito condiviso fra istanze multiple: alla chiusura
+     ognuna può chiedere di svuotarlo. Accettato.
+  6. Testo di stato in Timeline non visibile (frame coperto da
+     nav_canvas). Sospeso per tua scelta dalla v1.17.
+  7. Scroll del tab Storico: possibili fluttuazioni alla prima apertura
+     su sistemi lenti (mai più riverificato dalla v1.23).
+  8. Tab "Destinazioni" delle Impostazioni: il più lento (45-70ms),
+     ricostruito da zero ad ogni apertura. Riscrittura incrementale
+     rimandata.
+  9. Apertura del Deck: mai profilata, in attesa che tu confermi se il
+     problema esiste davvero.
+
+
+===========================================================================
+PARTE 5 — DEBITO DI DOCUMENTAZIONE E VERSIONING
+===========================================================================
+
+  1. BUMP COORDINATO A 1.31.0 NON FATTO (rinviato su tua richiesta).
+     I 5 file sono a quattro numeri di patch diversi.
+  2. installa.sh: non l'ho tra i file caricati, ultima versione
+     documentata nei journal 1.26.0 — quasi certamente indietro.
+  3. LEGGIMI.txt / README_en.txt: non caricati, ultima revisione
+     documentata alla v1.28. Non coprono nulla di 1.29 e 1.30 (magnete
+     crop, pipeline SHA256, pannello anteprima, Indietro/Avanti/
+     Preferiti/Nuova cartella, miniature nello Storico).
+  4. Storico versioni 1.24-1.27 mai integrato nei manuali.
+  5. GIRO DI TEST COMPLETO SU "NAVIGA" mai eseguito formalmente, benché
+     raccomandato dal journal v1.29.20 — e da allora Naviga ha ricevuto
+     altre modifiche strutturali (pannello anteprima, navigazione,
+     reset minsize).
+
+
+===========================================================================
+PROPOSTA DI PRIORITÀ
+===========================================================================
+  SUBITO   → Parte 2.1 (reset colonne: bug attivo, fix di 1 riga)
+             Parte 1a  (doppio bind_all della rotella: fix di 2 righe)
+             Parte 1b  (scrollregion deterministica: candidato n.1 per
+                        il bug che hai messo da parte)
+  POI      → Parte 2.2 (storico mancante sugli spostamenti da Timeline)
+             Parte 4.2 (disk_analyzer, 1 riga)
+             Parte 5.1 (bump coordinato) + 5.3 (manuali)
+  QUANDO   → Parte 3.D (cancellare il codice morto della hover preview)
+  CAPITA     Parte 3.I (filtro per nome, se ti serve davvero)

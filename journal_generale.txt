@@ -1,0 +1,607 @@
+IMAGE SORTER - JOURNAL GENERALE DI PROGETTO
+======================================================================
+Aggiornato a: v1.42.0 (bump coordinato)
+Autore: Carlo Porrone
+
+Questo file sostituisce, come quadro d'insieme, i singoli journal di
+sessione (journal_v1345.txt, journal_v135.txt, journal_v136.txt,
+journal_v1367.txt, journal_daemon_v1.txt) - quelli restano utili come
+cronaca dettagliata di COME e PERCHE' certe cose sono state fatte, ma
+nessuno di essi da solo racconta lo stato attuale del progetto.
+Va allegato all'inizio di ogni nuova sessione, insieme ai file sorgenti
+piu' aggiornati.
+
+===========================================================================
+COS'E' IMAGE SORTER
+===========================================================================
+Applicazione desktop Linux (Python 3.8+, Tkinter, Pillow) per navigare e
+smistare rapidamente foto, video e PDF in cartelle di destinazione,
+usando tastiera, mouse, o uno Stream Deck Elgato fisico. Sviluppata da
+Carlo Porrone con Claude come programmatore, su Linux Mint/Ubuntu
+(Cinnamon, X11), lanciata di solito con doppio clic, non da terminale.
+
+===========================================================================
+STRUTTURA DEL PROGETTO (v1.42.0)
+===========================================================================
+  image_sorter.py    Programma principale (~25.800 righe), GUI Tkinter
+  timeline.py         Timeline e mappa GPS
+  exif_editor.py       Editor metadati EXIF
+  disk_analyzer.py     Analisi utilizzo disco (sunburst/treemap)
+  translations.py      Stringhe IT/EN
+  metadata_store.py    Rating/colorlabel/tag (dalla v1.39.x), versione
+                        INDIPENDENTE
+  deck_core.py         Logica Stream Deck condivisa, versione INDIPENDENTE
+  deck_daemon.py       Demone per il deck fisico sempre attivo, nessuna
+                        variabile VERSION propria (mai aggiunta)
+  installa.sh           Script di installazione, versione INDIPENDENTE
+  LEGGIMI.txt / README_en.txt / README.md   Manuali (italiano, inglese,
+                        overview GitHub) - tenuti aggiornati a fine
+                        sessione, ma con debito accumulato in passato:
+                        controllare sempre se serve un ripasso
+
+I cinque file "core" (image_sorter.py, timeline.py, exif_editor.py,
+disk_analyzer.py, translations.py) condividono lo stesso numero di
+versione al bump coordinato; metadata_store.py, deck_core.py e
+deck_daemon.py hanno numerazione propria, indipendente.
+
+===========================================================================
+CONVENZIONE DI VERSIONING
+===========================================================================
+  x.Y.0   bump coordinato di TUTTI E CINQUE i file core (nuove
+          funzionalita' significative) - deck_core.py/deck_daemon.py
+          NON rientrano in questo bump, hanno versione propria
+  x.y.Z   fix minori, terzo numero indipendente per singolo file
+Il bump va incrementato ad ogni file consegnato, senza bisogno che
+Carlo lo chieda - ma il bump COORDINATO (secondo numero) va fatto solo
+quando esplicitamente richiesto o a chiusura di un arco di lavoro
+significativo, non ad ogni singola modifica.
+
+===========================================================================
+ARCHITETTURA DELLO STREAM DECK
+===========================================================================
+Fino alla v1.36.9 tutta la logica del deck fisico viveva dentro
+image_sorter.py. E' stata estratta in deck_core.py, un modulo
+autonomo, importabile da solo, senza dipendenze da Tkinter per le parti
+che non ne hanno bisogno:
+  - StreamDeckManager: connessione USB, disegno dei tasti, dispatch
+    delle azioni
+  - execute_headless_action(): le azioni idle indipendenti
+    dall'interfaccia grafica (folder, app, hotkey, url, mute, page,
+    text) - eseguibili anche senza nessuna finestra aperta. "command",
+    "sorter", "rating" e "color_label" (le ultime due NUOVE in
+    v1.42.0, vedi sotto) restano invece compiti di image_sorter.py,
+    perche' richiedono un'istanza grafica viva
+  - Meccanismo di lock file (chi possiede il deck: una finestra di
+    Image Sorter o il demone) e di instradamento fra piu' istanze
+    (focus file + casella per processo)
+
+image_sorter.py importa deck_core.py con un fallback difensivo: se il
+file manca, il deck si disattiva invece di bloccare l'avvio del
+programma. Contiene ancora: i 30 comandi diretti (29 + "Invia a
+modifica", azioni "command" che chiamano metodi della GUI), l'azione
+"sorter" (apre Image Sorter su una cartella), e tutta la finestra
+Impostazioni > Deck.
+
+deck_daemon.py: processo separato, senza Tkinter, che tiene il deck
+fisico attivo quando Image Sorter e' chiuso. Gestisce solo le azioni
+headless; i comandi diretti e "sorter" restano muti se solo il demone
+gira (nessun auto-lancio di Image Sorter, scelta esplicita). Cede
+SEMPRE il passo a una finestra di Image Sorter che si apre, e si
+riprende il deck da solo quando quella chiude.
+
+Il dispositivo ha due modalita' (Ctrl+D o bottone S-Deck in barra, che
+ne indica lo stato col colore - grigio non connesso, ciano idle, verde
+preset; tasto destro apre le impostazioni del deck):
+  - PRESET: smistamento rapido, stessi tasti del deck software
+  - IDLE: pagine configurabili, azioni libere per tasto. Dalla v1.42.0
+    esiste una pagina speciale "Rating/Flag" (vedi sotto)
+
+NOTA (solo UN deck fisico alla volta): verificato in sessione v1.42.0
+su richiesta di Carlo - l'intera pipeline (StreamDeckManager._connect,
+che sceglie UN indice fra i device enumerati; il lock file, un solo
+"proprietario" per volta; self._stream_deck in image_sorter.py, un
+attributo scalare, non una lista) assume un solo dispositivo fisico.
+Per il multi-deck servirebbe: identificare i device per numero
+seriale (non indice), config per-device (deck_idle_pages/
+deck_device_index diventerebbero dizionari chiave-seriale), lock e
+istanza StreamDeckManager per-device, selettore nel tab Impostazioni.
+
+Pagina "Rating/Flag" (v1.42.0): aggiunta automaticamente in fondo alle
+pagine idle esistenti al primo avvio dopo l'aggiornamento (marcatore
+"deck_ratings_page_added" in config, non si riaggiunge piu' se tolta o
+modificata). Riga 1 = 5 colori etichetta (ordine di
+metadata_store.COLOR_LABELS), riga 2 = 5 stelle di valutazione, riga 3
+libera per funzioni normali. Due nuovi tipi di azione idle, "rating"
+(param "1".."5") e "color_label" (param id colore), assegnabili anche
+a mano a qualunque tasto/pagina dall'editor (menu a tendina dedicato,
+non testo libero). Resa dei tasti DINAMICA: acceso/spento in base al
+file ATTUALMENTE aperto (letto da metadata_store ad ogni refresh_all),
+sia lettura che scrittura - click applica/toglie con lo stesso
+principio di toggle gia' in uso nell'overlay "Flag" del visualizzatore.
+
+===========================================================================
+ARCHITETTURA RATING/COLORLABEL/TAG
+===========================================================================
+metadata_store.py: modulo autonomo, indicizzato per PERCORSO ASSOLUTO del
+file, database JSON portatile separato dal resto della configurazione.
+Espone: rating 0-5 stelle, colorlabel multiple non esclusive (rosso,
+giallo, verde, blu, viola), e tag testuali liberi organizzabili in
+Gruppi Tag (v1.42.0, vedi sotto).
+
+Funzioni principali: get_meta/set_rating/toggle_color/add_tag/
+remove_tag/set_tags (singolo file) - bulk_set_rating/bulk_toggle_color/
+bulk_add_tag/bulk_toggle_tag (selezione multipla, stesso principio
+"tutti-o-nessuno" per i toggle) - get_all_tags/get_tag_counts/
+get_tags_ordered (per la nuvola di tag, tre ordinamenti: alfabetico,
+uso recente, frequenza) - query() (filtro combinato rating/colore/tag,
+usato da Naviga) - rename_path/rename_path_prefix. NUOVO in v1.42.0:
+create_tag/rename_tag/delete_tag (registro dei tag INDIPENDENTE
+dall'uso nei file - prima un tag esisteva solo se applicato ad almeno
+un file, ora si puo' creare in anticipo) e get_tag_groups/
+create_tag_group/rename_tag_group/delete_tag_group/toggle_tag_in_group
+(Gruppi Tag, puramente organizzativi per ora - nessuna funzione oltre
+al filtro rapido di Naviga li sfrutta ancora, vedi RESTA APERTO).
+
+LIMITE STRUTTURALE IMPORTANTE, gia' affrontato: l'indicizzazione per
+percorso assoluto significa che spostare o rinominare un file FUORI da
+Image Sorter (es. da un file manager esterno) orfanizza la sua voce.
+DENTRO Image Sorter, rename_path()/rename_path_prefix() sono collegate
+a TUTTI i punti del programma che spostano o rinominano file
+(smistamento con 1-9/0, taglia/incolla, rinomina singola o in serie,
+trascinamento, cartelle intere con tutto il contenuto, e tutti i
+percorsi di annulla/Ctrl+Z corrispondenti) - solo l'invio al cestino
+di sistema reale ne resta escluso di proposito (il file esce comunque
+dalla gestione del programma da li').
+
+Esposizione UI:
+  - Overlay "Flag" (tasto V): stelle+colori sull'immagine principale,
+    cliccabile
+  - Finestra Tag dedicata (Shift+T): nuvola di tag esistenti filtrabile
+    digitando, tag nuovi creabili con Invio, segue la navigazione
+    dell'immagine corrente (frecce, bottoni barra strumenti, o altro -
+    controllo periodico, non solo bind sulle frecce), comportamento a
+    interruttore. Su selezione multipla (tasto destro, "Tag..."): un
+    tag e' evidenziato solo se presente su TUTTI i file selezionati
+  - Riga tag cliccabile sotto i preset, in Naviga E Timeline (v1.42.0:
+    prima solo Naviga) - stesso principio "tutti-o-nessuno", checkbox
+    "Tag" per nasconderla (accanto a "Preset", nuovo anche in Timeline)
+  - Tab Impostazioni > Tag (NUOVO in v1.42.0, fra "Visualizza" e
+    "Tasti"): colonna Tag (crea/rinomina/elimina) e colonna Gruppi Tag
+    (crea/rinomina/elimina, nuvola per gestire l'appartenenza).
+    Ordinamento della nuvola tag (alfabetico/uso recente/frequenza)
+    spostato qui dal tab Visualizza.
+  - Filtro "Filtro *" in Naviga: sezioni rating/colore/tag ("pillole"
+    rimovibili, logica "basta uno"/tags_any). NUOVO in v1.42.0: mostra
+    tutti i tag della libreria (non solo digitando), niente piu' tag
+    "fantasma" se digiti un nome che non esiste, e i Gruppi Tag come
+    scorciatoia (un click aggiunge tutti i tag del gruppo al filtro)
+
+Clipboard di sistema (Copia/Taglia/Incolla file, interoperabile con
+Nemo/Nautilus/Thunar) via xclip - vedi KEY LEARNINGS per il perche' non
+basta l'implementazione nativa Tkinter.
+
+===========================================================================
+MODALITA' "CONFRONTA" (NUOVA, v1.42.0)
+===========================================================================
+Bottone nel visualizzatore principale, accanto a "Schermo intero":
+affianca al canvas principale due canvas piu' piccoli (precedente a
+sinistra, successivo a destra), che seguono la navigazione. Sono SOLO
+visivi - nessun comando/tasto destro si applica a loro, solo
+all'immagine centrale. Canvas principale incapsulato in un nuovo frame
+_compare_wrap dentro img_frame (colonna 1 di 3, le laterali a
+larghezza/peso zero quando la modalita' e' spenta): niente cambiato nel
+resto del layout quando non e' attiva. Le due anteprime si caricano in
+thread separati (generation counter DEDICATO, _cmp_generation - vedi
+KEY LEARNINGS sul perche' non condividere quello dell'immagine
+principale) e si riadattano da sole al ridimensionamento della
+finestra senza rileggere il file.
+
+===========================================================================
+KEY LEARNINGS & PRINCIPI CODIFICATI (validi per TUTTO il progetto)
+===========================================================================
+  - Lavorare SEMPRE dai file caricati da Carlo, mai da copie
+    dell'ambiente - quattro incidenti documentati di modifiche
+    anomale ai file, causa mai accertata con certezza
+  - tk_safe() e Unicode: caratteri nei range 0x2600-0x27BF causano
+    sostituzione silenziosa con "?" su X11 - tutto il testo
+    dell'interfaccia deve restare ASCII-safe (vale anche per i file
+    .txt/.md dei manuali, per coerenza, anche se tecnicamente non
+    hanno il vincolo Tkinter)
+  - Context menu su Linux/X11: sempre tk_popup(), mai menu.post() con
+    bind manuali
+  - Ogni eliminazione file DEVE passare da move_to_transit() +
+    append_history() - mai send_to_trash() diretto - per abilitare
+    annulla e log
+  - Thread in background: generation counter per scartare risultati
+    vecchi quando l'utente interagisce rapidamente - se DUE cose
+    diverse condividono lo stesso schema (es. immagine principale e
+    pannelli "Confronta"), usare un contatore DEDICATO per ciascuna:
+    un contatore condiviso, incrementato da un evento non correlato
+    subito dopo la lettura, invalida il risultato dell'altra ancora
+    prima che il suo thread finisca (bug reale, corretto in v1.42.0)
+  - Attributi letti da handler devono essere inizializzati PRIMA che
+    il widget leghi l'handler, non dopo
+  - Wm_overrideredirect Toplevel: withdraw() poi deiconify() dopo aver
+    impostato la geometria, per evitare lampeggi
+  - StreamDeck: close() scarta solo il riferimento Python, NON chiude
+    davvero l'hardware - va bene se il processo sta per uscire (il
+    sistema operativo libera il device), MA per un processo che resta
+    vivo dopo aver rilasciato il device (il demone; anche Image Sorter
+    nel proprio gestore di scollegamento fisico) serve
+    release_hardware(), che chiama il vero deck.close() della libreria
+  - StreamDeck: mai chiamare deck.reset() prima di un refresh_all() -
+    cancella tutte le immagini producendo un lampeggio a vuoto
+    superfluo, dato che refresh_all() ridisegna comunque ogni tasto
+  - StreamDeck multi-processo: ogni finestra di Image Sorter e' un
+    PROCESSO separato del sistema operativo (mai piu' finestre nello
+    stesso processo) - un riferimento Python a un'istanza non e' MAI
+    raggiungibile da un altro processo; ogni forma di coordinamento
+    fra istanze deve passare da file condivisi (lock, focus, caselle
+    di instradamento), mai da oggetti in memoria
+  - StreamDeck: "catturare" un tasto e "inviarlo" sono due permessi
+    diversi a livello di sistema operativo - il desktop puo'
+    intercettare certi tasti (retroilluminazione, tasti multimediali)
+    PRIMA che arrivino a qualunque applicazione, ma un'applicazione
+    puo' comunque INVIARE quello stesso simbolo con xdotool, se se ne
+    conosce il nome esatto (xmodmap -pke per scoprirlo)
+  - xdotool distingue "C" (maiuscola, "il tasto C con Shift gia'
+    premuto") da "c" (minuscola) come simboli DIVERSI - scriverli a
+    mano e' un errore facile; nel dubbio, catturare il tasto vero
+    (bottone "Registra" nell'editor del deck) elimina l'ambiguita' alla
+    radice
+  - Corse fra piu' istanze/processi in avvio quasi simultaneo: mai
+    controllare un lock/una condizione UNA SOLA volta all'inizio -
+    ricontrollare ad ogni tentativo di un ciclo di retry, e aggiungere
+    un margine casuale (non un'attesa fissa) per non far collidere
+    sempre allo stesso ritmo
+  - Errori di comandi esterni (subprocess) non vanno mai inghiottiti
+    in silenzio con un except generico - stampare almeno il nome del
+    comando mancante; ha gia' fatto perdere tempo prezioso una volta
+    (xdotool non installato, nessun sintomo se non "non succede
+    nulla")
+  - Salvataggio automatico nei form: mai salvare ad ogni carattere
+    digitato - solo al completamento del campo (uscita/Invio/
+    selezione) - e mai salvare un campo che dipende da un ALTRO campo
+    appena cambiato prima che quest'ultimo sia stato completato
+    (esempio: cambiare tipo di azione non salva subito se il nuovo
+    tipo richiede un parametro non ancora scritto)
+  - Popup senza grab_set() (scelta deliberata in tutto il progetto, per
+    non bloccare altri programmi): focus_set() sul campo NON basta con
+    un vero window manager, che spesso impedisce apposta a una finestra
+    appena aperta di rubare il fuoco da sola - serve focus_force() sul
+    widget, non solo sulla finestra
+  - Entry.bind("<Return>", handler): senza un "return \"break\""
+    esplicito alla fine, l'evento continua a propagarsi oltre il campo
+    fino a un binding di livello superiore nella stessa finestra (es.
+    "apri l'immagine selezionata") - controllare sempre gli altri campi
+    testo nella stessa classe per lo schema gia' in uso
+  - subprocess.Popen con stderr=PIPE verso un comando che si stacca in
+    BACKGROUND da solo (es. xclip, che resta vivo per servire la
+    clipboard dopo che il "processo principale" e' uscito): il
+    processo in background EREDITA la pipe e la tiene aperta,
+    Python resta in attesa della sua chiusura fino al timeout pieno -
+    usare DEVNULL per stdout/stderr quando il comando e' pensato per
+    demonizzarsi
+  - Canvas.winfo_width() letto subito dopo un cambio di layout (es.
+    aggiungere un pannello a un PanedWindow) puo' restare non
+    aggiornato anche dopo update_idletasks()/update() espliciti - la
+    ridistribuzione dello spazio in un PanedWindow puo' generare PIU'
+    eventi <Configure> ravvicinati (aggiunta pannello, poi
+    riposizionamento divisore) con un tempo di assestamento non
+    prevedibile in anticipo; un debounce CONDIVISO fra la richiesta di
+    caricamento iniziale e quelle scatenate da <Configure> (invece di
+    tentare di indovinare un ritardo fisso, o di far correre le due
+    richieste separate) le fa fondere in un solo ricaricamento finale
+    invece di uno visibile e doppio
+  - Mostrare contenuto vero (es. un'immagine) in un'area prima vuota
+    (es. un pannello anteprima appena aperto) puo' cambiarne la
+    geometria naturale rispetto a quando era vuota - se quel contenuto
+    e' gia' noto in anticipo, caricarlo PRIMA di leggere le dimensioni
+    per un calcolo a valle (es. colonne di una griglia), non dopo
+  - Un pannello "gemello" in un PanedWindow (es. l'anteprima ingrandita
+    di Timeline) e' alto quanto l'INTERO PanedWindow, non quanto il
+    contenuto dell'altro pannello - righe che devono restare "sotto la
+    griglia" vanno gridate FUORI dal PanedWindow (un livello sopra, a
+    tutta larghezza), non dentro il pannello che contiene la griglia,
+    altrimenti il pannello gemello (piu' alto) le fa sembrare tagliate
+  - Un'icona/forma disegnata solo nella meta' inferiore di un canvas
+    quadrato (per assomigliare a una forma reale, es. una cartella con
+    linguetta) lascia una fascia vuota sopra che eredita comunque
+    qualunque sfondo/bordo applicato all'INTERO canvas (evidenziazione
+    di selezione, bordo di stato) - il canvas va dimensionato quanto
+    il disegno reale, non quanto un quadrato "capiente"
+  - Bottoni riusati (non ricreati) quando l'insieme delle opzioni non
+    cambia fra una chiamata e l'altra (per evitare lampeggi) restano
+    legati alla CHIUSURA della prima costruzione, se quella chiusura
+    cattura uno stato "corrente" (es. la selezione, il file aperto) per
+    valore anziche' rileggerlo al momento del click - un bottone
+    riusato puo' agire sullo stato SBAGLIATO (quello di quando fu
+    creato), non su quello attuale; la chiusura deve rileggere lo
+    stato corrente ad ogni click, non fidarsi di quello catturato
+  - Una ricerca "e' gia' nel registro?" case-insensitive per gestire
+    fusioni di nomi (es. rinominare un tag) deve ESCLUDERE l'elemento
+    che si sta rinominando dalla ricerca - altrimenti un cambio di
+    sole maiuscole/minuscole (es. "mare" -> "Mare") trova SE STESSO
+    come "gia' esistente" e si annulla da solo, silenziosamente
+  - Un'operazione su PIU' file che aggiorna una cache in RAM dopo aver
+    scritto su disco (es. il pallino GPS in Timeline) deve aggiornarla
+    SOLO per i file su cui la scrittura e' DAVVERO riuscita, non per
+    tutti i file richiesti - altrimenti un file la cui scrittura fallisce
+    in silenzio (EXIF non standard, permessi...) risulta "corretto" a
+    video mentre sul disco resta il valore vecchio; una funzione che
+    scrive su piu' file deve poter dire AL CHIAMANTE quali sono
+    davvero riusciti (non solo un conteggio aggregato), o il chiamante
+    non ha modo di saperlo
+  - Un modulo (es. deck_core.py, timeline.py) caricato a mano da
+    image_sorter.py con module_from_spec, che al suo interno fa "from
+    image_sorter import X" (import STANDARD, non module_from_spec):
+    quando image_sorter.py gira come __main__ (non importato), quella
+    riga non trova nulla in sys.modules e ne importa una copia SEPARATA
+    e COMPLETA da zero - un oggetto modulo diverso da quello che sta
+    davvero girando, con le proprie variabili globali mutabili
+    (metadata_store, un clipboard...) scollegate da quelle vere.
+    Trovato DUE VOLTE nella stessa sessione (deck_core.py e poi
+    timeline.py, stesso schema). Sintomo tipico: un dato scritto da una
+    parte del programma non si vede mai in un'altra, ma SOLO dopo che
+    quella seconda parte ha gia' "scaldato" la propria cache leggendola
+    una prima volta (la primissima lettura, a cache vuota, legge dal
+    disco e sembra funzionare per caso). La variabile locale del
+    caricamento manuale (es. "deck_core" in image_sorter.py) NON e'
+    detto sia la stessa istanza usata davvero altrove (es.
+    StreamDeckManager, importata per nome subito dopo con "from
+    deck_core import") - va verificato con test empirico (confrontare
+    identita' di oggetto, es. via __globals__ di un metodo) quale
+    istanza sia quella REALMENTE in uso, mai assunto dal solo leggere
+    il codice. Corretto iniettando esplicitamente i riferimenti
+    condivisi mutabili nell'istanza giusta, dopo averla identificata.
+  - Xvfb (o un display X reale con finestre tenute withdraw()) permette
+    test funzionali REALI di Tkinter (creare widget, generare eventi,
+    leggere coordinate/colori) senza schermo fisico - usato
+    sistematicamente per verificare prima di consegnare, non solo
+    py_compile/pyflakes; molti difetti di questo progetto sono stati
+    trovati COSI', non a occhio ne' dopo il test di Carlo. Attenzione
+    pero': un test che chiama root.update() invece di root.mainloop()
+    puo' far fallire chiamate .after() da thread in background
+    ("main thread is not in main loop") che nell'app vera non falliscono
+    mai (mainloop() gira sempre) - per test che dipendono da thread
+    reali, schedulare i passi con root.after() e usare root.mainloop()
+    davvero, non un ciclo di update() dall'esterno
+
+===========================================================================
+APPROCCIO DI VERIFICA (non negoziabile, vale per ogni consegna)
+===========================================================================
+  - py_compile + pyflakes PRIMA di ogni consegna
+  - Confronto strutturale AST contro l'ultima versione consegnata:
+    nessuna classe, metodo o funzione di modulo perso senza spiegazione
+  - Simulazioni isolate (senza Tkinter, senza hardware) per ogni
+    difetto prima di dichiararlo corretto - quando possibile, la
+    simulazione deve riprodurre ESPLICITAMENTE il difetto (controprova)
+    prima di dimostrare che la correzione lo risolve, non solo
+    testare il "percorso felice"
+  - Verificare SEMPRE sul sorgente REALE scritto nel file, non fidarsi
+    della propria ricostruzione a memoria di cosa dovrebbe esserci
+  - Dichiarare esplicitamente cosa NON si e' potuto verificare
+    (hardware fisico, ambienti multi-processo reali, systemd vero,
+    librerie native come libusb) - la maggior parte dei difetti reali
+    di questa fase e' stata trovata SOLO dai test di Carlo sul proprio
+    sistema, mai in anticipo
+  - I test vanno fatti SEMPRE in una copia isolata dei moduli (una
+    cartella di scratch), MAI nella cartella di progetto: image_sorter_
+    config.json/image_sorter_metadata.json/image_sorter_history.json
+    nella cartella di lavoro sono i dati VERI di Carlo, non file di
+    test - scrivere/sovrascrivere li' per una prova rischia di
+    corrompere la sua libreria reale di rating/colori/tag
+
+===========================================================================
+STATO ATTUALE (v1.42.0) - FUNZIONALITA' PRINCIPALI
+===========================================================================
+  - Smistamento con tastiera/mouse/deck, preset multipli, cronologia
+    annullabile
+  - Ricerca doppioni: SHA256 a tre fasi, nome+dimensione, confronto A
+    vs B fra cartelle con anteprima affiancata e selezione multipla
+  - Timeline con mappa GPS, editor EXIF, analisi disco (sunburst/
+    treemap); righe Preset/Tag anche in Timeline (non solo Naviga)
+  - Sidebar preset in modalita' griglia o elenco
+  - Log errori con indicatore visivo (pallino rosso), copiabile,
+    svuotabile
+  - Stream Deck fisico: modalita' preset e idle, 30 comandi diretti,
+    icone personalizzabili (selettore con anteprima), cattura diretta
+    delle scorciatoie da tastiera, salvataggio automatico dei tasti
+    nell'editor, pagina "Rating/Flag" auto-generata (colori+stelle
+    dinamici). UN SOLO deck fisico alla volta, non supportati piu'
+    device in parallelo
+  - Demone in background per il deck sempre attivo (deck_daemon.py),
+    con instradamento dei comandi verso la finestra col fuoco quando
+    piu' istanze di Image Sorter sono aperte insieme
+  - Rating (0-5 stelle), colorlabel (5 colori non esclusivi) e TAG
+    (con Gruppi Tag, tab Impostazioni > Tag) su singolo file o
+    selezione multipla, overlay "Flag" nel visualizzatore
+  - Tag testuali liberi: finestra dedicata (Shift+T) con nuvola
+    filtrabile, selezione multipla con logica "tutti-o-nessuno", filtro
+    dedicato in Naviga (con nuvola completa e Gruppi Tag come
+    scorciatoia), tre modalita' di ordinamento configurabili (tab
+    Impostazioni > Tag)
+  - Modalita' "Confronta" nel visualizzatore principale: precedente/
+    successivo affiancati (piu' piccoli), solo visivi
+  - Rating/colorlabel/tag seguono il file attraverso qualunque
+    spostamento o rinomina fatto DENTRO il programma (incluse cartelle
+    intere e tutti i percorsi di annulla)
+  - Copia/Taglia/Incolla file interoperabile con il resto del sistema
+    (Nemo/Nautilus/Thunar) via xclip, non piu' solo interno al
+    programma - "Taglia" verso l'esterno usa una cartella di attesa
+    dedicata e recuperabile
+  - Naviga: selezione e anteprima di default sul file gia' aperto nel
+    visualizzatore principale (o il primo della cartella, in mancanza),
+    apertura senza doppio caricamento visibile della griglia; tasto
+    destro anche sullo sfondo della griglia (Incolla/Nuova
+    sottocartella/Apri nel file manager/Aggiorna)
+  - "Modifica con...": mostra il nome del programma configurato
+    ("Modifica con Gimp") invece dei puntini generici, sia nel
+    visualizzatore principale che in Naviga
+  - "Apri" (tasto destro, Naviga e Timeline) su un video: lancia
+    direttamente un player esterno invece di mostrare un fotogramma
+    statico nel visualizzatore
+
+===========================================================================
+RESTA APERTO (aggiornato, sostituisce le liste dei singoli journal)
+===========================================================================
+Priorita' alta / segnalato esplicitamente da Carlo:
+  - Rilevamento di piu' deck fisici Elgato collegati insieme - MAI
+    affrontato (vedi nota nella sezione Stream Deck piu' sopra per il
+    lavoro che servirebbe)
+  - Se dare scelta in Impostazioni fra il demone e il vecchio
+    StreamController, invece di assumere che il demone sia sempre la
+    soluzione voluta
+  - La pagina idle torna sempre alla prima al cambio di proprietario
+    del deck (demone <-> Image Sorter), invece di restare su quella in
+    corso
+
+Noti ma non prioritari:
+  - L'instradamento della modalita' preset fra piu' finestre resta
+    "rischioso" (i tasti fisici mostrano sempre il preset del
+    proprietario del deck, non di chi ha il fuoco) - Carlo ha scelto
+    di non correggerlo, situazione rara nel suo uso
+  - Il file d'esempio per systemd (in fondo a deck_daemon.py) non ha
+    funzionato al primo tentativo di Carlo - causa MAI diagnosticata,
+    e' passato all'autostart di Cinnamon senza approfondire
+  - Downgrade di Pillow per il vecchio streamdeck-ui - questione
+    superata dal demone, non piu' rilevante
+  - Copia file (non taglia) non duplica rating/colore/tag sulla copia -
+    scelta di ambito deliberata (una copia e' un file nuovo,
+    indipendente), non un difetto, ma da ridiscutere se Carlo la vuole
+    diversa
+  - Indicatore tag sotto le miniature in Naviga/Timeline: deliberato
+    "non ancora" di Carlo alla progettazione della finestra Tag (solo
+    finestra dedicata + filtro + riga cliccabile, per ora)
+  - Filtro (ricerca/selezione) per tag esiste solo in Naviga, non in
+    Timeline (Timeline ha la riga tag per applicarli, non un filtro)
+  - Gruppi Tag (introdotti in v1.42.0): solo organizzazione per ora,
+    nessuna funzione li usa oltre al filtro rapido di Naviga - idee
+    aperte se servono altre funzioni
+  - Il "saltino" nel caricamento di Naviga: risolto e confermato con
+    test strumentati (conteggio chiamate reali a _load_thumbnails,
+    prima 2 ora 1), ma MAI verificato a occhio su schermo reale -
+    Carlo aveva gia' segnalato una volta che sembrava "un po'
+    cambiato" invece di sparire dopo un primo tentativo di correzione
+
+Proposto ma non iniziato:
+  - Riconoscimento automatico di oggetti/animali in foto (YOLO/ONNX
+    locale, nessun servizio cloud) - discusso con Carlo come
+    valutazione futura, si incastrerebbe nel campo "tags" di
+    metadata_store.py gia' pronto; riconoscimento visi discusso come
+    fase separata, piu' delicata (dati biometrici, va reso opt-in)
+
+Backlog di lungo periodo (invariato da piu' sessioni):
+  - Rilevamento duplicati visivi (phash)
+  - Modalita' presentazione (slideshow)
+  - Traduzioni in formato tabellare (CSV/.po)
+  - Cambio lingua senza riavvio
+  - Dolphin e Thunar in installa.sh
+  - ThreadPoolExecutor per le miniature di Timeline (>500 file)
+  - Miniature nelle righe di DuplicateFinder nelle tab SHA/Rapida
+    (solo A vs B ce l'ha)
+
+NOTA IMPORTANTE: vedi anche il file punti_aperti.txt (separato da
+questo journal) per un secondo elenco di punti aperti, verificato DIRET
+TAMENTE sul codice riga per riga (non solo sui ricordi di sessione) -
+copre difetti e debito tecnico che questo journal non tiene traccia in
+dettaglio (bug puntuali su Naviga/Timeline/disk_analyzer, limiti noti,
+debito di documentazione). Aggiornato l'ultima volta in sessione
+v1.42.0, base precedente v1.30.12.
+
+===========================================================================
+CRONOLOGIA CONDENSATA (per orientarsi nei journal di sessione)
+===========================================================================
+  v1.34.x   Fix di avvio, sidebar staccata, log errori con pallino
+  v1.35.x   Sidebar a elenco, dischi non raggiungibili, scambio preset
+            per trascinamento, deck: bottoni extra, cartella icone,
+            colore di stato S-Deck, formato JSON leggibile
+  v1.36.0   28 comandi diretti del deck + icone (poi 29 con
+            "elimina precedente")
+  v1.36.1-9 Anteprima live editor, toggle apri/chiudi pannelli,
+            tasto destro S-Deck, ricerca doppioni A vs B con anteprima
+            e selezione multipla, controllo periodico di
+            (dis)connessione del deck
+  v1.36.10  Estrazione di deck_core.py (nessun cambio di
+            comportamento, solo trasloco)
+  v1.36.11  Ctrl+Canc (elimina il file precedente)
+  v1.36.12  Instradamento comandi verso la finestra col fuoco
+  v1.36.13  Corretta la corsa fra piu' istanze all'avvio (lock non
+            ricontrollato dentro il ciclo di retry)
+  v1.36.14  deck_daemon.py: nasce il demone, con richiesta di cessione
+            tramite casella condivisa
+  v1.36.15  Corretto il demone che riprendeva il deck troppo presto
+  v1.36.16  Corretto release_hardware() vs close() (il difetto piu'
+            serio della fase demone)
+  v1.36.17  Rimosso il riavvio di StreamController
+  v1.36.18  Corretto lo spazio ai margini nel testo (azione "text")
+  v1.36.19-21 Diagnosi e correzione del crash libusb (maiuscole nelle
+            scorciatoie), cattura diretta dei tasti nell'editor
+  v1.36.22  Tasto K (ritaglio) mai collegato, corretto
+  v1.36.23  Salvataggio automatico nell'editor del tasto deck, addio a
+            "Salva tasto"
+  v1.37.0   Bump coordinato di chiusura fase
+  v1.38.x-  Rating/colorlabel (metadata_store.py, NUOVO modulo),
+  v1.39.0   crop/resize nel visualizzatore, manuale HTML con
+            screenshot reali via Xvfb
+  v1.39.1-9 Overlay rating/colore cliccabile, correzione crop backup/
+            ripristino, popup ridimensiona con navigazione frecce,
+            copia/taglia/incolla file (prima solo lista Python interna,
+            mai collegata alla clipboard vera)
+  v1.39.10-11 Copia/incolla passato a xclip (Tkinter non risponde
+            davvero alla richiesta ICCCM MULTIPLE nonostante la
+            dichiari), "Taglia" con cartella di attesa dedicata e
+            annullabile
+  v1.39.12  Popup "Salva ritaglio": difetto focus_set() vs
+            focus_force() sotto un vero window manager, corretto in
+            tutti i popup con lo stesso schema
+  v1.39.13-14 KeypadPopup (finestra Deck): tasto destro/sinistro/
+            attivazione preset legati al preset SBAGLIATO dopo un
+            cambio da menu a tendina (closure che catturava il nome
+            preset alla creazione, non all'uso) - popup destinazione
+            che restava nascosto dietro un deck -topmost
+  v1.40.0   Bump coordinato - nasce la finestra Tag dedicata
+            (Shift+T), nuvola filtrabile, selezione multipla,
+            ordinamento configurabile, filtro in Naviga
+  v1.40.1-3 Traduzione "btn_settings" persa per errore durante
+            l'aggiunta di una chiave, finestra Tag che duplicava se
+            stessa invece di comportarsi a interruttore, campo Invio
+            senza "break" che apriva la prima immagine per errore
+  v1.40.4-6 Selezione/anteprima di default sul file del visualizzatore
+            all'apertura di Naviga, rating/colore/tag collegati a
+            TUTTI gli spostamenti/rinomine del programma (prima solo
+            1 punto), doppio caricamento della griglia all'apertura
+            (causa vera: contenuto anteprima caricato DOPO il calcolo
+            colonne, non l'assestamento del pannello come sembrava
+            all'inizio - debounce condiviso fra richiesta iniziale ed
+            eventi di ridimensionamento)
+  v1.41.0   Bump coordinato di chiusura fase
+  v1.41.1-20 (sessione v1.42, dettagliata sotto) tab Impostazioni >
+            Tag (creazione/rinomina/eliminazione tag e Gruppi Tag),
+            modalita' "Confronta", pagina deck "Rating/Flag", "Modifica
+            con" col nome del programma (principale+Naviga, sparito il
+            secondo bottone in Naviga), "Apri" su video lancia un
+            player esterno (Naviga+Timeline), tasto destro sullo sfondo
+            della griglia in Naviga, selettore icona tasto con
+            anteprima, layout anteprima/preset/tag di Timeline
+            corretto, dimensioni cartelle in Naviga corrette, popup
+            Filtro di Naviga si chiude cliccando altrove, e una serie
+            di bug corretti durante i test (rinomina tag case-only che
+            si annullava da sola, bottoni tag riusati legati alla
+            selezione vecchia in Naviga/Timeline, doppio import di
+            deck_core.py e poi timeline.py con metadata_store
+            scollegato dalla copia vera, scrittura GPS parziale
+            silenziosamente mostrata come riuscita in Timeline)
+  v1.42.0   Bump coordinato di chiusura fase - stato attuale
+
+===========================================================================
+COME RIPARTIRE IN UNA NUOVA SESSIONE
+===========================================================================
+Allegare:
+  1. Questo file (journal generale) + punti_aperti.txt
+  2. I file sorgenti aggiornati: image_sorter.py, metadata_store.py,
+     deck_core.py, deck_daemon.py, timeline.py, exif_editor.py,
+     disk_analyzer.py, translations.py, installa.sh
+  3. Facoltativo ma utile se la richiesta riguarda un'area specifica:
+     il journal di sessione piu' pertinente (es. journal_daemon_v1.txt
+     se si continua a lavorare sul deck)

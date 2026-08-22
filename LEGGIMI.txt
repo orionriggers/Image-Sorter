@@ -1,334 +1,914 @@
-==============================================================================
-  IMAGE SORTER v1.12
-  Visualizzatore e smistatore di immagini, video e PDF per Linux
-==============================================================================
-
-DESCRIZIONE
------------
-Image Sorter è un'applicazione desktop per Linux che permette di visualizzare,
-navigare e smistare rapidamente immagini, video e PDF in cartelle di
-destinazione usando la tastiera, il mouse o uno Stream Deck Elgato.
-
-Formati supportati:
-  Immagini : JPG, PNG, GIF, BMP, TIFF, WEBP  (+ formati aggiuntivi da conf.)
-  Video    : MP4, MOV, AVI, MKV, WEBM, M4V, FLV  (richiede ffmpeg)
-  PDF      : PDF multipagina                       (richiede poppler-utils)
-  Altro    : file senza estensione rilevati via magic bytes
-
-
-==============================================================================
-  INSTALLAZIONE RAPIDA
-==============================================================================
-
-1. Installa le dipendenze di sistema:
-     bash installa_su_altro_pc.sh
-
-2. Installa icona, menu e associazioni file:
-     bash installa_avviatore.sh
-
-3. Riavvia il PC (necessario per lo Stream Deck e le associazioni MIME).
-
-DIPENDENZE PYTHON (installate automaticamente)
-     pip3 install pillow streamdeck send2trash
-
-DIPENDENZE DI SISTEMA
-     sudo apt install ffmpeg poppler-utils libhidapi-hidraw0 python3-tk
-
-COMPILARE ESEGUIBILE STANDALONE
-     pip3 install pyinstaller
-     bash compila_eseguibile.sh
-Produce "image_sorter_bin" — non richiede Python sul PC di destinazione.
-
-
-==============================================================================
-  TASTI E COMANDI
-==============================================================================
-
-NAVIGAZIONE
-  Freccia DESTRA             File successivo (loop)
-  Freccia SINISTRA           File precedente (loop)
-  C                          Ruota 90° orario (Clockwise)
-  A                          Ruota 90° antiorario (Anticlockwise)
-  Ctrl + ←  o  Ctrl + X     Annulla ultimo spostamento e ripristina il file
-  Freccia SU                 Pagina precedente (solo PDF multipagina)
-  Freccia GIU                Pagina successiva (solo PDF multipagina)
-  PagSu / PagGiu             Cicla al preset precedente / successivo
-  Tab  o  N                  Preset successivo
-  Shift+Tab                  Preset precedente
-  Rotella mouse              Avanza/torna tra i file (scrolla se zoom > 1)
-
-SMISTAMENTO  [richiede Sidebar o Tastierino attivi]
-  Tasti 1–9, 0               Sposta il file nella destinazione del preset attivo
-  Ctrl + 1–9, 0              Copia il file (senza spostarlo)
-  CANC × 2                   Sposta il file nel cestino di sistema
-  CANC + Invio               Cestina (conferma alternativa)
-
-ZOOM E VISUALIZZAZIONE
-  +  /  −                    Zoom in / out
-  Z                          Adatta al canvas (fit)
-  X                          Dimensione originale (1:1 pixel)
-  F                          Schermo intero (solo immagini)
-  Invio                      Schermo intero / Player esterno (video/PDF)
-  H                          Mostra/nascondi barra intestazione
-
-INFO
-  I                          Overlay EXIF (dati tecnici immagine)
-
-MENU TASTO DESTRO  (sul file visualizzato)
-  Rinomina                   Rinomina file inline
-  Ruota 90 orario            Ruota e salva (solo immagini)
-  Ruota 90 antiorario        Ruota e salva (solo immagini)
-  Ritaglia...                Ritaglio interattivo (solo immagini)
-  Apri cartella              Mostra il file nel file manager
-  Modifica con...            Apre con editor configurabile (default: GIMP)
-  Copia percorso             Copia percorso completo negli appunti
-
-FINESTRE E PANNELLI
-  O  o  B                    Browser cartelle (albero + anteprime)
-  S                          Sidebar (cicla: inline / popup / nascosta)
-  D  o  P                    Tastierino (cicla 1/2/3 colonne)
-  Ctrl + D                   S-Deck: attiva/disattiva modalità preset sul fisico
-  R                          Impostazioni
-  Ctrl + R                   Rinomina file corrente direttamente
-  Q  o  Esc                  Esci
-
-BROWSER CARTELLE
-  Ctrl + A                   Seleziona tutti i file
-  Ctrl + C                   Copia file selezionati
-  Ctrl + X                   Taglia file selezionati
-  Ctrl + V                   Incolla nella cartella corrente
-  Canc                       Cestina file selezionati
-  Click singolo              Seleziona file o cartella (sfondo verde)
-  Ctrl + click               Aggiunge/rimuove dalla selezione multipla
-  Doppio click               Apre file / naviga nella cartella
-  1–9, 0  (con cartella sel.)  Sposta la cartella nel preset corrispondente
-
-==============================================================================
-  IMPOSTAZIONI  (tasto R)
-==============================================================================
-
-TAB PRESET
-  Gestione e selezione dei preset di smistamento.
-  Doppio click o Invio per attivare il preset selezionato.
-
-TAB DESTINAZIONI
-  Configura etichetta e percorso per ogni tasto 1-9/0 del preset attivo.
-  - Bottone "..."    : apre browser cartelle con accesso rapido e dischi
-  - Bottone "X"      : cancella la destinazione del tasto
-  - Campo etichetta  : nome visualizzato sul tasto (auto-compilato dal nome cartella)
-  Premi Applica (o Invio) per salvare.
-
-TAB VISUALIZZA
-  Scegli quali tipi di file mostrare:
-  - Immagini, Video, PDF, File senza estensione
-  Ogni filtro ha un bottone ON/OFF ben visibile.
-  Estensioni aggiuntive: aggiungi formati extra (es. .heic, .arw, .cr2).
-  Le impostazioni sono salvate e ricordate tra le sessioni.
-
-
-==============================================================================
-  BROWSER CARTELLE  (tasto O)
-==============================================================================
-
-BARRA RAPIDA
-  Bottoni di accesso rapido: ~, Immagini, Video, Scrivania, Documenti, /
-  Dischi montati rilevati automaticamente da /media/ e /mnt/
-  Ultima cartella visitata indicata con "< nome"
-
-NAVIGAZIONE ALBERO
-  Click sull'albero          Mostra il contenuto a destra
-  Doppio click sull'albero   Apre la cartella come sorgente principale
-  Doppio click su anteprima  Apre il file nella finestra principale
-  Tasto destro su cartella   Rinomina la cartella
-
-INDICATORI NELL'ALBERO
-  [+]    Contiene immagini    [v]  Contiene video    [p]  Contiene PDF
-  [+v]   Immagini e video    [+p]  Immagini e PDF   [vp]  Video e PDF
-  [+vp]  Tutti i tipi        [ ]  Cartella vuota
-
-SELEZIONE MULTIPLA
-  Click singolo              Seleziona / deseleziona (sfondo verde)
-  Ctrl+A                     Seleziona tutti i file della cartella
-
-  Barra azioni (appare quando ci sono file selezionati):
-  - Bottoni preset colorati  Sposta i file selezionati nella destinazione
-  - Rinomina serie           Rinomina con prefisso + numerazione progressiva
-  - Copia                    Copia i file in una cartella a scelta
-  - Deseleziona tutto        Azzera la selezione
-
-PANNELLO ASSEGNAZIONE  (bottone "Assegna")
-  3 righe di preset con menu a tendina e bottoni colorati 1-9/0.
-  Tasto destro su un bottone per rinominarne l'etichetta.
-
-
-==============================================================================
-  ANALISI CARTELLE  (tasto "Analisi cartelle" nel browser)
-==============================================================================
-
-Apre una finestra separata con grafico a torta sunburst e treemap navigabile.
-
-GRAFICO (sunburst o treemap, selezionabile in alto)
-  Click su spicchio           Naviga dentro la cartella
-  Doppio click su spicchio    Apre la cartella nel browser Image Sorter
-  Tasto destro su spicchio    Menu: naviga / apri nel file manager / browser
-  ▲ su (centro)               Torna alla cartella superiore
-  Slider Livelli (1–6)        Profondità delle corone visualizzate
-
-ALBERO CARTELLE (pannello destra, ridimensionabile con il divisore)
-  Doppio click su riga        Naviga nella cartella
-  Freccia ▸                   Espande le sottocartelle (senza chiudere gli altri livelli)
-  Colonne Nome / Dim. / File  Ridimensionabili trascinando l'intestazione
-
-BARRA INFERIORE
-  Nome cartella corrente      Mostrato in grande a sinistra
-  Dimensione + file           Accanto al nome: 128 MB | 4 cartelle | 47 (12 immagini...)
-  Tooltip hover               Nome + dimensione della cartella sotto il cursore
-  Apri nel browser            Apre la cartella nel browser Image Sorter (se aperto)
-
-==============================================================================
-  RITAGLIO
-==============================================================================
-
-Tasto destro > Ritaglia  (solo immagini)
-  - 8 handle per definire l'area, griglia dei terzi
-  - "Ritaglia"              : chiede se sovrascrivere o nuovo nome
-  - "Ritaglia e avanza"     : sovrascrive e passa al file successivo
-  - "Ritaglia prossimo"     : sovrascrive e apre il crop sul prossimo file
-  - Checkbox "Ricorda"      : riusa posizione e dimensioni relative
-  - ESC o Annulla           : esce senza modifiche
-
-
-==============================================================================
-  PDF MULTIPAGINA
-==============================================================================
-
-  Freccia SU / GIU          Naviga tra le pagine
-  Slider pagine (barra)     Salta direttamente a una pagina
-  Bottoni < >               Pagina precedente / successiva
-  Badge "PDF N/TOT"         Mostra pagina corrente e totale (angolo basso sx)
-
-  Alla prima pagina:  Freccia SU torna al file precedente
-  All'ultima pagina:  Freccia GIU avanza al file successivo
-
-
-==============================================================================
-  STREAM DECK  (opzionale)
-==============================================================================
-
-MODALITÀ DI FUNZIONAMENTO
-  Il deck fisico opera in due modalità distinte:
-
-  Modalità IDLE (default)
-    Attiva quando il softdeck grafico è chiuso.
-    Mostra le pagine configurabili liberamente (2-3 pagine con < >).
-    Ogni tasto può eseguire: apri cartella, apri app, scorciatoia tastiera,
-    apri URL, muto/smuto audio, apri Image Sorter su una cartella.
-
-  Modalità PRESET
-    Attiva quando il softdeck grafico è aperto (tasto D/P).
-    Mostra i tasti di smistamento file (1-9, navigazione, ecc.).
-
-COME ATTIVARE LA MODALITÀ PRESET
-  Metodo 1: Apri il softdeck con D o P → deck passa automaticamente a preset.
-  Metodo 2: Premi il bottone "Deck [P]" nella barra superiore per
-            attivare/disattivare la modalità preset sul fisico senza
-            aprire il softdeck grafico.
-
-LAYOUT IN MODALITÀ PRESET  (Standard 15 tasti, 3 righe × 5 colonne)
-  Riga 1:  [1]  [2]  [3]  [Preset attivo]  [Canc]
-  Riga 2:  [4]  [5]  [6]  [^ Preset prec]  [v Preset succ]
-  Riga 3:  [7]  [8]  [9]  [<< Indietro  ]  [>> Avanti    ]
-
-  Tasto destro su un tasto  Cambia etichetta e destinazione al volo
-
-CONFIGURAZIONE PAGINE IDLE
-  Apri Impostazioni (R) → tab "Stream Deck"
-  - Visualizza il modello connesso e la luminosità
-  - Griglia visuale di tutte le pagine idle
-  - Click su ogni tasto per configurarlo:
-      Etichetta, azione, parametro, colore RGB, immagine sfondo
-  - Bottone "+ Pagina" per aggiungere pagine
-  - Gli ultimi 2 tasti di ogni pagina diventano < Pag / > N/TOT
-    se ci sono più pagine configurate
-
-AZIONI SUPPORTATE SUI TASTI IDLE
-  Apri cartella        Apre nel file manager
-  Apri applicazione    Avvia un programma (es: "gimp", "firefox")
-  Scorciatoia taste.   Es: "ctrl+c", "ctrl+alt+t" (richiede xdotool)
-  Apri URL             Apre nel browser predefinito
-  Muto audio           Alterna muto/non muto (richiede pactl)
-  Image Sorter         Apre su una cartella specifica
-  Cambia pagina        next / prev tra le pagine idle
-
-CONFIGURAZIONE
-  1. Installa StreamController 2.0.6+
-  2. Avvia: streamdeck --no-ui
-  3. Apri Image Sorter: prende il controllo automaticamente
-  4. Alla chiusura il deck torna in modalità idle
-  5. Alla chiusura di Image Sorter StreamController riprende
-
-PERMESSI  (se il deck non viene riconosciuto)
-  sudo udevadm trigger  +  scollega/ricollega USB
-  Verifica gruppo: groups | grep plugdev
-  Se mancante: sudo usermod -aG plugdev $USER  (poi riavvia)
-
-
-==============================================================================
-  CONFIGURAZIONE  (image_sorter_config.json)
-==============================================================================
-
-Salvata automaticamente nella stessa cartella dello script/eseguibile.
-Contiene: preset, destinazioni, ultima cartella, filtri visualizzazione,
-          modalità sidebar, dimensioni ritaglio, impostazioni estensioni.
-
-Per portare i preset su un altro PC:
-  Copia image_sorter_config.json insieme all'eseguibile.
-  I percorsi si adattano automaticamente all'utente corrente.
-
-
-==============================================================================
-  RISOLUZIONE PROBLEMI
-==============================================================================
-
-"Stream Deck non trovato"
-  sudo udevadm trigger  +  scollega/ricollega USB
-  groups | grep plugdev  (se mancante: sudo usermod -aG plugdev $USER)
-
-"Anteprime video non visibili"
-  sudo apt install ffmpeg
-
-"Anteprime PDF non visibili"
-  sudo apt install poppler-utils
-
-"StreamController non riprende il controllo"
-  ps aux | grep streamdeck  poi  streamdeck --no-ui
-
-"Errore all'avvio (modulo non trovato)"
-  pip3 install pillow streamdeck send2trash --break-system-packages
-
-"Doppio click non apre il file"
-  bash installa_avviatore.sh
-  Poi: tasto destro sul file > Apri con > Image Sorter > Imposta come default
-
-"Programma lento con file grandi"
-  Le thumbnail usano cache e draft mode automaticamente.
-  Per video molto grandi, ffmpeg viene interrotto dopo 8 secondi.
-
-
-==============================================================================
-  NOTE TECNICHE
-==============================================================================
-
-Versione        : 1.12
+IMAGE SORTER v1.36
+==================
+Un programma per gestire, visualizzare e smistare immagini, video e PDF.
+
+Versione        : 1.36
 Linguaggio      : Python 3.8+
-Dipendenze      : Pillow, tkinter, streamdeck*, send2trash*  (*opzionali)
-Sistema         : Linux (testato su Ubuntu 24 e Linux Mint)
-Anteprime video : ffmpeg (sudo apt install ffmpeg)
-Anteprime PDF   : pdftoppm + pdfinfo (sudo apt install poppler-utils)
-Cestino         : Standard freedesktop.org (~/.local/share/Trash)
-Stream Deck     : Elgato Standard 15 tasti, StreamController v2.0.6+
-Icone UI        : Generate con Pillow (nessun file esterno)
-Cache thumbnail : LRU in memoria, max 200 entry
-NOTA IMPORTANTE : Non usare emoji nei widget tkinter (crash X11 RenderAddGlyphs)
+Interfaccia     : tkinter + Pillow
+Piattaforma     : Linux (testato su Linux Mint / Ubuntu)
 
-==============================================================================
+INSTALLAZIONE RAPIDA
+--------------------
+  bash installa.sh
+
+  oppure manualmente:
+    pip install Pillow send2trash pymupdf streamdeck --user
+    pip install piexif reverse-geocode folium tkinterdnd2 --user
+    pip install pillow-avif-plugin --user   (per file .avif)
+    pip install pillow-heif --user          (per file .heic/.heif)
+
+AVVIO
+-----
+  python3 image_sorter.py
+  python3 image_sorter.py /percorso/immagine.jpg   (apre la cartella)
+  python3 image_sorter.py --browser /percorso/     (apre con browser cartelle)
+
+FILE DEL PROGRAMMA
+------------------
+  image_sorter.py    programma principale           v1.36.0
+  disk_analyzer.py   analisi utilizzo disco         v1.36.0
+  timeline.py        timeline e mappa GPS           v1.36.0
+  exif_editor.py     editor metadati EXIF           v1.36.0
+  translations.py    stringhe IT/EN                 v1.36.0
+  installa.sh        script di installazione        v1.34.0
+
+TASTI RAPIDI PRINCIPALI
+-----------------------
+  Frecce             Naviga tra le immagini
+  1-9, 0             Sposta nel preset attivo
+  Ctrl+1-9,0         Copia nel preset attivo
+  CANC               Cestina il file
+  Z / X              Adatta / Originale
+  + / -              Zoom in / out
+  Ctrl+rotella       Zoom in / out (anche durante il ritaglio)
+  F                  Schermo intero
+  H                  Mostra/nascondi intestazione
+  C / A              Ruota 90° orario / antiorario
+  K                  Ritaglia (Krop)
+  I                  Overlay info EXIF
+  T                  Apre/chiude Timeline
+  O / B              Browser cartelle (Naviga) — apre/chiude
+  S                  Sidebar
+  R                  Apre/chiude Impostazioni
+  Ctrl+R             Rinomina file corrente
+  Ctrl+H             Apre/chiude lo Storico operazioni
+  Ctrl+D             Deck fisico: alterna modalità idle/preset
+  Ctrl+Z             Annulla ultimo spostamento/crop
+  Esc                Chiudi finestra aperta / esci
+  Q                  Esci
+
+BARRA STRUMENTI PRINCIPALE
+---------------------------
+  Da sinistra a destra:
+  [Play] | Naviga · Timeline · Impostazioni | Info EXIF | Originale · Estendi · - · + · Full Screen | Sidebar · S-Deck · Deck | Esci
+
+  - [Play]: compare solo sui video
+  - Info EXIF e Modifica EXIF: visibili solo per JPG/JPEG/TIFF/HEIC/HEIF
+  - Separatori visivi tra gruppi funzionali
+  - Naviga, Timeline, Impostazioni, Storico: lo stesso tasto (o la stessa
+    scorciatoia) apre E chiude la relativa finestra, non serve più andare
+    a cercare la X
+  - S-Deck: cambia colore secondo lo stato del deck fisico — grigio non
+    connesso, ciano connesso in idle, verde connesso in modalità preset.
+    Tasto destro: apre le Impostazioni direttamente sulla tab Deck
+
+VERSIONING
+----------
+  x.Y.0   bump coordinato di tutti i file (nuove funzionalità)
+  x.y.Z   fix minori, terzo numero indipendente per file
+
+NOVITÀ v1.22 → v1.23
+---------------------
+
+STORICO OPERAZIONI
+  - Impostazioni > Storico: lista delle ultime 200 operazioni con timestamp
+  - Annulla singola operazione o selezione multipla direttamente dalla lista
+  - Storico persistente tra sessioni (image_sorter_history.json)
+  - Operazioni registrate: spostamenti, crop, rotazioni (da viewer/browser/timeline)
+  - File in cartelle private NON vengono registrati nello storico
+
+BACKUP CROP
+  - Cartella backup configurabile: default ~/.local/share/image_sorter/backups/
+  - Limite dimensionale impostabile (default 500 MB) con pulizia automatica
+  - Struttura backup: backups/YYYY-MM-DD/nome_file_HHmmss.jpg
+  - Impostazioni > Storico: mostra spazio usato, bottoni "Pulisci elenco" e "Elimina backup"
+
+RIPRISTINA (tasto destro)
+  - Voce "Ripristina" nel menu tasto destro di viewer, browser e timeline
+  - Compare solo se il file ha operazioni negli ultimi 10 giorni
+  - Ripristina spostamenti (riporta il file alla posizione originale)
+  - Ripristina crop (riporta l'immagine originale dal backup)
+  - Aggiorna automaticamente browser e timeline dopo il ripristino
+
+BROWSER CARTELLE (Naviga)
+  - Bottone A-Z diventa Z-A al secondo click (ordine alfabetico inverso)
+  - Spunta "Albero" per mostrare/nascondere il pannello albero cartelle
+  - Selezione multipla: tasti 1-9 spostano i file nel preset corrispondente
+  - Nomi file e cartelle: font aumentato per migliore leggibilità
+  - Bottone "Converti" non compare se tutti i file selezionati sono già JPG
+
+TIMELINE
+  - Bottone 9-1 / 1-9 per ordine cronologico crescente/decrescente
+  - Selezione multipla: tasti preset del Deck spostano i file selezionati
+  - Spostamenti da Timeline registrati nello storico con undo batch (Ctrl+Z)
+  - Voce "Ripristina" nel menu tasto destro
+
+DISK ANALYZER
+  - Tasto destro su torta > "Apri in Image Sorter": lancia Image Sorter
+    con il browser già puntato alla cartella selezionata
+  - Icona nella barra dei programmi in modalità standalone
+
+INSTALLAZIONE NEMO
+  - installa.sh aggiunge due azioni nel menu tasto destro Nemo:
+    · "Apri con Image Sorter" (su cartelle) — in lingua di sistema
+    · "Analizza cartella (Image Sorter)"
+  - Entrambe gestiscono correttamente percorsi con spazi
+  - Fallback Nautilus: installa.sh installa anche uno script in
+    ~/.local/share/nautilus/scripts ("Open with Image Sorter" /
+    "Apri con Image Sorter") per chi usa Nautilus invece di Nemo
+    (Dolphin non ancora supportato)
+
+ALTRE MIGLIORIE
+  - Finestre Deck e Sidebar rinominate coerentemente
+  - Barra strumenti: ordine e separatori rivisti
+  - Bottone Play: dimensioni uniformate agli altri bottoni
+  - Finestre di errore: testo selezionabile e copiabile
+  - Protezione caricamento: impossibile spostare file durante il caricamento
+  - Blocco tasti preset quando la finestra principale non è in focus
+  - Lingua rilevata automaticamente dal sistema al primo avvio
+
+RITAGLIO (tasto K)
+------------------
+  - Barra comandi flottante trascinabile
+  - 14 preset proporzioni (Libero, 1:1, 16:9, 4:3, ecc.)
+  - Backup automatico prima del crop (ripristinabile)
+  - "Successiva": avanza senza modificare
+  - "Ritaglia prossimo": ritaglia e apre crop sulla successiva
+
+INFO EXIF (tasto I)
+-------------------
+  - Overlay sul canvas con info file e dati EXIF
+  - Visibile solo per formati compatibili (JPG, TIFF, HEIC, HEIF)
+
+TIMELINE (tasto T)
+------------------
+  - Bordo colorato sulle anteprime per cartella di origine
+  - Selezione multipla con Ctrl+click, Shift+click, frecce
+  - Menu contestuale con tutte le azioni principali
+
+ANALISI CARTELLE (disk_analyzer.py)
+-------------------------------------
+  - Avviabile con tasto destro su una cartella in Nemo
+  - Tasto destro sul grafico > "Apri in Image Sorter"
+  - Icona nella barra dei programmi in modalità standalone
+
+FORMATI SUPPORTATI
+------------------
+  Immagini: JPG, PNG, GIF, BMP, TIFF, WebP, HEIC/HEIF, AVIF
+  Video:    MP4, MKV, AVI, MOV, WebM, M4V, FLV
+  PDF:      tramite pdftoppm (poppler-utils)
+  EXIF:     JPG, JPEG, TIFF, TIF, HEIC, HEIF
+
+NOTE TECNICHE
+-------------
+  - Caratteri speciali/emoji nei nomi file sanitizzati automaticamente
+  - Cache frame video: evita re-estrazione ripetuta con ffmpeg
+  - Permesso negato su disco esterno: mostra avviso invece di crashare
+  - File privati: non registrati in storico né in backup crop
+
+NOVITÀ v1.23 (continuazione sessione)
+--------------------------------------
+
+DECK — CICLO MIGLIORATO
+  - Click 1: apre con 1 colonna
+  - Click 2: apre con 2 colonne
+  - Click 3: apre con N colonne configurate in Impostazioni (min 3)
+  - Click 4: chiude
+  - Impostazioni Stream Deck: selector colonne parte da 3 (1 e 2 gestite dal ciclo)
+  - Ordine preset aggiornato nel Deck solo premendo "Usa questo preset"
+  - Finestra Deck: riapre nella stessa posizione senza flickering
+
+DECK IN TIMELINE
+  - Bottone "Deck" nella toolbar della Timeline — stessa logica del viewer principale
+  - Colore sincronizzato tra bottone Timeline e bottone toolbar principale
+
+PRIVACY — INDICATORI VISIVI
+  - Bordo rosso (#ff2020) sulla finestra principale quando il file corrente è privato
+  - Bordo rosso sul Browser quando la cartella corrente è privata
+  - Bordo rosso sulla Timeline se almeno una cartella scansionata è privata
+  - Cartelle private nel Browser: nome e icona in rosso vivace
+
+BROWSER (Naviga)
+  - Nomi cartelle: troncamento aumentato a 22 caratteri
+  - Bottone "Timeline" nella barra azioni cartella: apre la Timeline su quella cartella
+  - "Converti" non appare se tutti i file selezionati sono già JPG
+
+TIMELINE
+  - Bottone 1x/2x: alterna dimensione anteprime (160×120 / 320×240)
+  - Placeholder video: cerchio + triangolo ▶ per riconoscere file video senza anteprima
+  - Sezione "Cartella" nel pannello sinistro: pallino colorato + nome + conteggio con filtro
+  - Ottimizzazione scansione: apertura EXIF unica per file, yield CPU ogni 10 file
+
+VARIE
+  - Pan immagine ingrandita: click sinistro + trascina (solo quando zoom > 1.05)
+  - Tasto destro preset (Deck/Sidebar): bottoni "Apri in Image Sorter" e "Apri nel file manager"
+  - Etichette sidebar: troncamento da 8→16 caratteri
+  - Finestre errore: testo selezionabile e copiabile
+  - PermissionError su makedirs in _confirm_preset: gestito con toast invece di crash
+
+NOVITÀ v1.27 → v1.28 (sessione di debug)
+------------------------------------------
+Nota: i manuali non erano stati aggiornati dalla v1.23 alla v1.27; questa
+sezione riporta solo i fix verificati in questa sessione di debug sui file
+alla versione 1.27.x. Le novità funzionali delle versioni intermedie
+(1.24-1.27) non sono documentate qui perché non presenti nel materiale
+disponibile in questa sessione.
+
+BUG CORRETTI
+  - timeline.py: la funzione build_map() usava "self.sorter" senza avere
+    un'istanza self (è una funzione di modulo, non un metodo). Se folium
+    non era installato, o non venivano trovate immagini con GPS, il
+    programma andava in errore (NameError) invece di mostrare il messaggio
+    previsto. Ora usa sempre messagebox, come corretto per una funzione
+    standalone.
+  - timeline.py: IMG_EXT non includeva ".heif" (era presente solo ".heic"),
+    quindi i file HEIF non venivano riconosciuti come immagini in Timeline.
+  - exif_editor.py: la funzione read_iptc_xmp() veniva chiamata ma non era
+    mai stata definita da nessuna parte nel progetto. L'errore veniva
+    silenziato da un except generico, per cui il tab IPTC/XMP mostrava
+    sempre "Nessun dato IPTC/XMP trovato" anche quando i dati XMP erano
+    presenti nel file. Aggiunta un'implementazione reale che legge il
+    blocco XMP tramite Pillow (l'IPTC nativo resta vuoto: piexif non lo
+    supporta e non era già una dipendenza del progetto).
+  - image_sorter.py: nella finestra di errore mostrata all'avvio in caso di
+    crash imprevisto, il testo usava "self.config" in un punto del codice
+    dove "self" non esiste (siamo nel blocco except del lancio applicazione,
+    prima che l'istanza ImageSorter esista). Questo causava un secondo
+    errore che impediva la visualizzazione del messaggio (il log restava
+    comunque scritto su disco). Ora la lingua viene rilevata dalla
+    variabile d'ambiente LANG, come già fatto altrove nei fallback di avvio.
+  - translations.py: alcune chiavi (btn_settings, btn_sidebar, btn_play,
+    btn_quit, btn_fullscreen) erano duplicate sia in IT sia in EN. In
+    inglese "btn_fullscreen" aveva due valori diversi ("Full Screen" e
+    "Fullscreen"): il secondo, sovrascrivendo il primo, vinceva sempre.
+    Rimosse le duplicazioni, mantenuto un solo valore coerente per chiave.
+
+VERIFICHE ESEGUITE (nessun problema riscontrato)
+  - Compilazione ok su tutti i file (py_compile + analisi AST)
+  - Struttura LANG/SHORTCUTS coerente tra IT e EN (nessuna chiave mancante)
+  - image_sorter_error.log vuoto (nessun crash registrato dall'utente)
+
+NOVITÀ v1.28 → v1.29
+----------------------
+
+RITAGLIO — MAGNETE AI BORDI
+  - Aggancia automaticamente i lati del ritaglio ai bordi netti
+    dell'immagine (utile su screenshot: pannelli, finestre, barre UI)
+  - Rilevamento in due passaggi: profilo approssimato su immagine ridotta
+    per restare istantaneo, poi rifinitura a piena risoluzione sui
+    candidati trovati (precisione entro 1px)
+  - Checkbox "Magnete" nella barra del ritaglio, attivo di default,
+    disattivabile; attivo solo in modalità proporzioni libere
+
+RITAGLIO — LENTE D'INGRANDIMENTO
+  - Finestra fluttuante che mostra un dettaglio ingrandito a pixel nitidi
+    (nessuna sfumatura) attorno al punto trascinato
+  - Mirino che delimita esattamente il singolo pixel puntato, senza
+    coprirne il colore
+  - Coordinate pixel esatte mostrate sotto l'anteprima
+
+RITAGLIO — ZOOM CON CTRL+ROTELLA
+  - Ctrl+rotella ingrandisce/rimpicciolisce, anche a ritaglio aperto
+  - La vista scorre automaticamente per tenere la selezione a vista dopo
+    lo zoom
+
+RITAGLIO — FIX
+  - Click leggermente impreciso su un angolo/lato non azzera più la
+    selezione corrente (tolleranza aumentata prima di considerare il
+    click "fuori" dal rettangolo)
+  - Corrette le coordinate mouse quando il canvas è scrollato (bug
+    preesistente, emerso con l'introduzione dello zoom nel ritaglio):
+    senza la correzione, trascinare un lato del ritaglio con il canvas
+    scrollato produceva salti di posizione o ridimensionamenti impropri
+  - La funzione di "pan" (scorrimento immagine da zoomati) non interferisce
+    più con il trascinamento degli handle del ritaglio
+
+STORICO
+  - Miniatura di anteprima (48px) tra il checkbox e la data di ogni riga,
+    generata dal file al momento dell'operazione, salvata in una cartella
+    temporanea dedicata e rimossa automaticamente quando l'elenco viene
+    svuotato o le entry più vecchie escono dal limite di 200
+  - Il dettaglio riga non ripete più il nome file quando la destinazione
+    ha lo stesso nome (mostra la cartella invece del nome duplicato)
+
+CONTROLLO COMPLETO E DEBUG (audit di fine sessione)
+  - Aggiunte ~60 traduzioni mancanti nel dizionario di traduzione
+    automatica IT→EN (widget hardcoded), trovate confrontando ogni
+    stringa statica del programma col dizionario esistente
+  - Rimossi 7 duplicati preesistenti nello stesso dizionario (valori
+    identici in tutti i casi, quindi solo ridondanza, non bug di
+    sovrascrittura)
+  - Corretto un bug funzionale nel popup "estensione file errata": il
+    pulsante "Rinomina in..." non eseguiva mai la rinomina effettiva sul
+    disco (mancava la chiamata a os.rename), e la richiesta di conferma
+    sovrascrittura in caso di file già esistente non veniva mai gestita
+  - Ripuliti ~30 warning di analisi statica (import inutilizzati,
+    variabili morte, f-string senza placeholder) su tutti e 5 i file —
+    nessuna modifica di comportamento, solo pulizia
+
+NOVITÀ v1.29 → v1.30
+----------------------
+
+PANNELLO ANTEPRIMA INGRANDITA (Naviga + Timeline)
+  - Nuova colonna a destra, attivabile con la checkbox "Anteprima" nella
+    barra strumenti (nascosta di default)
+  - Mostra il file selezionato ingrandito, adattato allo spazio
+    disponibile mantenendo le proporzioni — immagini, video (frame
+    estratto), e in Naviga anche PDF (prima pagina)
+  - Divisore trascinabile per regolare le proporzioni; stato (aperto/
+    chiuso) e proporzioni ricordati tra una sessione e l'altra
+  - Menu tasto destro con le stesse funzioni già disponibili sulle
+    miniature (Apri, Rinomina, Copia/Taglia/Incolla, Cestina, EXIF,
+    Converti formato, Proprietà, Ripristina); doppio click per aprire
+  - Video e PDF elaborati in un thread separato per non bloccare
+    l'interfaccia ad ogni click durante la navigazione
+
+RICERCA DOPPIONI
+  - Il "controllo contenuto" (hash SHA256) ora usa una pipeline a tre
+    fasi (dimensione → hash veloce → hash completo) invece di calcolare
+    l'hash di ogni singolo file: risparmio fino all'87% di dati letti dal
+    disco su cartelle con molti video
+  - Le cancellazioni dalla ricerca doppioni (tutte e 3 le modalità) ora
+    passano dal cestino di transito e compaiono nello Storico, invece di
+    andare direttamente al cestino di sistema
+  - Alert più chiaro per "Cestina tutti i duplicati": specifica
+    esplicitamente che l'azione riguarda tutti i duplicati trovati, non
+    solo quelli selezionati
+  - Corretto un bug nel riordinamento dei risultati che duplicava righe
+    vuote ad ogni cambio di ordinamento
+
+CESTINO E STORICO — audit completo
+  - Trovate e corrette diverse funzioni di cancellazione sparse nel
+    programma (Naviga: selezione multipla, menu contestuale; Timeline:
+    menu contestuale) che andavano ancora al cestino di sistema diretto,
+    bypassando il cestino di transito e quindi non comparendo nello
+    Storico né risultando annullabili
+  - Eccezione documentata: la cancellazione di un'intera cartella
+    continua a usare il cestino di sistema diretto (il meccanismo di
+    transito è pensato per singoli file)
+  - Generazione della miniatura dello Storico spostata su un thread
+    separato: prima bloccava ogni singolo spostamento file (l'azione più
+    frequente durante lo smistamento) per il tempo di generare
+    l'anteprima, specialmente lento sui video
+
+BROWSER "NAVIGA" — vari fix di stabilità
+  - Corretta la mancanza della cella ".." (cartella superiore) nelle
+    cartelle completamente vuote
+  - Ottimizzato il caricamento a lotti delle miniature (meno pause
+    artificiali, caricamento più fluido)
+  - Risolta una lunga serie di "salti" visibili delle miniature durante
+    la navigazione e la selezione file, dovuti a più barre dell'interfaccia
+    che cambiavano altezza dinamicamente comparendo/scomparendo — ora
+    tutte a spazio fisso permanentemente riservato
+  - Bloccata esplicitamente la dimensione di righe e colonne della
+    griglia miniature per eliminare l'ultimo residuo di instabilità
+    visiva
+
+CONVERSIONE FORMATO
+  - Dopo una conversione (es. PNG→JPG), solo le celle dei file
+    effettivamente convertiti vengono aggiornate, invece di ricaricare
+    l'intera griglia miniature
+
+CONTROLLO QUALITÀ
+  - Audit completo di traduzione: aggiunte ~60 traduzioni mancanti nel
+    dizionario IT→EN, rimossi duplicati preesistenti
+  - Corretto un bug funzionale nel popup "estensione file errata" (il
+    pulsante "Rinomina in..." non eseguiva mai la rinomina reale)
+  - Verificata parità completa e assenza di duplicati/chiavi mancanti in
+    tutti i dizionari di traduzione
+
+NOVITÀ v1.30 → v1.31
+--------------------
+Sessione dedicata alla stabilità del browser "Naviga" e alla copertura
+dello Storico.
+
+BROWSER "NAVIGA" — GRIGLIA MINIATURE
+  - Corretto un accumulo della larghezza minima della griglia: il reset
+    delle colonne copriva solo le prime 12, ma con le miniature piccole
+    su una finestra larga le colonne possono essere molte di più. Quelle
+    oltre la dodicesima restavano configurate per sempre, gonfiando la
+    griglia anche dopo il passaggio a miniature grandi o il
+    restringimento della finestra
+  - Il reset viene ora eseguito anche per le cartelle vuote e per le
+    viste elenco/albero, che prima lo saltavano
+
+BROWSER "NAVIGA" — ROTELLA DEL MOUSE
+  - La rotella era legata due volte allo stesso pannello (scorrimento
+    doppio ad ogni scatto) e con un binding globale all'intero
+    programma: con Naviga aperta, la rotella mossa nel visualizzatore,
+    in Timeline o nelle Impostazioni faceva scorrere anche la griglia
+    delle miniature. Ora è un unico binding limitato alla sola finestra
+  - Albero e vista elenco interrompono correttamente la propagazione
+
+BROWSER "NAVIGA" — AREA SCORREVOLE
+  - L'area scorrevole veniva calcolata con un metodo che in certe
+    condizioni non restituisce alcun valore; in quel caso restava in
+    vigore l'area della cartella precedente, permettendo di scorrere nel
+    vuoto in una cartella vuota. Ora l'altezza è sempre calcolata in modo
+    esplicito dal contenuto reale
+
+BROWSER "NAVIGA" — MINIATURE DI FILE GRANDI
+  - La generazione delle miniature avveniva sul thread principale, a
+    lotti di 30 file: con video, PDF o immagini molto grandi il disegno
+    della griglia restava bloccato per secondi. Ora sul thread
+    principale si creano solo le celle e si riusano le miniature già in
+    cache, mentre tutto ciò che richiede una decodifica viene generato
+    in background e applicato appena pronto
+  - Cambiando cartella, i risultati della cartella precedente vengono
+    riconosciuti come superati e scartati
+  - Corretto un blocco: un file illeggibile o corrotto mandava il
+    caricamento della griglia in un ciclo infinito su quello stesso file
+
+TIMELINE — STORICO E ANNULLAMENTO
+  - Gli spostamenti fatti con i tasti numerici 1-9 su una selezione
+    multipla non comparivano affatto nello Storico e non erano
+    annullabili da lì (a differenza degli stessi spostamenti fatti dal
+    menu contestuale). Ora sono registrati regolarmente
+  - Un singolo file spostato viene registrato come voce singola e non
+    più come "batch"
+  - Le voci di tipo batch non hanno mai avuto la miniatura di anteprima,
+    perché la si cercava in un percorso che per quelle voci è una
+    cartella e non un file. Ora l'anteprima compare
+  - L'annullamento di un batch poteva ripristinare il file sbagliato: se
+    a destinazione esisteva già un file con lo stesso nome, quello
+    spostato viene rinominato con un suffisso, e il ripristino andava a
+    prendere il file preesistente. Ora ogni voce registra la
+    destinazione reale di ciascun file
+  - I file spariscono dalla vista solo se lo spostamento è davvero
+    riuscito (prima sparivano anche in caso di errore, restando sul
+    disco)
+
+ANALISI CARTELLE
+  - I formati HEIC/HEIF, AVIF e PNM/PBM/PGM/PPM finivano nella fetta
+    "Altro" del grafico invece che in "Immagini", pur essendo gestiti
+    come immagini in tutto il resto del programma
+
+PULIZIA
+  - Rimossa l'anteprima al passaggio del mouse sulle miniature, codice
+    non più richiamato da nessuna parte dalla v1.17: la stessa esigenza
+    è coperta dal pannello anteprima ingrandita
+
+NOVITÀ v1.31 → v1.32
+--------------------
+Sessione dedicata alla rinomina, alla posizione GPS e alla stabilità del
+menu contestuale.
+
+RINOMINA IN SERIE — MODELLO PERSONALIZZATO
+  - Quarta modalità nel dialogo di rinomina (Naviga > selezione multipla >
+    tasto destro > Rinomina serie), accanto alle tre già esistenti
+  - Il nome si compone con dei segnaposto, disposti come si vuole:
+      {nome} {n} {data} {anno} {mese} {giorno} {ora} {marca} {modello}
+      {iso} {focale} {diaframma} {esposizione} {larghezza} {altezza}
+      {cartella}
+    Esempio: "{data}_{modello}_{n}"  ->  20240714_NIKON D750_001
+  - {n} usa numero iniziale e cifre dei campi già presenti, {data} il
+    formato scelto nel menu a tendina
+  - Un segnaposto senza valore (es. {modello} su un file senza EXIF)
+    sparisce dal nome senza lasciare separatori doppi
+  - L'ultimo modello usato viene ricordato tra le sessioni
+  - La rinomina in serie ora compare nello Storico ed è annullabile: prima
+    usava una rinomina diretta senza registrare nulla
+  - Due file che produrrebbero lo stesso nome nuovo: il secondo viene
+    saltato con un errore, mai sovrascritto
+
+POSIZIONE GPS
+  - Copia/incolla della posizione tra file, con riconoscimento del testo
+    incollato in vari formati: decimale, gradi/primi/secondi, link geo:,
+    URL di Google Maps
+  - Geotag di gruppo dalla Timeline: si assegna la posizione di una foto
+    a tutte le altre selezionate. Se la foto su cui si clicca non ha la
+    posizione ma nel gruppo ce n'è una sola che ce l'ha, viene usata
+    quella e il menu lo dichiara
+  - La scrittura tocca SOLO il blocco GPS: autore, copyright e descrizione
+    degli altri file restano intatti
+  - Annullabile dallo Storico: la posizione precedente di ogni file viene
+    memorizzata, comprese le foto che non ne avevano una, che tornano
+    senza
+  - Un campo vuoto o un testo senza coordinate non produce più una
+    posizione di zeri (che corrisponde a un punto nell'Oceano Atlantico)
+  - I file in formati che non accettano la scrittura GPS (PNG, HEIC,
+    AVIF...) vengono saltati e contati a parte
+
+MAPPA GPS — ANTEPRIME
+  - I marcatori mostrano l'anteprima della foto, con bordo colorato
+    diverso per i file già smistati
+  - Sotto un certo livello di zoom le anteprime diventano punti, per non
+    sovrapporsi; tornano foto ingrandendo
+  - La stessa anteprima, più grande, compare nel popup del marcatore
+  - Le immagini sono incorporate nel file HTML: la mappa resta un singolo
+    file apribile e spostabile. Oltre 400 foto si torna alle icone
+    semplici per non generare un file troppo pesante
+  - Barra di stato con avanzamento durante la generazione
+
+TIMELINE — SELEZIONE PER MESE
+  - L'intestazione di ogni mese è cliccabile e seleziona tutti i file di
+    quel gruppo; Ctrl+click aggiunge alla selezione esistente
+  - Accanto al titolo compare il numero di file del gruppo
+
+CESTINO DI TRANSITO — DIALOGO DI CHIUSURA
+  - Nuovo pulsante "Apri cartella" per guardare i file prima di decidere
+    (il dialogo resta aperto)
+  - Nuova spunta "Oggi non chiedere più", che vale fino a mezzanotte
+    (l'interruttore permanente resta nelle Impostazioni)
+  - Il dialogo mostra anche il percorso della cartella di transito
+
+MENU CONTESTUALE DELLA TIMELINE — CORREZIONE
+  - Il menu si apriva e si richiudeva da solo entro pochi millisecondi:
+    mostrarlo fa perdere il focus alla finestra, e la chiusura
+    automatica non distingueva questo caso da un passaggio a un'altra
+    applicazione. Ora verifica dove è finito il focus
+  - Cliccando su un altro programma o sulla barra di sistema il menu si
+    chiude di nuovo correttamente: l'evento di perdita di focus arriva
+    una sola volta all'apertura, quindi ora il controllo è periodico
+    finché il menu è visibile
+
+CACHE DEI FRAME VIDEO
+  - Era una FIFO: espelleva il frame inserito per primo, non il meno
+    usato, quindi il video riguardato spesso poteva essere scartato
+    mentre restavano in memoria frame visti una volta sola
+  - La chiave include ora la data di modifica: dopo aver sostituito un
+    video non si vede più il vecchio frame
+  - Aggiunta la protezione per l'accesso da più thread
+
+NOVITÀ v1.32 → v1.33
+--------------------
+Filtro rapido, indicatori sulle anteprime, allineamento dei menu tasto
+destro e correzioni al menu contestuale.
+
+FILTRO RAPIDO PER NOME (Naviga)
+  - Campo "Filtro:" nella barra superiore, accanto ai preferiti: riduce la
+    vista ai file e alle cartelle il cui nome contiene il testo digitato
+  - Piu' termini separati da spazio devono comparire tutti, in qualsiasi
+    ordine ("vac 2024" trova "2024_vacanze_mare.jpg"); maiuscole ignorate
+  - Conteggio accanto al campo (es. 12/347), pulsante x ed Esc per
+    svuotare, ricarica ritardata per non ricostruire la griglia ad ogni
+    tasto premuto
+  - Le cartelle vengono filtrate come i file, tranne ".." che resta sempre
+  - Il filtro non si azzera cambiando cartella: resta attivo finche' non
+    lo si svuota
+  - Con un filtro attivo e nessun risultato compare "Nessun risultato per
+    il filtro" invece di "Cartella vuota"
+
+INDICATORI SULLE ANTEPRIME
+  - Pallino verde: il file contiene coordinate GPS
+  - Pallino ambra: e' un'immagine ma NON un JPEG (PNG, WebP, AVIF,
+    HEIC/HEIF, TIFF, GIF, BMP, PNM). Video e PDF non hanno indicatori
+  - Presenti nel visualizzatore, nelle miniature della Timeline e in
+    quelle di Naviga; quando ci sono entrambi, l'ambra sta sotto il verde
+  - Nel VISUALIZZATORE i pallini sono cliccabili e, passandoci sopra,
+    mostrano un'etichetta che spiega cosa sono e cosa fa il click:
+      verde  -> clic copia la posizione negli appunti condivisi,
+                tasto destro apre la mappa
+      ambra  -> clic converte in JPG, previa conferma (l'originale viene
+                rimosso)
+  - Aggiunte al menu tasto destro del visualizzatore le voci "Mostra su
+    mappa" e "Copia posizione GPS", che li' mancavano
+  - In Naviga il rilevamento GPS gira in un thread separato con cache
+    (leggere l'EXIF di centinaia di file bloccherebbe l'interfaccia)
+
+MENU TASTO DESTRO DI NAVIGA — ALLINEAMENTO
+  Aggiunte le voci che c'erano negli altri due menu ma non qui:
+  - Ritaglia... (era l'unica funzione del visualizzatore senza equivalente:
+    prima bisognava aprire l'immagine). Porta in primo piano il
+    visualizzatore, altrimenti il ritaglio si attivava dietro a Naviga
+  - Ruota 90 orario / antiorario, anche su piu' file selezionati
+  - Preset di destinazione, come in Timeline: prima erano solo nella barra
+    di selezione, quindi irraggiungibili col tasto destro su un file non
+    selezionato
+  - Apri cartella e Modifica con...
+
+FORMATI EXIF — LETTURA E SCRITTURA SEPARATE
+  Erano un unico insieme, con due conseguenze sbagliate: le foto iPhone
+  (HEIC/HEIF) non mostravano le voci EXIF pur avendo i dati, e su TIFF il
+  salvataggio falliva in silenzio.
+  - EXIF_READ_EXT  (lettura, via Pillow): jpg, jpeg, tiff, tif, webp,
+    heic, heif
+  - EXIF_WRITE_EXT (scrittura, via piexif): jpg, jpeg, webp
+  - GPS_WRITABLE_EXT allineato di conseguenza: TIFF rimosso
+
+MENU CONTESTUALE — TRE CORREZIONI
+  - Timeline: non si chiudeva cambiando applicazione. La chiusura basata
+    sul focus non poteva funzionare (il focus non risulta mai "dentro
+    l'applicazione" mentre il menu e' visibile); sostituita con il
+    controllo della posizione del puntatore, piu' il click-fuori esteso
+    anche alla finestra principale, che e' un altro toplevel
+  - Naviga: con un file selezionato il menu si richiudeva subito. Il click
+    che apre il menu arriva alla finestra un istante dopo l'apertura: di
+    norma cade dentro il menu e non chiude niente, ma se il menu e' troppo
+    alto per lo spazio sotto al puntatore Tk lo sposta verso l'alto e il
+    click resta fuori. Le voci aggiunte avevano superato quella soglia
+  - Cache dei frame video: convertita da FIFO a vera LRU, con la data di
+    modifica nella chiave e il lock per l'accesso da piu' thread
+
+NOVITÀ v1.33 → v1.34
+--------------------
+Trascinamento, gestione dei conflitti di nome, Storico come finestra
+indipendente e menu contestuale per le cartelle.
+
+TRASCINAMENTO NELLE CARTELLE
+  - Si trascinano le miniature selezionate su una cartella dell'albero di
+    sinistra per spostarle; tenendo Ctrl si copiano
+  - Un'etichetta con il conteggio segue il puntatore e la cartella di
+    destinazione si evidenzia
+  - Entrambe le operazioni compaiono nello Storico e sono annullabili
+
+FILE CON LO STESSO NOME
+  - Prima la collisione veniva risolta in silenzio aggiungendo "_1" al
+    nome: ora un dialogo chiede cosa fare, una volta sola per tutto il
+    gruppo e prima che qualsiasi file venga toccato
+  - Rinomina (come prima) / Sovrascrivi / Salta / Annulla
+  - Sovrascrivendo, il file già presente passa dal cestino di transito
+    invece di sparire: anche una sovrascrittura è recuperabile
+
+STORICO
+  - Ha ora una finestra propria, con un pulsante fra Timeline e
+    Impostazioni e la scorciatoia Ctrl+H; non è più una scheda delle
+    Impostazioni
+  - Copia/Incolla viene registrato: era l'ultima operazione su file di
+    Naviga non annullabile. Annullare una copia rimuove le copie (nel
+    cestino di transito), annullare uno spostamento rimette i file al
+    loro posto
+
+MENU TASTO DESTRO SULLE CARTELLE
+  - Le cartelle avevano solo una barra di bottoni, i file un menu
+    completo: ora anche le cartelle hanno il menu, con le stesse voci di
+    prima più Nuova sottocartella (creata dove si clicca), Incolla qui,
+    Analisi dello spazio su quella cartella e Proprietà
+  - La barra di bottoni sotto la griglia è stata rimossa: si ricostruiva
+    ad ogni selezione ed era la causa del "salto" della griglia
+
+GRIGLIA DELLE CARTELLE
+  - Celle molto più compatte: l'icona è limitata a 80px, quindi tenerle
+    grandi quanto una miniatura lasciava il 60-70% di ogni cella vuoto
+  - Le cartelle si ridispongono da sole trascinando il divisore, senza
+    aspettare un ricaricamento completo
+  - Colonne di larghezza fissa: un nome lungo non sfalsa più
+    l'allineamento
+  - La cella ".." ha la stessa dimensione delle altre
+
+PANNELLO ANTEPRIMA (Naviga)
+  - Nome del file per intero sotto l'immagine
+  - Le info EXIF dal tasto destro compaiono nel pannello invece che in un
+    popup che copre l'immagine
+  - L'anteprima non si svuota più dopo rotazione, ritaglio o assegnazione
+    GPS, e segue il file quando cambia nome (conversione o rinomina)
+  - Le frecce della tastiera aggiornano l'anteprima come il click
+
+CORREZIONI
+  - Il menu contestuale poteva attivare una voce a caso: se non ci sta
+    nello spazio sotto il puntatore, il sistema lo sposta portandolo sotto
+    il cursore, e il rilascio del tasto attivava la voce che si trovava
+    lì. Ora il menu viene ribaltato e il rilascio ignorato nei primi
+    istanti
+  - Il menu non si chiudeva cliccando su un altro programma o sulla barra
+    di sistema: quell'evento non arriva alla finestra, quindi ora si
+    controlla dove si trova il puntatore
+  - Ruotando una foto in una cartella diversa da quella aperta nel
+    visualizzatore si veniva riportati indietro alla cartella iniziale
+  - I conteggi delle cartelle nell'albero si aggiornano dopo spostamenti
+    e copie
+  - Gli ultimi avvisi in stile di sistema (editor EXIF e analisi cartelle)
+    sono ora in stile HUD
+
+NOVITÀ v1.34 → v1.35
+----------------------
+Sessione dedicata soprattutto al deck fisico e alla sidebar. I fix di
+avvio e sidebar staccata (vedi CORREZIONI più sotto) sono stati risolti
+qui, prima delle nuove funzioni.
+
+SIDEBAR — MODALITÀ ELENCO
+  - Nelle Impostazioni > Sidebar, oltre a "Modalità" (Fissa/Finestra/Off)
+    c'è ora "Aspetto": Griglia (lo storico) o Elenco
+  - In Elenco ogni tasto è un unico bottone colorato a tutta larghezza,
+    con numero ed etichetta insieme, ordinati dal 9 in alto allo 0 in
+    basso — più spazio per il nome della cartella, che nella griglia
+    risultava meno leggibile del numero
+  - Il deck (fisico e software) resta a griglia: lì il trascinamento per
+    scambiare due tasti si basa su quella geometria
+
+DISCHI NON RAGGIUNGIBILI
+  - Un tasto/preset la cui destinazione è su un disco staccato o una
+    condivisione di rete non montata si spegne da solo (colore smorzato)
+  - Vale sia per il deck (fisico e software) sia per la sidebar, in
+    entrambe le modalità
+  - Verifica in background, ricontrollo automatico ogni 15 secondi
+
+SCAMBIO PRESET PER TRASCINAMENTO (deck)
+  - Si trascina un tasto su un altro per scambiare etichetta e
+    destinazione, senza toccare numero e colore
+  - Funziona anche fra colonne con preset diversi: sposta la
+    destinazione da un preset all'altro
+
+DECK — BOTTONI EXTRA CON PIÙ COLONNE
+  - Con 4 colonne aperte compare RITAGLIA accanto a INDIETRO/SALTA/CANC
+  - Con 5 o più compare anche RUOTA
+
+STREAM DECK FISICO
+  - Nuovo tipo di azione per i tasti idle: "Comando Image Sorter" — un
+    menu a tendina con 28 funzioni dirette del programma (ruota, zoom,
+    file successivo/precedente, copia percorso, apri cartella del file
+    corrente, copia posizione GPS, apri/chiudi pannelli, cambio preset,
+    e altre). A differenza delle scorciatoie da tastiera (azione
+    "hotkey"), queste funzionano anche se un'altra finestra ha il fuoco
+  - Icone predefinite per i 28 comandi: cartella "deck_icons" accanto
+    allo script, file "cmd_<nome comando>.png" — opzionali, senza
+    un'icona il tasto mostra solo il testo
+  - Cartella "deck_icons" anche per le icone personali dei singoli
+    tasti (prima si partiva da "sorter_icons", che è roba del
+    programma)
+  - Anteprima dell'icona anticipata alla scelta del comando o del file,
+    non più solo dopo "Salva tasto"
+  - Posizione dell'etichetta sul tasto: Alto / In mezzo / Basso
+  - Le pagine idle vuote si tolgono da sole (lasciandole cambiando
+    scheda, o svuotandole con "Svuota"): mai più di una pagina "+Pag."
+    premuta per errore che resta lì senza modo di toglierla
+  - Bottone S-Deck in barra: cambia colore secondo lo stato — grigio
+    non connesso, ciano connesso in idle, verde connesso in preset.
+    Tasto destro: apre le Impostazioni sulla tab Deck. Passandoci sopra
+    il mouse, il suggerimento ricorda entrambe le scorciatoie
+  - Impostazioni > Deck riorganizzate: la modalità attuale si legge
+    nell'ordine giusto e si aggiorna dal vivo, il tasto selezionato è
+    indicato sulla riga dei tab (non più dentro l'editor), le azioni
+    disponibili stanno su 3 colonne invece di 2
+
+FILE DI CONFIGURAZIONE PIÙ LEGGIBILE
+  - image_sorter_config.json ora ha una chiave "_note" in testa che
+    spiega la struttura del file (JSON non supporta i commenti veri:
+    è l'equivalente più vicino che resta valido)
+  - Formattazione compatta: un preset o un tasto del deck sta su una
+    riga sola invece di una riga per ogni singolo campo — molto più
+    facile orientarsi aprendo il file a mano
+
+RICERCA DOPPIONI — CONFRONTO A vs B
+  - Le due liste rimangono come prima, ma sotto (in un pannello
+    ridimensionabile) compaiono le miniature affiancate del file A e
+    del file B della riga selezionata — utile soprattutto coi metodi
+    "Nome+Dimensione" o "Solo Nome", dove un falso positivo si vede
+    subito guardando le due immagini
+  - Selezione multipla nelle due liste (Ctrl/Shift-clic): si può
+    scegliere solo alcuni file e cestinarli insieme, con un'unica
+    conferma invece di una per file
+  - Nuovo bottone "Cestina selezionati (B)" accanto a "Cestina tutti i
+    duplicati di B (mantieni A)", per lo stesso scopo ma solo sulle
+    righe scelte
+
+CORREZIONI
+  - Avvio con la sidebar in "Finestra" (staccata) falliva con un
+    AttributeError: un riferimento veniva letto prima di essere
+    assegnato. Il difetto era già presente prima di questa sessione,
+    solo mai emerso perché la modalità inline (quella di default) non
+    lo attraversava
+  - La sidebar staccata non si aggiornava riordinando i preset o
+    attivandone uno da tastierino/deck: diversi punti del programma
+    dimenticavano di aggiornare anche la finestra separata, non solo
+    quella integrata. Corretto alla radice, in un punto solo, invece
+    che caso per caso
+  - Il "saltino" della prima immagine all'apertura del programma:
+    causato da tre problemi sovrapposti — letture ripetute del file
+    durante l'assestamento della finestra, scrollbar create già
+    visibili (13 pixel restituiti al canvas dopo il primo disegno), e
+    un ordine di inizializzazione errato. Aggiunta anche una diagnostica
+    interna (DIAG_STARTUP) per individuare casi simili in futuro
+  - Il bottone "S-Deck" non aggiornava mai il proprio colore: era così
+    fin dalla 1.34, non una regressione di questa sessione
+  - Chiudere le Impostazioni ripremendo il bottone in barra (invece
+    della X della finestra) lasciava il bottone acceso e il riferimento
+    sporco: i due percorsi di chiusura ora convergono sullo stesso punto
+
+NOVITÀ v1.35 → v1.36
+----------------------
+Continuazione della sessione precedente sullo Stream Deck, con
+l'aggiunta del pallino di errore e alcuni ritocchi.
+
+LOG ERRORI
+  - Pallino rosso sul canvas (come il verde del GPS) quando viene
+    registrato un errore: prima finiva solo nel file, senza nessun
+    avviso
+  - Click sul pallino: finestra con la coda del log, testo copiabile
+    (bottone "Copia tutto" o Ctrl+A/Ctrl+C)
+  - Bottone "Svuota log": richiede due click di conferma (come
+    l'eliminazione di un file), non lascia un file vuoto ma scrive una
+    riga con la data dello svuotamento
+  - Corretto un bug per cui due dei quattro punti che scrivevano nel
+    log lo aprivano in sovrascrittura invece che in accodamento: un
+    errore del browser cancellava tutto lo storico precedente
+
+RICERCA DOPPIONI — CORREZIONE
+  - L'anteprima A vs B, con la selezione multipla, a volte non si
+    aggiornava cliccando una nuova riga: mostrava sempre la riga con
+    l'indice più basso fra quelle selezionate, non quella appena
+    cliccata. Ora segue il tasto realmente premuto
+
+NOVITA' - DECK FISICO SEMPRE ATTIVO (demone in background)
+-------------------------------------------------------------
+Sessione dedicata a un nuovo modo di tenere vivo lo Stream Deck fisico
+anche a Image Sorter chiuso, sostituendo la dipendenza da StreamController.
+
+deck_core.py (NUOVO FILE)
+  - La logica del deck (connessione, disegno dei tasti, le sette azioni
+    idle che non toccano l'interfaccia grafica) e' stata estratta in un
+    modulo a parte, importabile da solo - nessun cambio di comportamento,
+    solo un trasloco. E' la base sia di Image Sorter sia del nuovo demone
+  - Va copiato nella stessa cartella di image_sorter.py
+
+deck_daemon.py (NUOVO FILE, opzionale)
+  - Un programma separato che tiene occupato il deck fisico quando Image
+    Sorter e' chiuso, gestendo le azioni idle indipendenti (cartelle,
+    app, scorciatoie, URL, muto, testo, cambio pagina - non i 28 comandi
+    diretti, che richiedono un'istanza grafica viva)
+  - Cede sempre il passo appena si apre una finestra di Image Sorter, e
+    si riprende il deck da solo quando quella si chiude - nessun
+    intervento manuale richiesto
+  - Va avviato a parte (es. "Applicazioni all'avvio" di Cinnamon, o un
+    servizio systemd --user - esempio commentato in fondo al file)
+  - Sostituisce il vecchio "riavvia StreamController alla chiusura",
+    tolto dalle Impostazioni
+
+INSTRADAMENTO FRA PIU' FINESTRE
+  - Se hai piu' finestre di Image Sorter aperte insieme, i comandi del
+    deck fisico ora vanno a quella con il fuoco (l'ultima su cui hai
+    cliccato), non necessariamente a quella che possiede fisicamente il
+    dispositivo - tramite un piccolo file condiviso, aggiornato ad ogni
+    cambio di finestra
+  - Vale sia per i comandi idle sia per la modalita' preset (smistamento)
+  - Limite noto: se piu' finestre hanno preset diversi attivi, i tasti
+    fisici mostrano sempre il preset di chi possiede il deck, non di chi
+    ha il fuoco - puo' generare confusione in quel caso specifico, raro
+    nell'uso comune
+
+RILEVAMENTO SCOLLEGAMENTO E RICOLLEGAMENTO
+  - Il programma ora si accorge se il deck fisico viene staccato (entro
+    5 secondi) e riconnesso (entro 10 secondi), senza dover riavviare
+  - Corretto un difetto serio trovato durante lo sviluppo: chiudere la
+    connessione senza uscire dal programma non liberava davvero il
+    dispositivo a livello di sistema - restava occupato anche se
+    Python "pensava" di averlo rilasciato
+
+ELIMINA IL FILE PRECEDENTE (Ctrl+Canc)
+  - Cestina il file che si raggiungerebbe con INDIETRO, senza spostarsi
+    da quello che stai guardando - utile per confronti rapidi in
+    sequenza ("questo e' meglio di quello di prima")
+  - Disponibile anche come comando diretto per lo Stream Deck fisico
+  - Passa dal cestino di transito come ogni altra eliminazione: resta
+    annullabile con Ctrl+Z
+
+SCORCIATOIA MANCANTE CORRETTA
+  - Il tasto K (Ritaglia) era documentato da tempo ma non era mai stato
+    davvero collegato: ora funziona
+
+STREAM DECK - CATTURA DIRETTA DEI TASTI
+  - Il campo "Scorciatoia tastiera" nell'editor del deck ha ora un
+    bottone "Registra": premuto, ascolta la vera combinazione premuta
+    sulla tastiera invece di doverla scrivere a mano - elimina alla
+    radice la confusione fra "C maiuscola" e "Ctrl+C" (sono due cose
+    diverse per il sistema, scriverle a mano puo' trarre in inganno)
+  - Resta comunque possibile scrivere a mano, utile per tasti hardware
+    speciali (retroilluminazione, luminosita') che il sistema intercetta
+    prima che arrivino a qualunque programma, e quindi non si possono
+    "registrare" - ma si possono comunque scrivere e inviare
+
+STREAM DECK - SALVATAGGIO AUTOMATICO
+  - L'editor di un tasto del deck non richiede piu' di premere "Salva
+    tasto": ogni campo si salva da solo quando lo completi (uscendo dal
+    campo, scegliendo da un menu, completando una cattura tasto)
+  - "Annulla" ora riporta il tasto esattamente a come'era quando hai
+    aperto l'editor, non si limita piu' a chiudere la finestra
+
+STREAM DECK - MENO LAMPEGGIO AL CAMBIO PROPRIETARIO
+  - Passando il possesso del deck fisico fra il demone e Image Sorter
+    (o viceversa), i tasti non passano piu' per uno stato vuoto prima
+    di essere ridisegnati - se il contenuto e' lo stesso (caso comune,
+    stessa configurazione condivisa), il cambio e' impercettibile
+
+DIPENDENZA AGGIUNTA: xdotool
+  - Le azioni "Scorciatoia tastiera" e "Scrivi testo" del deck fisico
+    richiedono xdotool, ora incluso nell'installer (sudo apt install
+    xdotool sui sistemi che non passano da installa.sh)
+  - Comandi esterni mancanti ora stampano un avviso chiaro invece di
+    fallire in silenzio
+
+CORREZIONI DI CORSA FRA PIU' ISTANZE
+  - Se piu' finestre di Image Sorter partono quasi insieme, quella che
+    perde la corsa per il deck fisico ora si accorge di essere stata
+    preceduta invece di dichiararsi "non disponibile" a torto
+  - Piccoli ritardi casuali evitano che tentativi ripetuti collidano
+    sempre allo stesso ritmo
+
+RESTA APERTO
+  - Il rilevamento di piu' deck fisici collegati insieme non e' stato
+    ancora affrontato
+  - Se vale la pena lasciare all'utente la scelta, nelle Impostazioni,
+    fra il nuovo demone e il vecchio StreamController - per ora si
+    assume che il demone sia la soluzione voluta
+  - Passando il possesso del deck, la pagina idle torna sempre alla
+    prima invece di restare su quella in corso

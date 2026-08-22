@@ -1,352 +1,768 @@
-==============================================================================
-  IMAGE SORTER v1.12
-  Image, video and PDF viewer and sorter for Linux
-==============================================================================
-
-DESCRIPTION
------------
-Image Sorter is a Linux desktop application for quickly viewing, navigating
-and sorting images, videos and PDFs into destination folders using the
-keyboard, mouse or an Elgato Stream Deck.
-
-Supported formats:
-  Images : JPG, PNG, GIF, BMP, TIFF, WEBP  (+ additional formats in settings)
-  Videos : MP4, MOV, AVI, MKV, WEBM, M4V, FLV  (requires ffmpeg)
-  PDF    : multi-page PDF  (requires pymupdf or poppler-utils)
-  Other  : files without extension detected via magic bytes
-
-
-==============================================================================
-  INSTALLATION
-==============================================================================
-
-1. Install dependencies:
-     bash installa.sh
-
-2. Restart the PC (required for Stream Deck and MIME associations).
-
-PYTHON DEPENDENCIES (installed automatically)
-     pip3 install pillow streamdeck send2trash pymupdf
-
-SYSTEM DEPENDENCIES
-     sudo apt install ffmpeg poppler-utils libhidapi-hidraw0 python3-tk
-
-BUILD STANDALONE EXECUTABLE
-     pip3 install pyinstaller
-     bash compila_eseguibile.sh
-Produces "image_sorter_bin" — no Python required on the target machine.
-
-
-==============================================================================
-  KEYBOARD SHORTCUTS
-==============================================================================
-
-NAVIGATION
-  Arrow RIGHT                Next file (loop)
-  Arrow LEFT                 Previous file (loop)
-  C                          Rotate 90° clockwise
-  A                          Rotate 90° anticlockwise
-  Ctrl + ←  or  Ctrl + X    Undo last move and restore file
-  Arrow UP                   Previous page (multi-page PDF only)
-  Arrow DOWN                 Next page (multi-page PDF only)
-  PgUp / PgDn                Previous / next preset
-  Tab  or  N                 Next preset
-  Shift+Tab                  Previous preset
-  Mouse wheel                Next/prev file (scrolls if zoom > 1)
-
-SORTING  [requires Sidebar or Keypad active]
-  Keys 1–9, 0                Move file to active preset destination
-  Ctrl + 1–9, 0              Copy file (without moving)
-  DEL × 2                    Move file to trash
-  DEL + Enter                Move to trash (alternative confirm)
-
-ZOOM & DISPLAY
-  +  /  −                    Zoom in / out
-  Z                          Fit to canvas
-  X                          Original size (1:1 pixels)
-  F                          Fullscreen (images only)
-  Enter                      Fullscreen / External player (video/PDF)
-  H                          Show/hide top header bar
-
-INFO
-  I                          EXIF overlay (technical image data)
-
-RIGHT-CLICK MENU  (on the displayed file)
-  Rename                     Rename file inline
-  Rotate 90 CW               Rotate and save (images only)
-  Rotate 90 CCW              Rotate and save (images only)
-  Crop...                    Interactive crop overlay (images only)
-  Open folder                Show file in file manager
-  Edit with...               Open with configurable editor (default: GIMP)
-  Copy path                  Copy full path to clipboard
-
-WINDOWS & PANELS
-  O  or  B                   Folder browser (tree + thumbnails)
-  S                          Sidebar (cycle: inline / popup / hidden)
-  D  or  P                   Keypad (cycle 1/2/3 columns)
-  Ctrl + D                   S-Deck: toggle preset mode on physical deck
-  R                          Settings
-  Ctrl + R                   Rename current file directly
-  Q  or  Esc                 Quit
-
-FOLDER BROWSER
-  Ctrl + A                   Select all files
-  Ctrl + C                   Copy selected files
-  Ctrl + X                   Cut selected files
-  Ctrl + V                   Paste into current folder
-  Delete                     Trash selected files
-  Single click               Select file or folder (green highlight)
-  Ctrl + click               Add/remove from multi-selection
-  Double click               Open file / navigate into folder
-  1–9, 0  (folder selected)  Move folder to corresponding preset
-
-==============================================================================
-  SETTINGS  (key R)
-==============================================================================
-
-TAB PRESET
-  Manage and select sorting presets.
-  Double-click or Enter to activate the selected preset.
-
-TAB DESTINATIONS
-  Configure label and path for each key 1–9/0 of the active preset.
-  - "..." button  : opens folder browser with quick access and drives
-  - "X" button    : clears the key destination
-  - Label field   : name shown on the key (auto-filled from folder name)
-  Press Apply (or Enter) to save.
-
-TAB DISPLAY
-  Choose which file types to show: Images, Videos, PDFs, files without ext.
-  Each filter has a clear ON/OFF button.
-  Additional extensions: add extra formats (e.g. .heic, .arw, .cr2).
-  Settings are saved and remembered between sessions.
-
-TAB SHORTCUTS
-  Full list of keyboard shortcuts, organized by category.
-
-TAB LANGUAGE
-  Switch interface language. Requires restart to apply.
-  Add new languages by editing translations.py.
-
-TAB MANUAL
-  Open this file or the Italian README.
-
-
-==============================================================================
-  FOLDER BROWSER  (key O)
-==============================================================================
-
-QUICK ACCESS BAR
-  Quick access buttons: ~, Images, Videos, Desktop, Documents, /
-  Mounted drives detected automatically from /media/ and /mnt/
-  Last visited folder shown as "< name"
-
-TREE NAVIGATION
-  Click on tree               Show folder contents on the right
-  Double-click on tree        Open folder as main source
-  Double-click on thumbnail   Open file in main window
-  Right-click on folder       Rename folder
-
-TREE INDICATORS
-  [+]   Contains images   [v]  Contains videos   [p]  Contains PDFs
-
-MULTI-SELECTION
-  Single click               Select / deselect (green background)
-  Ctrl+A                     Select all files in current folder
-
-  Action bar (appears with selected files):
-  - Colored preset buttons   Move selected files to destination
-  - Batch rename             Rename with prefix + sequential numbering
-  - Copy                     Copy files to a chosen folder
-  - Deselect all             Clear selection
-
-ASSIGNMENT PANEL  (button "Assign")
-  3 rows of presets with dropdown menus and colored buttons 1–9/0.
-  Right-click a button to rename its label.
-
-
-==============================================================================
-  DISK ANALYZER  ("Disk analysis" button in the folder browser)
-==============================================================================
-
-Opens a separate window with a navigable sunburst chart and treemap.
-
-CHART (sunburst or treemap, selectable at the top)
-  Click on slice              Navigate into the folder
-  Double click on slice       Open folder in Image Sorter browser
-  Right click on slice        Menu: navigate / open in file manager / browser
-  ▲ up (center)               Go up to parent folder
-  Levels slider (1–6)         Depth of rings displayed
-
-FOLDER TREE (right panel, resizable with the divider)
-  Double click on row         Navigate into folder
-  Arrow ▸                     Expand subfolders (without closing other levels)
-  Columns Name / Size / Files Resizable by dragging the heading
-
-BOTTOM BAR
-  Current folder name         Shown large on the left
-  Size + files                Next to name: 128 MB | 4 folders | 47 (12 images...)
-  Hover tooltip               Name + size of folder under cursor
-  Open in browser             Opens folder in Image Sorter browser
-
-==============================================================================
-  CROPPING
-==============================================================================
-
-Right-click > Crop...  (images only)
-  - 8 handles to define area, rule-of-thirds grid
-  - "Crop"               : asks whether to overwrite or use new name
-  - "Crop & advance"     : overwrites and moves to next file
-  - "Crop next"          : overwrites and opens crop on next file
-  - "Remember" checkbox  : reuses relative position and size
-  - ESC or Cancel        : exit without changes
-
-
-==============================================================================
-  MULTI-PAGE PDF
-==============================================================================
-
-  Arrow UP / DOWN        Navigate between pages
-  Page slider (bar)      Jump directly to a page
-  < > buttons            Previous / next page
-  "Thumbs" button        Side thumbnail panel (scrollable)
-  Badge "PDF N/TOT"      Shows current page and total (bottom-left corner)
-
-  At first page:   Arrow UP goes to previous file
-  At last page:    Arrow DOWN advances to next file
-
-
-==============================================================================
-  DUPLICATE FINDER
-==============================================================================
-
-Open from folder browser toolbar with "Find duplicates" button.
-
-Three modes:
-  Content (SHA256)     Exact byte comparison — finds copies even with
-                       different names. Slower but 100% accurate.
-  Quick (name+size)    Compares only file name and size — instant.
-  Compare A vs B       Two specific folders: shows only files present
-                       in both. Useful for comparing backup vs original.
-
-Files named "copy", "copia", "(1)", "(2)" etc. are automatically ranked
-last in each group (marked [COPY]) so they get trashed first.
-
-Right-click a result to: Open / Show in file manager / Move to trash.
-"Trash all duplicates" keeps the first file in each group.
-
-
-==============================================================================
-  STREAM DECK  (optional)
-==============================================================================
-
-OPERATING MODES
-  The physical deck operates in two distinct modes:
-
-  IDLE mode (default)
-    Active when the software keypad is closed.
-    Shows freely configurable pages (2-3 pages with < > navigation).
-    Each key can: open folder, launch app, keyboard shortcut,
-    open URL, toggle mute, open Image Sorter on a folder.
-
-  PRESET mode
-    Active when the software keypad is open (key D/P).
-    Shows file sorting keys (1-9, navigation, etc.).
-
-HOW TO ACTIVATE PRESET MODE
-  Method 1: Open the software keypad with D or P → deck switches to preset.
-  Method 2: Press "Deck [P]" button in the top bar to toggle preset mode
-            on the physical deck without opening the software keypad.
-
-PRESET MODE LAYOUT  (Standard 15 keys, 3 rows × 5 columns)
-  Row 1:  [1]  [2]  [3]  [Active preset]  [Del]
-  Row 2:  [4]  [5]  [6]  [^ Prev preset]  [v Next preset]
-  Row 3:  [7]  [8]  [9]  [<< Back      ]  [>> Forward   ]
-
-  Right-click a key   Change label and destination on the fly
-
-CONFIGURING IDLE PAGES
-  Open Settings (R) → "Stream Deck" tab
-  - Shows connected model and brightness slider
-  - Visual grid of all idle pages
-  - Click any key to configure it:
-      Label, action, parameter, RGB color, background image
-  - "+ Page" button to add pages
-  - Last 2 keys become < Pag / > N/TOT page navigation
-    when multiple pages are configured
-
-SUPPORTED IDLE ACTIONS
-  Open folder          Opens in file manager
-  Open application     Launches a program (e.g. "gimp", "firefox")
-  Keyboard shortcut    E.g. "ctrl+c", "ctrl+alt+t" (requires xdotool)
-  Open URL             Opens in default browser
-  Toggle mute          Mute/unmute audio (requires pactl)
-  Image Sorter         Opens on a specific folder
-  Change page          next / prev between idle pages
-
-SETUP
-  1. Install StreamController 2.0.6+
-  2. Launch: streamdeck --no-ui
-  3. Open Image Sorter — it takes control automatically
-  4. On softdeck close, physical deck returns to idle mode
-  5. On Image Sorter close, StreamController resumes
-
-PERMISSIONS  (if deck not recognized)
-  sudo udevadm trigger  +  unplug/replug USB
-  Check group: groups | grep plugdev
-  If missing: sudo usermod -aG plugdev $USER  (then reboot)
-
-
-==============================================================================
-  CONFIGURATION  (image_sorter_config.json)
-==============================================================================
-
-Saved automatically in the same folder as the script/binary.
-Contains: presets, destinations, last folder, display filters,
-          sidebar mode, crop size, extension settings, language.
-
-To transfer presets to another PC:
-  Copy image_sorter_config.json alongside the executable.
-  Paths auto-adapt to the current user.
-
-
-==============================================================================
-  TROUBLESHOOTING
-==============================================================================
-
-"Stream Deck not found"
-  sudo udevadm trigger  +  unplug/replug USB
-  groups | grep plugdev  (if missing: sudo usermod -aG plugdev $USER)
-
-"Video thumbnails not visible"
-  sudo apt install ffmpeg
-
-"PDF thumbnails not visible"
-  pip3 install pymupdf  or  sudo apt install poppler-utils
-
-"Program slow on large files"
-  Thumbnails use cache and draft mode automatically.
-  For very large videos, ffmpeg stops after 8 seconds.
-
-"Double-click doesn't open file"
-  bash installa.sh
-  Then: right-click file > Open With > Image Sorter > Set as default
-
-
-==============================================================================
-  TECHNICAL NOTES
-==============================================================================
-
-Version         : 1.12
+IMAGE SORTER v1.36
+==================
+A program to manage, view, and sort images, videos, and PDFs.
+
+Version         : 1.36
 Language        : Python 3.8+
-Dependencies    : Pillow, tkinter, streamdeck*, send2trash*, pymupdf*
-System          : Linux (tested on Ubuntu 24 and Linux Mint)
-Video previews  : ffmpeg (sudo apt install ffmpeg)
-PDF previews    : PyMuPDF (pip3 install pymupdf) or pdftoppm
-Trash           : Standard freedesktop.org (~/.local/share/Trash)
-Stream Deck     : Elgato Standard 15 keys, StreamController v2.0.6+
-UI icons        : Generated with Pillow (no external files)
-Thumbnail cache : LRU in memory, max 200 entries
-NOTE            : Do not use emoji in tkinter widgets (X11 RenderAddGlyphs crash)
+Interface       : tkinter + Pillow
+Platform        : Linux (tested on Linux Mint / Ubuntu)
 
-==============================================================================
+QUICK INSTALL
+-------------
+  bash installa.sh
+
+  or manually:
+    pip install Pillow send2trash pymupdf streamdeck --user
+    pip install piexif reverse-geocode folium tkinterdnd2 --user
+    pip install pillow-avif-plugin --user   (for .avif files)
+    pip install pillow-heif --user          (for .heic files)
+
+LAUNCH
+------
+  python3 image_sorter.py
+  python3 image_sorter.py /path/to/image.jpg   (opens the folder)
+
+PROGRAM FILES
+-------------
+  image_sorter.py    main program                   v1.36.0
+  disk_analyzer.py   disk usage analyzer            v1.36.0
+  timeline.py        timeline and GPS map           v1.36.0
+  exif_editor.py     EXIF metadata editor           v1.36.0
+  translations.py    IT/EN strings                  v1.36.0
+  installa.sh        installation script            v1.34.0
+
+MAIN SHORTCUTS
+--------------
+  Arrows             Navigate between images
+  1-9, 0             Move to active preset
+  Ctrl+1-9,0         Copy to active preset
+  DEL                Trash file
+  Z / X              Fit / Original size
+  + / -              Zoom in / out
+  Ctrl+wheel         Zoom in / out (also while cropping)
+  F                  Fullscreen
+  H                  Show/hide header
+  C / A              Rotate 90° CW / CCW
+  K                  Crop (Krop)
+  I                  EXIF info overlay
+  T                  Open/close Timeline
+  O / B              Folder browser — open/close
+  S                  Sidebar
+  R                  Open/close Settings
+  Ctrl+R             Rename current file
+  Ctrl+H             Open/close operation History
+  Ctrl+D             Physical deck: toggle idle/preset mode
+  Ctrl+Z             Undo last move/crop
+  Esc                Close open window / quit
+  Q                  Quit
+
+VERSIONING
+----------
+  x.Y.0   coordinated bump of all files (new features)
+  x.y.Z   minor fixes, third number independent per file
+
+CROP (key K)
+------------
+  - Floating draggable toolbar (wm_overrideredirect)
+  - 14 aspect ratio presets (Free, 1:1, 16:9, 4:3, etc.)
+  - "Next" button: advance without modifying
+  - "Crop next": crops and opens crop on the next image
+  - Esc closes crop
+
+EXIF INFO (key I)
+-----------------
+  - Overlay on canvas with file info and EXIF data
+  - Right-click > EXIF Info (also from browser)
+  - Esc closes the overlay
+
+TIMELINE (key T)  — Deep view
+------------------------------
+  - Colored border on thumbnails per source folder
+  - Multiple selection: single click, Ctrl+click, Shift+click
+  - Click on background deselects all
+  - Del: trash selected files (with confirmation if >1)
+  - Right-click on selection: acts on all selected
+  - OptionMenu View (Timeline/Grid) and Sort (Shot/File/Place)
+  - Recent/Old first button works after scan
+  - Context menu uses tk_popup (stable on Linux/X11)
+
+FOLDER BROWSER (key O/B)  — Navigate
+--------------------------------------
+  - Right-click: open, rename, EXIF, convert, preset, properties
+  - EXIF Info: centered popup, single instance, above browser
+
+SUPPORTED FORMATS
+-----------------
+  Images: JPG, PNG, GIF, BMP, TIFF, WebP, HEIC/HEIF, AVIF
+  Video:  MP4, MKV, AVI, MOV, WebM, M4V, FLV
+  PDF:    via pdftoppm (poppler-utils)
+
+TECHNICAL NOTES
+---------------
+  - AVIF:        pip install pillow-avif-plugin --user
+  - HEIC/HEIF:   pip install pillow-heif --user
+  - NO emoji in tkinter widgets (X11 crash)
+  - Context menu: tk_popup() not menu.post() on Linux
+  - Popup bars: wm_overrideredirect(True) for stable position
+
+WHAT'S NEW v1.27 → v1.28 (debug session)
+-----------------------------------------
+Note: the manuals had not been updated between v1.23 and v1.27; this
+section only covers the fixes verified in this debugging session on the
+v1.27.x code. Intermediate-version features (1.24-1.27) aren't documented
+here since that material wasn't available in this session.
+
+BUGS FIXED
+  - timeline.py: build_map() referenced "self.sorter" with no self in
+    scope (it's a module-level function, not a method). If folium wasn't
+    installed, or no GPS images were found, the app crashed with a
+    NameError instead of showing the intended message. Now it always
+    uses messagebox, as appropriate for a standalone function.
+  - timeline.py: IMG_EXT was missing ".heif" (only ".heic" was present),
+    so HEIF files weren't recognized as images in the Timeline.
+  - exif_editor.py: read_iptc_xmp() was called but never defined anywhere
+    in the project. The error was swallowed by a bare except, so the
+    IPTC/XMP tab always showed "No IPTC/XMP data found" even when XMP
+    data was present in the file. Added a real implementation that reads
+    the XMP block via Pillow (native IPTC stays empty: piexif doesn't
+    support it and it wasn't already a project dependency).
+  - image_sorter.py: the startup-crash error window used "self.config" in
+    a spot where "self" doesn't exist (it's in the except block around
+    app launch, before the ImageSorter instance exists). This caused a
+    second error that prevented the message from displaying (the log was
+    still written to disk). Language is now detected from the LANG
+    environment variable, matching the pattern used elsewhere in startup
+    fallbacks.
+  - translations.py: some keys (btn_settings, btn_sidebar, btn_play,
+    btn_quit, btn_fullscreen) were duplicated in both IT and EN. In
+    English, "btn_fullscreen" had two different values ("Full Screen" and
+    "Fullscreen"): the second one, overwriting the first, always won.
+    Removed the duplicates, keeping one consistent value per key.
+
+CHECKS PERFORMED (no issues found)
+  - All files compile cleanly (py_compile + AST parsing)
+  - LANG/SHORTCUTS structure consistent between IT and EN (no missing keys)
+  - image_sorter_error.log empty (no crashes recorded by the user)
+
+WHAT'S NEW v1.28 → v1.29
+---------------------------
+
+CROP — EDGE MAGNET
+  - Automatically snaps crop edges to sharp color boundaries (useful for
+    screenshots: panels, windows, UI bars)
+  - Two-pass detection: rough profile on a downscaled image to stay
+    instant, then full-resolution refinement of the candidates found
+    (accurate to within 1px)
+  - "Magnet" checkbox in the crop bar, on by default, toggleable; only
+    active in free (unconstrained) aspect ratio mode
+
+CROP — MAGNIFIER LOUPE
+  - Floating window showing a crisp, pixel-sharp zoomed detail (no
+    blurring) around the point being dragged
+  - Reticle that outlines the exact single pixel being pointed at,
+    without covering its color
+  - Exact pixel coordinates shown below the preview
+
+CROP — CTRL+WHEEL ZOOM
+  - Ctrl+wheel zooms in/out, even while the crop tool is open
+  - The view automatically scrolls to keep the selection visible after
+    zooming
+
+CROP — FIXES
+  - A slightly imprecise click on a corner/edge no longer resets the
+    current selection (increased tolerance before treating a click as
+    "outside" the rectangle)
+  - Fixed mouse coordinates when the canvas is scrolled (pre-existing
+    bug, surfaced by the new crop zoom feature): without the fix,
+    dragging a crop edge with the canvas scrolled produced position
+    jumps or incorrect resizing
+  - The image "pan" feature (scrolling a zoomed-in view) no longer
+    interferes with dragging crop handles
+
+HISTORY
+  - Preview thumbnail (48px) between the checkbox and the date on each
+    row, generated from the file at the time of the operation, saved in
+    a dedicated temp folder and automatically removed when the list is
+    cleared or old entries age out past the 200-entry limit
+  - The row detail no longer repeats the filename when the destination
+    has the same name (shows the destination folder instead of the
+    duplicate name)
+
+FULL AUDIT AND DEBUGGING (end-of-session review)
+  - Added ~60 missing translations to the IT→EN auto-translation
+    dictionary (hardcoded widgets), found by comparing every static
+    string in the program against the existing dictionary
+  - Removed 7 pre-existing duplicates in the same dictionary (identical
+    values in every case, so just redundancy, not an override bug)
+  - Fixed a functional bug in the "wrong file extension" popup: the
+    "Rename to..." button never actually performed the rename on disk
+    (missing the os.rename call), and the overwrite-confirmation
+    response was never handled when the target file already existed
+  - Cleaned up ~30 static-analysis warnings (unused imports, dead
+    variables, f-strings without placeholders) across all 5 files — no
+    behavior changes, cleanup only
+
+WHAT'S NEW v1.29 → v1.30
+---------------------------
+
+ENLARGED PREVIEW PANEL (Naviga + Timeline)
+  - New right-hand column, toggled via the "Preview" checkbox in the
+    toolbar (hidden by default)
+  - Shows the selected file enlarged, scaled to fit the available space
+    while keeping proportions — images, video (extracted frame), and in
+    Naviga also PDFs (first page)
+  - Draggable divider to adjust proportions; open/closed state and
+    proportions remembered between sessions
+  - Right-click menu with the same functions already available on
+    thumbnails (Open, Rename, Copy/Cut/Paste, Trash, EXIF, Convert
+    format, Properties, Restore); double-click to open
+  - Video and PDF processing runs on a separate thread so the interface
+    doesn't freeze on every click while browsing
+
+DUPLICATE FINDER
+  - The "content check" (SHA256 hash) now uses a three-stage pipeline
+    (size → quick hash → full hash) instead of hashing every single
+    file: up to 87% less data read from disk on folders with many videos
+  - Deletions from the duplicate finder (all 3 modes) now go through the
+    transit trash and appear in History, instead of going straight to
+    the system trash
+  - Clearer alert for "Trash all duplicates": explicitly states the
+    action applies to all duplicates found, not just selected ones
+  - Fixed a bug in results re-sorting that duplicated blank rows on every
+    sort change
+
+TRASH AND HISTORY — full audit
+  - Found and fixed several scattered deletion functions (Naviga: multi-
+    selection, context menu; Timeline: context menu) that were still
+    going straight to the system trash, bypassing the transit trash and
+    therefore not appearing in History or being undoable
+  - Documented exception: deleting an entire folder still uses the
+    direct system trash (the transit mechanism is designed for
+    individual files)
+  - History thumbnail generation moved to a background thread: it used
+    to block every single file move (the most frequent action while
+    sorting) for the time it took to generate the preview, especially
+    slow for videos
+
+"NAVIGA" BROWSER — various stability fixes
+  - Fixed the missing ".." (parent folder) cell in completely empty
+    folders
+  - Optimized batch loading of thumbnails (less artificial delay,
+    smoother loading)
+  - Resolved a long series of visible thumbnail "jumps" during
+    navigation and file selection, caused by several UI bars changing
+    height dynamically as they appeared/disappeared — now all have
+    permanently reserved fixed space
+  - Explicitly locked grid row/column sizes to eliminate the last
+    residual visual instability
+
+FORMAT CONVERSION
+  - After a conversion (e.g. PNG→JPG), only the cells of the files
+    actually converted are updated, instead of reloading the entire
+    thumbnail grid
+
+QUALITY CONTROL
+  - Full translation audit: added ~60 missing translations to the IT→EN
+    dictionary, removed pre-existing duplicates
+  - Fixed a functional bug in the "wrong file extension" popup (the
+    "Rename to..." button never actually performed the rename)
+  - Verified full parity and absence of duplicates/missing keys across
+    all translation dictionaries
+
+WHAT'S NEW v1.30 → v1.31
+---------------------------
+A session focused on the stability of the "Naviga" browser and on
+History coverage.
+
+"NAVIGA" BROWSER — THUMBNAIL GRID
+  - Fixed an accumulating minimum grid width: the column reset only
+    covered the first 12 columns, but small thumbnails in a wide window
+    can produce many more. Columns past the twelfth stayed configured
+    forever, inflating the grid even after switching to large
+    thumbnails or shrinking the window
+  - The reset now also runs for empty folders and for the list/tree
+    views, which previously skipped it
+
+"NAVIGA" BROWSER — MOUSE WHEEL
+  - The wheel was bound twice to the same panel (double scroll per
+    notch) and through an application-wide binding: with Naviga open,
+    scrolling in the viewer, in Timeline or in Settings also scrolled
+    the thumbnail grid. It is now a single binding scoped to that
+    window alone
+  - The tree and list views now stop event propagation correctly
+
+"NAVIGA" BROWSER — SCROLLABLE AREA
+  - The scrollable area was computed with a method that returns no value
+    under certain conditions; in that case the previous folder's area
+    stayed in effect, allowing scrolling into empty space in an empty
+    folder. The height is now always computed explicitly from the actual
+    content
+
+"NAVIGA" BROWSER — THUMBNAILS OF LARGE FILES
+  - Thumbnails were generated on the main thread, in batches of 30
+    files: with videos, PDFs or very large images the grid stayed frozen
+    for seconds. The main thread now only creates the cells and reuses
+    already-cached thumbnails, while anything requiring decoding is
+    generated in the background and applied as soon as it's ready
+  - When changing folder, results from the previous folder are
+    recognised as stale and discarded
+  - Fixed a hang: an unreadable or corrupt file sent the grid loading
+    into an infinite loop on that same file
+
+TIMELINE — HISTORY AND UNDO
+  - Moves performed with the number keys 1-9 on a multiple selection
+    never appeared in History and couldn't be undone from there (unlike
+    the same moves performed from the context menu). They are now
+    recorded properly
+  - A single moved file is recorded as a single entry instead of a
+    "batch"
+  - Batch entries never had a preview thumbnail, because it was looked
+    up in a path that for those entries is a folder rather than a file.
+    The preview now appears
+  - Undoing a batch could restore the wrong file: if a file with the
+    same name already existed at the destination, the moved file gets a
+    suffix, and the restore picked up the pre-existing file instead.
+    Each entry now records the actual destination of every file
+  - Files disappear from the view only if the move actually succeeded
+    (previously they vanished on error too, while still on disk)
+
+DISK ANALYZER
+  - HEIC/HEIF, AVIF and PNM/PBM/PGM/PPM ended up in the chart's "Other"
+    slice instead of "Images", despite being handled as images
+    everywhere else in the program
+
+CLEANUP
+  - Removed the hover preview on thumbnails, dead code never called from
+    anywhere since v1.17: the same need is covered by the enlarged
+    preview panel
+
+WHAT'S NEW v1.31 → v1.32
+---------------------------
+A session focused on renaming, GPS location and context-menu stability.
+
+BATCH RENAME — CUSTOM TEMPLATE
+  - Fourth mode in the rename dialog (Navigate > multiple selection >
+    right-click > Batch rename), alongside the three existing ones
+  - The name is composed from placeholders, arranged as you like:
+      {nome} {n} {data} {anno} {mese} {giorno} {ora} {marca} {modello}
+      {iso} {focale} {diaframma} {esposizione} {larghezza} {altezza}
+      {cartella}
+    Example: "{data}_{modello}_{n}"  ->  20240714_NIKON D750_001
+  - {n} uses the start number and digit fields already present, {data}
+    the format chosen in the dropdown
+  - A placeholder with no value (e.g. {modello} on a file without EXIF)
+    disappears from the name without leaving doubled separators
+  - The last template used is remembered between sessions
+  - Batch rename now appears in History and can be undone: it previously
+    renamed files directly without recording anything
+  - Two files that would produce the same new name: the second is
+    skipped with an error, never overwritten
+
+GPS LOCATION
+  - Copy/paste of a location between files, recognising pasted text in
+    several formats: decimal, degrees/minutes/seconds, geo: links,
+    Google Maps URLs
+  - Group geotagging from the Timeline: assign one photo's location to
+    all other selected ones. If the photo you right-click has no
+    location but exactly one in the group does, that one is used and the
+    menu says so
+  - Writing touches ONLY the GPS block: artist, copyright and
+    description of the other files stay intact
+  - Undoable from History: each file's previous location is stored,
+    including photos that had none, which go back to having none
+  - An empty field or text without coordinates no longer produces a
+    location of zeros (a point in the Atlantic Ocean)
+  - Files in formats that don't accept GPS writing (PNG, HEIC, AVIF...)
+    are skipped and counted separately
+
+GPS MAP — THUMBNAILS
+  - Markers show the photo thumbnail, with a different border colour for
+    files already sorted
+  - Below a certain zoom level thumbnails become dots so they don't
+    overlap; they turn back into photos when zooming in
+  - The same thumbnail, larger, appears in the marker popup
+  - Images are embedded in the HTML file: the map stays a single
+    openable, movable file. Past 400 photos it falls back to plain icons
+    to avoid generating a file that is too heavy
+  - Status bar progress while generating
+
+TIMELINE — SELECT BY MONTH
+  - Each month header is clickable and selects every file in that group;
+    Ctrl+click adds to the existing selection
+  - The group's file count is shown next to the title
+
+TRANSIT TRASH — CLOSING DIALOG
+  - New "Open folder" button to look at the files before deciding (the
+    dialog stays open)
+  - New "Don't ask again today" checkbox, valid until midnight (the
+    permanent switch remains in Settings)
+  - The dialog also shows the transit folder path
+
+TIMELINE CONTEXT MENU — FIX
+  - The menu opened and closed itself within a few milliseconds: showing
+    it makes the window lose focus, and the automatic close didn't
+    distinguish that from switching to another application. It now
+    checks where the focus actually went
+  - Clicking another program or the system bar closes the menu again
+    correctly: the focus-lost event arrives only once, at opening, so
+    the check is now periodic while the menu is visible
+
+VIDEO FRAME CACHE
+  - It was a FIFO: it evicted the frame inserted first, not the least
+    used, so a frequently revisited video could be discarded while
+    frames seen once stayed in memory
+  - The key now includes the modification date: after replacing a video
+    you no longer see the old frame
+  - Added protection for access from multiple threads
+
+WHAT'S NEW v1.32 → v1.33
+---------------------------
+Quick filter, thumbnail indicators, context-menu alignment and
+context-menu fixes.
+
+QUICK NAME FILTER (Navigate)
+  - "Filter:" field in the top bar, next to favourites: narrows the view
+    to files and folders whose name contains the typed text
+  - Several space-separated terms must all appear, in any order ("vac
+    2024" finds "2024_vacanze_mare.jpg"); case insensitive
+  - Match count next to the field (e.g. 12/347), x button and Esc to
+    clear, delayed reload so the grid isn't rebuilt on every keystroke
+  - Folders are filtered like files, except ".." which always stays
+  - The filter is not cleared when changing folder: it stays active until
+    you empty it
+  - With a filter active and no matches it says "No match for the filter"
+    instead of "Empty folder"
+
+THUMBNAIL INDICATORS
+  - Green dot: the file contains GPS coordinates
+  - Amber dot: it is an image but NOT a JPEG (PNG, WebP, AVIF, HEIC/HEIF,
+    TIFF, GIF, BMP, PNM). Videos and PDFs get no indicator
+  - Present in the viewer, in Timeline thumbnails and in Navigate ones;
+    when both apply, amber sits below green
+  - In the VIEWER the dots are clickable and, on hover, show a label
+    explaining what they are and what a click does:
+      green -> click copies the location to the shared clipboard,
+               right-click opens the map
+      amber -> click converts to JPG, after confirmation (the original
+               is removed)
+  - Added "Show on map" and "Copy GPS location" to the viewer's
+    right-click menu, where they were missing
+  - In Navigate, GPS detection runs on a separate thread with a cache
+    (reading EXIF for hundreds of files would freeze the interface)
+
+NAVIGATE CONTEXT MENU — ALIGNMENT
+  Added the entries the other two menus had but this one didn't:
+  - Crop... (the only viewer function with no equivalent here: you
+    previously had to open the image first). It brings the viewer to the
+    front, otherwise the crop opened behind the Navigate window
+  - Rotate 90 CW / CCW, also on multiple selected files
+  - Destination presets, as in the Timeline: they were only in the
+    selection bar, so unreachable by right-clicking an unselected file
+  - Open folder and Edit with...
+
+EXIF FORMATS — READ AND WRITE SEPARATED
+  They were a single set, with two wrong consequences: iPhone photos
+  (HEIC/HEIF) showed no EXIF entries despite having the data, and on TIFF
+  saving failed silently.
+  - EXIF_READ_EXT  (read, via Pillow): jpg, jpeg, tiff, tif, webp, heic,
+    heif
+  - EXIF_WRITE_EXT (write, via piexif): jpg, jpeg, webp
+  - GPS_WRITABLE_EXT aligned accordingly: TIFF removed
+
+CONTEXT MENU — THREE FIXES
+  - Timeline: it didn't close when switching application. Focus-based
+    closing couldn't work (focus never reads as "inside the application"
+    while the menu is visible); replaced with a pointer-position check,
+    plus the outside-click binding extended to the main window, which is
+    a separate toplevel
+  - Navigate: with a file selected the menu closed immediately. The click
+    that opens the menu reaches the window an instant later: normally it
+    falls inside the menu and closes nothing, but if the menu is too tall
+    for the space below the pointer, Tk moves it up and the click ends up
+    outside. The added entries had crossed that threshold
+  - Video frame cache: converted from FIFO to a real LRU, with the
+    modification date in the key and a lock for multi-thread access
+
+WHAT'S NEW v1.33 → v1.34
+---------------------------
+Drag and drop, name-conflict handling, History as its own window and a
+context menu for folders.
+
+DRAG AND DROP INTO FOLDERS
+  - Drag selected thumbnails onto a folder in the left-hand tree to move
+    them; hold Ctrl to copy
+  - A count label follows the pointer and the target folder highlights
+  - Both operations appear in History and can be undone
+
+FILES WITH THE SAME NAME
+  - Collisions were previously resolved silently by appending "_1": a
+    dialog now asks what to do, once for the whole group and before any
+    file is touched
+  - Rename (as before) / Overwrite / Skip / Cancel
+  - When overwriting, the existing file goes through the transit trash
+    instead of disappearing: even an overwrite is recoverable
+
+HISTORY
+  - Now has its own window, with a button between Timeline and Settings
+    and the Ctrl+H shortcut; it is no longer a Settings tab
+  - Copy/Paste is recorded: it was the last file operation in Navigate
+    that couldn't be undone. Undoing a copy removes the copies (to the
+    transit trash), undoing a move puts the files back
+
+FOLDER RIGHT-CLICK MENU
+  - Folders only had a button bar while files had a full menu: folders
+    now have the menu too, with the same entries plus New subfolder
+    (created where you click), Paste here, disk usage analysis for that
+    folder, and Properties
+  - The button bar below the grid has been removed: it was rebuilt on
+    every selection and caused the grid to jump
+
+FOLDER GRID
+  - Much more compact cells: the icon is capped at 80px, so keeping cells
+    as large as a thumbnail left 60-70% of each one empty
+  - Folders re-flow as you drag the divider, without waiting for a full
+    reload
+  - Fixed-width columns: a long name no longer breaks the alignment
+  - The ".." cell is the same size as the others
+
+PREVIEW PANEL (Navigate)
+  - Full filename below the image
+  - EXIF info from the right-click menu appears in the panel instead of a
+    popup covering the image
+  - The preview no longer empties after rotation, cropping or GPS
+    assignment, and follows the file when it is renamed or converted
+  - The arrow keys update the preview just like a click
+
+FIXES
+  - The context menu could trigger a random entry: when it doesn't fit
+    below the pointer the system moves it up, placing it under the
+    cursor, and releasing the button activated whatever entry was there.
+    The menu is now flipped and the release ignored for a moment
+  - The menu didn't close when clicking another program or the system
+    bar: that event never reaches the window, so the pointer position is
+    now checked instead
+  - Rotating a photo in a folder other than the one open in the viewer
+    sent you back to the initial folder
+  - Folder counts in the tree update after moves and copies
+  - The last system-styled dialogs (EXIF editor, disk analyzer) are now
+    HUD-styled
+
+WHAT'S NEW v1.34 → v1.35
+--------------------------
+Mostly about the physical Stream Deck and the sidebar. The startup and
+detached-sidebar fixes below were resolved here before the new features.
+
+SIDEBAR — LIST APPEARANCE
+  - Settings > Sidebar now has "Appearance" alongside "Mode": Grid (the
+    original) or List
+  - In List mode each key is a single full-width colored button with
+    number and label together, ordered 9 at the top down to 0 — more
+    room for the folder name, which was less readable than the number
+    in the grid
+  - The deck (physical and on-screen) stays grid-only: the drag-to-swap
+    feature relies on that layout
+
+UNREACHABLE DESTINATIONS
+  - A key/preset pointing to an unplugged drive or an unmounted network
+    share dims itself automatically
+  - Applies to the deck (physical and on-screen) and to the sidebar, in
+    both display modes
+  - Checked in the background, rechecked every 15 seconds
+
+DRAG TO SWAP PRESETS (deck)
+  - Drag one key onto another to swap label and destination, keeping
+    number and color where they are
+  - Works across columns with different presets too
+
+DECK — EXTRA BUTTONS WITH MORE COLUMNS
+  - CROP appears next to BACK/SKIP/DEL at 4 open columns
+  - ROTATE appears too at 5 or more
+
+PHYSICAL STREAM DECK
+  - New action type for idle keys: "Image Sorter command" — a dropdown
+    with 28 direct functions of the program (rotate, zoom, next/previous
+    file, copy path, open the current file's folder, copy GPS position,
+    open/close panels, switch preset, and more). Unlike keyboard-shortcut
+    actions ("hotkey"), these work even if another window has focus
+  - Built-in icons for the 28 commands: "deck_icons" folder next to the
+    script, files named "cmd_<command name>.png" — optional, the key
+    just shows text without one
+  - "deck_icons" is also where custom per-key icons now live (previously
+    "sorter_icons", which holds the program's own resources)
+  - Icon preview now shows as soon as you pick a command or a file, not
+    only after "Save key"
+  - Label position on the key: Top / Middle / Bottom
+  - Empty idle pages remove themselves (leaving them by switching tabs,
+    or clearing them with "Clear"): a "+Page" pressed by mistake no
+    longer sits there with no way to remove it
+  - The S-Deck toolbar button changes color with the deck's state: gray
+    when disconnected, cyan when connected in idle, green when connected
+    in preset mode. Right-click opens Settings on the Deck tab; hovering
+    shows both shortcuts in the tooltip
+  - Settings > Deck reorganized: the current mode reads in the right
+    order and updates live, the selected key is shown on the tab row
+    (no longer inside the editor), available actions are laid out in 3
+    columns instead of 2
+
+MORE READABLE CONFIG FILE
+  - image_sorter_config.json now starts with a "_note" key explaining
+    the file's structure (JSON has no real comment syntax: this is the
+    closest thing that stays valid)
+  - Compact formatting: a preset or a deck key now sits on a single line
+    instead of one line per field — much easier to read by hand
+
+DUPLICATE FINDER — A vs B COMPARISON
+  - The two lists stay as they were, but a resizable panel below now
+    shows side-by-side thumbnails of the selected row's A and B files —
+    especially useful with the "Name+Size" or "Name only" methods, where
+    a false match is obvious once you see both images
+  - Multiple selection in both lists (Ctrl/Shift-click): pick just a few
+    files and trash them together, with one confirmation instead of one
+    per file
+  - New "Trash selected (B)" button next to "Trash all B duplicates
+    (keep A)", for the same purpose but only on the rows you pick
+
+FIXES
+  - Starting with the sidebar in "Window" (detached) mode failed with an
+    AttributeError: a reference was read before being assigned. This bug
+    predates this session — it just never surfaced because the default
+    inline mode never hit that code path
+  - The detached sidebar didn't refresh when reordering presets or
+    switching one from the keypad/deck: several places in the program
+    forgot to also update the separate window. Fixed at the source, in
+    one place, instead of case by case
+  - The "jump" of the first image on startup: caused by three
+    overlapping issues — repeated file reads while the window settled,
+    scrollbars created already visible (13 pixels returned to the canvas
+    after the first draw), and a wrong initialization order. Added an
+    internal diagnostic (DIAG_STARTUP) to help spot similar cases later
+  - The "S-Deck" button never updated its own color: that was already
+    true back in 1.34, not a regression from this session
+  - Closing Settings by pressing the toolbar button again (instead of
+    the window's X) left the button lit and the reference stale: both
+    closing paths now converge on the same cleanup
+
+WHAT'S NEW v1.35 → v1.36
+--------------------------
+Continuation of the Stream Deck session, plus the error indicator.
+
+ERROR LOG
+  - Red dot on the canvas (like the GPS green dot) when an error gets
+    logged: previously it only went into the file, with no indicator
+  - Clicking it opens a window with the tail of the log, copyable text
+    (a "Copy all" button, or Ctrl+A/Ctrl+C)
+  - "Clear log" button: needs two clicks to confirm (like deleting a
+    file), doesn't leave an empty file but writes a line with the date
+    it was cleared
+  - Fixed a bug where two of the four places writing to the log opened
+    it in overwrite mode instead of append: a browser error used to
+    wipe out the entire previous history
+
+DUPLICATE FINDER — FIX
+  - The A vs B preview, with multiple selection, sometimes didn't update
+    on a new click: it always showed the lowest-index selected row, not
+    the one just clicked. It now follows the actual key pressed
+WHAT'S NEW - PHYSICAL DECK ALWAYS ON (background daemon)
+-------------------------------------------------------------
+Session dedicated to a new way of keeping the physical Stream Deck
+alive even with Image Sorter closed, replacing the dependency on
+StreamController.
+
+deck_core.py (NEW FILE)
+  - Deck logic (connection, key rendering, the seven idle actions that
+    don't touch the GUI) was extracted into its own importable module -
+    no behavior change, just a move. It's the shared base for both
+    Image Sorter and the new daemon
+  - Copy it into the same folder as image_sorter.py
+
+deck_daemon.py (NEW FILE, optional)
+  - A separate program that keeps the physical deck busy while Image
+    Sorter is closed, handling the independent idle actions (folders,
+    apps, shortcuts, URLs, mute, text, page switch - not the 28 direct
+    commands, which need a live GUI instance)
+  - Always yields as soon as an Image Sorter window opens, and reclaims
+    the deck on its own once that window closes - no manual step needed
+  - Run it separately (e.g. Cinnamon's "Startup Applications", or a
+    systemd --user service - a commented example is at the bottom of
+    the file)
+  - Replaces the old "restart StreamController on close", removed from
+    Settings
+
+ROUTING ACROSS MULTIPLE WINDOWS
+  - With several Image Sorter windows open together, physical deck
+    commands now go to whichever one has focus (the last one you
+    clicked), not necessarily the one that physically owns the device -
+    via a small shared file, updated on every focus change
+  - Applies to both idle commands and preset mode (sorting)
+  - Known limitation: if several windows have different active presets,
+    the physical keys always show the preset of whoever owns the deck,
+    not whoever has focus - can be confusing in that specific case,
+    rare in everyday use
+
+DISCONNECT AND RECONNECT DETECTION
+  - The program now notices if the physical deck is unplugged (within
+    5 seconds) and replugged (within 10 seconds), without a restart
+  - Fixed a real bug found during development: closing the connection
+    without exiting the process didn't actually release the device at
+    the system level - it stayed occupied even though Python "thought"
+    it had released it
+
+DELETE THE PREVIOUS FILE (Ctrl+Delete)
+  - Trashes the file you'd reach with BACK, without moving away from
+    the one you're looking at - handy for quick side-by-side judgment
+    calls ("this one is better than the last one")
+  - Also available as a direct command for the physical Stream Deck
+  - Routed through the transit trash like every other deletion: stays
+    undoable with Ctrl+Z
+
+MISSING SHORTCUT FIXED
+  - The K key (Crop) had been documented for a while but was never
+    actually wired up: it works now
+
+STREAM DECK - DIRECT KEY CAPTURE
+  - The "Keyboard shortcut" field in the deck editor now has a
+    "Record" button: press it, and it listens for the real key
+    combination on your keyboard instead of having to type it by hand -
+    removes at the root the confusion between "capital C" and "Ctrl+C"
+    (two different things to the system; typing them by hand can be
+    misleading)
+  - Manual typing is still available, useful for special hardware keys
+    (backlight, brightness) that the system intercepts before they ever
+    reach any application, and so can't be "recorded" - but can still be
+    typed and sent
+
+STREAM DECK - AUTOMATIC SAVING
+  - The deck key editor no longer requires pressing "Save key": every
+    field saves itself as soon as you complete it (leaving the field,
+    picking from a menu, finishing a key capture)
+  - "Cancel" now restores the key exactly to how it was when you opened
+    the editor, instead of just closing the window
+
+STREAM DECK - LESS FLICKER ON OWNERSHIP HANDOFF
+  - When ownership of the physical deck passes between the daemon and
+    Image Sorter (or back), keys no longer go through a blank state
+    before being redrawn - if the content is the same (the common case,
+    shared configuration), the switch is imperceptible
+
+NEW DEPENDENCY: xdotool
+  - The "Keyboard shortcut" and "Type text" deck actions require
+    xdotool, now included in the installer (sudo apt install xdotool
+    on systems that don't go through installa.sh)
+  - Missing external commands now print a clear warning instead of
+    failing silently
+
+MULTI-INSTANCE RACE FIXES
+  - If several Image Sorter windows start nearly together, the one that
+    loses the race for the physical deck now notices it was beaten to
+    it instead of wrongly declaring itself "unavailable"
+  - Small random delays keep repeated attempts from colliding at the
+    same rhythm every time
+
+STILL OPEN
+  - Detecting multiple physical decks connected at once hasn't been
+    addressed yet
+  - Whether it's worth giving the user a choice, in Settings, between
+    the new daemon and the old StreamController - for now the daemon is
+    assumed to be the wanted solution
+  - When ownership of the deck changes hands, the idle page always
+    resets to the first one instead of staying on the current one
