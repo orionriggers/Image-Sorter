@@ -46,6 +46,26 @@ annidare un backup dentro l'altro). Queste cartelle di backup restano
 FUORI da Git (vedi `.gitignore`, pattern `/[0-9].[0-9][0-9]/`) — sono un
 backup parallelo per Carlo, non fanno parte della cronologia versionata.
 
+Sempre al bump coordinato, in `LEGGIMI.txt`, `README_en.txt` e
+`README.md`: aggiornare SIA i numeri di versione SIA il contenuto —
+sono due cose distinte, fatte entrambe, non solo la prima:
+
+- Numeri di versione: intestazione + tabella "FILE DEL PROGRAMMA"/
+  "PROGRAM FILES" di `LEGGIMI.txt`/`README_en.txt` (un rigo per file
+  core con il suo numero esatto — non tutti uguali se solo alcuni hanno
+  un terzo numero già avanzato), e titolo `# Image Sorter vX.Y.Z` in
+  testa a `README.md`. Controllare con grep il numero vecchio su tutti
+  e tre, non fidarsi della memoria di quali righe lo contengono.
+- Contenuto: una nuova voce di changelog in `LEGGIMI.txt`/`README_en.txt`
+  (sezione "NOVITÀ/WHAT'S NEW vX.Y → vX.Z", stesso stile delle
+  precedenti) che descrive cosa è cambiato dal bump precedente, e le
+  sezioni descrittive di `README.md` (caratteristiche, scorciatoie,
+  ecc.) aggiornate se il bump ha introdotto o modificato funzionalità
+  visibili. Scritto a fine di OGNI bump coordinato, non accumulato per
+  sessioni successive — è così che si è creato il debito poi ripagato
+  in blocco da v1.36 a v1.43 (vedi quella sezione in `LEGGIMI.txt` per
+  il precedente).
+
 ## Verifica obbligatoria prima di ogni consegna
 
 Ambiente grafico non disponibile: usare sempre `xvfb-run -a` per qualunque

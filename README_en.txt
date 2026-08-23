@@ -1,8 +1,8 @@
-IMAGE SORTER v1.36
+IMAGE SORTER v1.43
 ==================
 A program to manage, view, and sort images, videos, and PDFs.
 
-Version         : 1.36
+Version         : 1.43
 Language        : Python 3.8+
 Interface       : tkinter + Pillow
 Platform        : Linux (tested on Linux Mint / Ubuntu)
@@ -24,12 +24,12 @@ LAUNCH
 
 PROGRAM FILES
 -------------
-  image_sorter.py    main program                   v1.36.0
-  disk_analyzer.py   disk usage analyzer            v1.36.0
-  timeline.py        timeline and GPS map           v1.36.0
-  exif_editor.py     EXIF metadata editor           v1.36.0
-  translations.py    IT/EN strings                  v1.36.0
-  installa.sh        installation script            v1.34.0
+  image_sorter.py    main program                   v1.43.3
+  disk_analyzer.py   disk usage analyzer            v1.43.0
+  timeline.py        timeline and GPS map           v1.43.0
+  exif_editor.py     EXIF metadata editor           v1.43.0
+  translations.py    IT/EN strings                  v1.43.0
+  installa.sh        installation script            v1.36.1
 
 MAIN SHORTCUTS
 --------------
@@ -770,3 +770,72 @@ STILL OPEN
     assumed to be the wanted solution
   - When ownership of the deck changes hands, the idle page always
     resets to the first one instead of staying on the current one
+
+WHAT'S NEW v1.36 -> v1.43
+----------------------------
+Note: as already happened between 1.23 and 1.27, the manuals weren't
+updated session by session over this stretch. This section summarizes
+the main changes by theme (not version by version), based on
+journal_generale.txt, which remains the reference for technical detail
+and the session-by-session history.
+
+RATING, COLOR-LABEL AND TAG SYSTEM (NEW, since v1.38)
+  - Every photo/video/PDF can carry a 0-5 star rating and one or more
+    color labels (red, yellow, green, blue, purple, non-exclusive) -
+    data lives in a new independent module, metadata_store.py, indexed
+    by absolute path and kept separate from the configuration
+  - Editable everywhere: under every thumbnail in the browser and
+    Timeline, in the enlarged preview, from the right-click menu, and
+    via a dedicated overlay on the main image (Ctrl+F, previously V)
+  - Dedicated Tag window (Ctrl+T, previously Shift+T): a filterable tag
+    cloud (type to filter), new tags created with Enter, follows the
+    current image as you navigate, toggle behavior - with multiple
+    files selected, a tag only shows as active if present on ALL of
+    them
+  - Settings > Tags (new tab): create/rename/delete tags and Tag Groups
+    (organizational - one click in the browser filter adds every tag in
+    the group); cloud ordering (alphabetical/recently used/frequency)
+    moved here from the Display tab
+  - Folder browser: rating/color/tag filter with removable "pills", a
+    clickable tag row under the presets (later extended to Timeline too)
+  - Physical deck: new "Rating/Flag" idle page (color labels on row 1,
+    stars on row 2), key state synced live with the currently open file
+  - Rating/color/tag now automatically follow EVERY move or rename done
+    by the program (previously wired up in only one place, leaving
+    metadata orphaned everywhere else)
+
+CROP, RESIZE AND SYSTEM CLIPBOARD
+  - Resize/crop directly from the main viewer, not just the classic crop
+    tool
+  - Copy/Cut/Paste now go through the real system clipboard (xclip),
+    interoperable with Nemo/Nautilus/Thunar - previously an internal
+    Python list, never actually connected to the real clipboard; "Cut"
+    has a dedicated, undoable holding folder
+
+"COMPARE" MODE (NEW, W key)
+  - Two smaller previews appear next to the main canvas, previous and
+    next file, following navigation - view-only, all commands still
+    apply to the center image
+  - Loaded on separate threads, with an instant low-resolution
+    placeholder while the full-quality version arrives
+
+OTHER ADDITIONS
+  - "Open with..." shows the real name of the associated program
+  - "Open" on a video launches the system's external player (browser
+    and Timeline)
+  - Right-click also works on empty grid background in the browser
+  - Deck key icon picker with live preview
+  - PDF page thumbnails (M key) with a multi-page PDF open
+  - Ctrl+N in the folder browser: new subfolder in the open folder
+
+VARIOUS FIXES (a selection, not exhaustive - see journal_generale.txt)
+  - Fixed several race-condition TclErrors (window closed while a
+    background load was still writing to its canvas)
+  - Ctrl+Delete (delete previous) no longer wraps around to the last
+    image when starting from the first file
+  - Browser/Timeline layout: fixed dividers and alignment in several
+    spots (thumbnail/preview split with the tree off, preset/tag bars
+    not spanning full width, filename merged with stars/dot)
+  - Rating/color set from the Timeline right-click menu sometimes
+    didn't appear saved (a metadata_store double-import bug, already
+    hit and fixed once before in another spot)

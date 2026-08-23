@@ -1,8 +1,8 @@
-IMAGE SORTER v1.36
+IMAGE SORTER v1.43
 ==================
 Un programma per gestire, visualizzare e smistare immagini, video e PDF.
 
-Versione        : 1.36
+Versione        : 1.43
 Linguaggio      : Python 3.8+
 Interfaccia     : tkinter + Pillow
 Piattaforma     : Linux (testato su Linux Mint / Ubuntu)
@@ -25,12 +25,12 @@ AVVIO
 
 FILE DEL PROGRAMMA
 ------------------
-  image_sorter.py    programma principale           v1.36.0
-  disk_analyzer.py   analisi utilizzo disco         v1.36.0
-  timeline.py        timeline e mappa GPS           v1.36.0
-  exif_editor.py     editor metadati EXIF           v1.36.0
-  translations.py    stringhe IT/EN                 v1.36.0
-  installa.sh        script di installazione        v1.34.0
+  image_sorter.py    programma principale           v1.43.3
+  disk_analyzer.py   analisi utilizzo disco         v1.43.0
+  timeline.py        timeline e mappa GPS           v1.43.0
+  exif_editor.py     editor metadati EXIF           v1.43.0
+  translations.py    stringhe IT/EN                 v1.43.0
+  installa.sh        script di installazione        v1.36.1
 
 TASTI RAPIDI PRINCIPALI
 -----------------------
@@ -916,3 +916,73 @@ RESTA APERTO
     assume che il demone sia la soluzione voluta
   - Passando il possesso del deck, la pagina idle torna sempre alla
     prima invece di restare su quella in corso
+
+NOVITA' v1.36 -> v1.43
+------------------------
+Nota: come gia' successo fra la 1.23 e la 1.27, i manuali non sono stati
+aggiornati sessione per sessione in questo intervallo. Questa sezione
+riassume le novita' principali per temi (non versione per versione),
+basandosi su journal_generale.txt, che resta il riferimento per i
+dettagli tecnici e la cronologia sessione per sessione.
+
+SISTEMA DI VALUTAZIONE, COLORLABEL E TAG (NUOVO, dalla v1.38)
+  - Ogni foto/video/PDF puo' avere una valutazione da 0 a 5 stelle e una
+    o piu' colorlabel (rosso, giallo, verde, blu, viola, non esclusive
+    fra loro) - dati in un nuovo modulo indipendente, metadata_store.py,
+    indicizzato per percorso assoluto e separato dalla configurazione
+  - Modificabili ovunque: sotto ogni miniatura in Naviga e Timeline,
+    nell'anteprima ingrandita, dal menu tasto destro, e da un overlay
+    dedicato sull'immagine principale (Ctrl+F, prima V)
+  - Finestra Tag dedicata (Ctrl+T, prima Shift+T): nuvola di tag
+    filtrabile digitando, tag nuovi creabili con Invio, segue la
+    navigazione dell'immagine corrente, comportamento a interruttore -
+    su selezione multipla un tag risulta evidenziato solo se presente
+    su TUTTI i file selezionati
+  - Impostazioni > Tag (nuova scheda): crea/rinomina/elimina tag e
+    Gruppi Tag (organizzativi - un click nel filtro di Naviga aggiunge
+    tutti i tag del gruppo); ordinamento della nuvola (alfabetico/uso
+    recente/frequenza) spostato qui dal tab Visualizza
+  - Naviga: filtro rating/colore/tag con "pillole" rimovibili, riga tag
+    cliccabile sotto i preset (poi estesa anche a Timeline)
+  - Deck fisico: nuova pagina idle "Rating/Flag" (colorlabel in riga 1,
+    stelle in riga 2), stato dei tasti sincronizzato in tempo reale col
+    file attualmente aperto
+  - Rating/colore/tag seguono ora automaticamente OGNI spostamento o
+    rinomina fatto dal programma (prima solo in un punto, il resto
+    orfanizzava i metadati)
+
+RITAGLIO, RIDIMENSIONAMENTO E CLIPBOARD DI SISTEMA
+  - Ridimensiona/ritaglia direttamente dal visualizzatore, non solo dal
+    ritaglio classico
+  - Copia/Taglia/Incolla file passano ora dalla clipboard di sistema
+    vera (xclip), interoperabile con Nemo/Nautilus/Thunar - prima era
+    una lista Python interna, mai collegata alla clipboard reale;
+    "Taglia" ha una cartella di attesa dedicata e annullabile
+
+MODALITA' "CONFRONTA" (NUOVA, tasto W)
+  - Accanto al canvas principale compaiono due anteprime piu' piccole,
+    file precedente e successivo, che seguono la navigazione - solo
+    visive, i comandi restano sull'immagine centrale
+  - Caricamento su thread separati, con placeholder istantaneo a bassa
+    risoluzione mentre la versione a piena qualita' arriva
+
+ALTRE NOVITA'
+  - "Modifica con..." mostra il nome reale del programma associato
+  - "Apri" su un video lancia il player esterno di sistema (Naviga e
+    Timeline)
+  - Tasto destro anche sullo sfondo della griglia in Naviga
+  - Selettore icona tasto deck con anteprima
+  - Miniature pagine PDF (tasto M) con PDF multipagina aperto
+  - Ctrl+N in Naviga: nuova sottocartella nella cartella aperta
+
+CORREZIONI VARIE (selezione, non esaustiva - vedi journal_generale.txt)
+  - Corretti diversi TclError da race condition (finestre chiuse mentre
+    un caricamento in background sta ancora scrivendo sul canvas)
+  - Ctrl+Canc (elimina il precedente) non fa piu' il giro sull'ultima
+    immagine partendo dal primo file
+  - Layout Naviga/Timeline: divisori e allineamenti corretti in vari
+    punti (miniature/anteprima con albero spento, barre preset/tag non
+    a tutta larghezza, nome file unito a stelle/pallino)
+  - Rating/colore assegnati dal tasto destro in Timeline che a volte
+    non risultavano salvati (bug di doppio import di metadata_store,
+    gia' capitato e ricorretto una volta in un altro punto)
