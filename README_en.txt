@@ -45,11 +45,15 @@ MAIN SHORTCUTS
   C / A              Rotate 90° CW / CCW
   K                  Crop (Krop)
   I                  EXIF info overlay
+  Ctrl+F             Rating overlay (flag: stars and color)
+  W                  Compare mode
+  M                  PDF page thumbnails (with multi-page PDF open)
   T                  Open/close Timeline
   O / B              Folder browser — open/close
   S                  Sidebar
   R                  Open/close Settings
   Ctrl+R             Rename current file
+  Ctrl+T             Open Tag window for current file
   Ctrl+H             Open/close operation History
   Ctrl+D             Physical deck: toggle idle/preset mode
   Ctrl+Z             Undo last move/crop

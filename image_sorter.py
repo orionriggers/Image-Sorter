@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.43.0"
+VERSION = "1.43.3"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -6189,6 +6189,8 @@ class FolderBrowser:
         self._forward_btn.pack(side="left", padx=(0,4))
         self.win.bind("<Alt-Left>",  lambda e: self._nav_back())
         self.win.bind("<Alt-Right>", lambda e: self._nav_forward())
+        self.win.bind("<Control-n>", lambda e: self._create_new_folder())
+        self.win.bind("<Control-N>", lambda e: self._create_new_folder())
 
         # Pulsante Nuova cartella: crea una sottocartella dentro quella
         # attualmente aperta, senza dover passare da Impostazioni.
@@ -16138,13 +16140,13 @@ class SettingsDialog:
         self._group_cloud_canvas.bind(
             "<Leave>", lambda e: self._group_cloud_canvas.unbind_all("<MouseWheel>"))
 
-        # Ordine dei tag nella nuvola (finestra Tag Shift+T, riga Tag di
+        # Ordine dei tag nella nuvola (finestra Tag Ctrl+T, riga Tag di
         # Naviga/Timeline, e qui sopra) — spostato dal tab Visualizza:
         # e' una preferenza sui TAG, ha piu' senso qui ora che esiste
         # questa scheda dedicata.
         tk.Frame(f, bg=ACCENT_COLOR, height=1).grid(
             row=5, column=0, columnspan=2, sticky="ew", padx=20, pady=(4, 8))
-        tk.Label(f, text="Ordine dei tag nella nuvola (Shift+T, Naviga, Timeline):",
+        tk.Label(f, text="Ordine dei tag nella nuvola (Ctrl+T, Naviga, Timeline):",
                  font=("TkFixedFont", 8),
                  bg=BG_COLOR, fg=MUTED_COLOR).grid(
                      row=6, column=0, columnspan=2, sticky="w", padx=24)
@@ -18612,7 +18614,15 @@ class SettingsDialog:
             new_path  = raw_path if (mode == "custom" and raw_path and os.path.isabs(raw_path)) else ""
             new_slots[k] = {"label": raw_label, "path": new_path}
 
-            if preset_name == self.config["active_preset"] and not new_path:
+            old_label = old_slots[k].get("label", "").strip()
+            if (preset_name == self.config["active_preset"] and not new_path
+                    and old_label and raw_label):
+                # Rinomina la cartella fisica solo se il tasto aveva già
+                # un'etichetta reale: un tasto mai configurato (etichetta
+                # vuota) non ha nulla da spostare, andrebbe altrimenti a
+                # "rinominare" il placeholder condiviso ~/Immagini/Smistati/Cartella
+                # dentro BASE_DEST stessa (join con etichetta vuota), che
+                # esiste sempre e non è mai vuota -> crash [Errno 39].
                 old_path = resolve_path(old_slots[k])
                 new_resolved = os.path.join(BASE_DEST, raw_label)
                 if old_path != new_resolved and os.path.isdir(old_path) and old_path.startswith(BASE_DEST):
@@ -19115,14 +19125,14 @@ class ImageSorter:
         _btn_left = [
             (T("btn_play",_lang),        self._play_video,              SUCCESS,      "Invio"),
             (T("btn_exif",_lang),        self._toggle_info,             ACCENT_COLOR, "I"),
-            (T("btn_rating_ov",_lang),   self._toggle_rating_overlay,   "#2a1a4a",   "V"),
-            (T("btn_tags_win",_lang),    self._open_tag_window_current, "#4a2a6a",   "Shift+T"),
+            (T("btn_rating_ov",_lang),   self._toggle_rating_overlay,   "#2a1a4a",   "Ctrl+F"),
+            (T("btn_tags_win",_lang),    self._open_tag_window_current, "#4a2a6a",   "Ctrl+T"),
             (T("btn_original",_lang),    self._zoom_original,           ACCENT_COLOR, "X"),
             (T("btn_extend",_lang),      self._zoom_fit,                ACCENT_COLOR, "Z"),
             ("-",                         lambda: self._zoom(0.80),      ACCENT_COLOR, "-"),
             ("+",                         lambda: self._zoom(1.25),      ACCENT_COLOR, "+"),
             (T("btn_fullscreen",_lang),  self._toggle_fullscreen,       ACCENT_COLOR, "F"),
-            (T("btn_compare",_lang),     self._toggle_compare,          ACCENT_COLOR, ""),
+            (T("btn_compare",_lang),     self._toggle_compare,          ACCENT_COLOR, "W"),
         ]
         _btn_list = [(e, "right") for e in _btn_right] + [(e, "left") for e in _btn_left]
 
@@ -19227,6 +19237,7 @@ class ImageSorter:
                 # quella secondaria sullo stesso elemento.
                 b.bind("<Button-3>",
                        lambda e: self._open_settings(tab="deck"))
+        _make_tooltip(self._pdf_thumbs_btn, "Tasto: M")
         self.preset_label = tk.Label(hdr, text="",
                                      font=("TkFixedFont", 9, "bold"),
                                      bg=PANEL_COLOR, fg=WARNING)
@@ -19387,14 +19398,27 @@ class ImageSorter:
         self.canvas.bind("<ButtonRelease-1>",  lambda e: (
             self.canvas.config(cursor="")
             if getattr(self, "_zoom_factor", 1.0) > 1.05 else None), add=True)
-        # Scroll rotella: naviga se zoom=1, scrolla se ingrandito
+        # Scroll rotella: naviga se zoom=1, scrolla se ingrandito E le
+        # scrollbar sono davvero visibili (immagine che eccede il canvas) —
+        # altrimenti "Estendi" su una foto piccola porta zoom_factor > 1.0
+        # pur riempiendo esattamente il canvas: senza il controllo la
+        # rotella tenterebbe un pan che non scrolla nulla, invece di
+        # navigare (bug reale, segnalato da Carlo). Tranne in modalita'
+        # "Confronta", dove naviga SEMPRE anche da zoomati (richiesto da
+        # Carlo: li' la rotella serve a scorrere in fretta i file
+        # confrontandoli, il pan dell'immagine ingrandita resta possibile
+        # solo con trascinamento, click+drag).
         def _wheel_up(e):
-            if getattr(self, '_zoom_factor', 1.0) > 1.0:
+            if (not self._compare_mode
+                    and getattr(self, '_zoom_factor', 1.0) > 1.0
+                    and self._canvas_vsb.winfo_ismapped()):
                 self.canvas.yview_scroll(-1, "units")
             else:
                 self._go_back()
         def _wheel_dn(e):
-            if getattr(self, '_zoom_factor', 1.0) > 1.0:
+            if (not self._compare_mode
+                    and getattr(self, '_zoom_factor', 1.0) > 1.0
+                    and self._canvas_vsb.winfo_ismapped()):
                 self.canvas.yview_scroll(1, "units")
             else:
                 self._skip()
@@ -19402,6 +19426,17 @@ class ImageSorter:
         self.canvas.bind("<Button-5>",  lambda e: _wheel_dn(e))
         self.canvas.bind("<MouseWheel>",
             lambda e: _wheel_up(e) if e.delta > 0 else _wheel_dn(e))
+        # La rotella deve reagire ovunque sui pannelli della modalita'
+        # Confronta, non solo sul canvas centrale (segnalato da Carlo:
+        # prima reagiva solo li'). I pannelli laterali non sono mai
+        # zoomabili, quindi qui naviga sempre, senza il controllo dello
+        # zoom sopra.
+        for _cmp_w in (self._cmp_left_canvas, self._cmp_right_canvas,
+                       self._compare_wrap):
+            _cmp_w.bind("<Button-4>",  lambda e: self._go_back())
+            _cmp_w.bind("<Button-5>",  lambda e: self._skip())
+            _cmp_w.bind("<MouseWheel>",
+                lambda e: self._go_back() if e.delta > 0 else self._skip())
 
         # Ctrl+rotella: zoom in/out. Funziona anche durante il ritaglio
         # (zooma l'immagine sotto la selezione di crop, che resta aperta
@@ -19469,9 +19504,10 @@ class ImageSorter:
         self.root.bind_all("<S>", _hk(self._toggle_sidebar))
         self.root.bind_all("<i>", _hk(self._toggle_info))
         self.root.bind_all("<I>", _hk(self._toggle_info))
-        self.root.bind_all("<v>", _hk(self._toggle_rating_overlay))
-        self.root.bind_all("<V>", _hk(self._toggle_rating_overlay))
-        self.root.bind_all("<Shift-T>", _hk(self._open_tag_window_current))
+        self.root.bind_all("<Control-f>", _hk(self._toggle_rating_overlay))
+        self.root.bind_all("<Control-F>", _hk(self._toggle_rating_overlay))
+        self.root.bind_all("<Control-t>", _hk(self._open_tag_window_current))
+        self.root.bind_all("<Control-T>", _hk(self._open_tag_window_current))
         self.root.bind_all("<o>", _hk(self._open_new_source))
         self.root.bind_all("<O>", _hk(self._open_new_source))
         self.root.bind_all("<b>",         _hk(self._toggle_browser))
@@ -19504,6 +19540,10 @@ class ImageSorter:
         self.root.bind_all("<H>",            _hk(self._toggle_header))
         self.root.bind_all("<x>",            _hk(self._zoom_original))
         self.root.bind_all("<X>",            _hk(self._zoom_original))
+        self.root.bind_all("<w>",            _hk(self._toggle_compare))
+        self.root.bind_all("<W>",            _hk(self._toggle_compare))
+        self.root.bind_all("<m>",            _hk(self._toggle_pdf_thumbs))
+        self.root.bind_all("<M>",            _hk(self._toggle_pdf_thumbs))
         self.root.bind_all("<KP_Decimal>", _hk(self._delete_current))
         self.root.bind_all("<Delete>",     _hk(self._delete_current))
         self.root.bind_all("<Control-Delete>", _hk(self._delete_previous))
@@ -20127,19 +20167,24 @@ class ImageSorter:
         self._show_image()
 
     def _draw_placeholder_image(self, img, cw, ch):
-        """Disegna subito, ingrandendola per riempire il canvas,
-        un'anteprima gia' decodificata a bassa risoluzione (700x700,
-        presa da un pannello laterale di "Confronta") come placeholder
-        mentre la versione a piena qualita' dell'immagine centrale
-        carica in background — vedi _show_image(). Il prossimo
-        _finish_show_image() cancella "all" e ridisegna, sostituendola
-        a tutti gli effetti; niente da ripulire esplicitamente qui.
-        Scala con lo STESSO margine (cw-16/ch-16) e zoom_factor usati
-        li' per il disegno finale: valori diversi producevano un
-        salto visibile di qualche pixel al passaggio placeholder ->
-        immagine vera (bug reale, segnalato da Carlo)."""
+        """Disegna subito un'anteprima gia' decodificata a bassa
+        risoluzione (700x700, presa da un pannello laterale di
+        "Confronta") come placeholder mentre la versione a piena
+        qualita' dell'immagine centrale carica in background — vedi
+        _show_image(). Il prossimo _finish_show_image() cancella "all"
+        e ridisegna, sostituendola a tutti gli effetti; niente da
+        ripulire esplicitamente qui.
+        Scala con lo STESSO margine (cw-16/ch-16), cap a 1.0 e
+        zoom_factor usati li' per il disegno finale: valori diversi
+        producevano un salto visibile al passaggio placeholder ->
+        immagine vera — sia di qualche pixel (bug reale, segnalato da
+        Carlo) sia, senza il cap a 1.0, un salto di dimensione vero e
+        proprio per le foto piu' piccole del canvas: il placeholder si
+        ingrandiva a riempirlo, poi l'immagine vera arrivava alla sua
+        dimensione reale, piu' piccola (bug reale, segnalato da
+        Carlo)."""
         zf = getattr(self, '_zoom_factor', 1.0)
-        scale = min((cw - 16) / img.width, (ch - 16) / img.height) * zf
+        scale = min(1.0, (cw - 16) / img.width, (ch - 16) / img.height) * zf
         nw = max(1, int(img.width * scale))
         nh = max(1, int(img.height * scale))
         disp = img.resize((nw, nh), Image.Resampling.LANCZOS)
@@ -22348,7 +22393,7 @@ class ImageSorter:
 
     def _open_tag_window_current(self):
         """Apre la finestra Tag sul file attualmente aperto (scorciatoia
-        Shift+T e pulsante barra strumenti)."""
+        Ctrl+T e pulsante barra strumenti)."""
         fp = self._current_file()
         if fp:
             self._open_tag_window(fp)
@@ -23157,9 +23202,10 @@ class ImageSorter:
         self.root.bind_all("<S>", _hk(self._toggle_sidebar))
         self.root.bind_all("<i>", _hk(self._toggle_info))
         self.root.bind_all("<I>", _hk(self._toggle_info))
-        self.root.bind_all("<v>", _hk(self._toggle_rating_overlay))
-        self.root.bind_all("<V>", _hk(self._toggle_rating_overlay))
-        self.root.bind_all("<Shift-T>", _hk(self._open_tag_window_current))
+        self.root.bind_all("<Control-f>", _hk(self._toggle_rating_overlay))
+        self.root.bind_all("<Control-F>", _hk(self._toggle_rating_overlay))
+        self.root.bind_all("<Control-t>", _hk(self._open_tag_window_current))
+        self.root.bind_all("<Control-T>", _hk(self._open_tag_window_current))
         self.root.bind_all("<o>", _hk(self._open_new_source))
         self.root.bind_all("<O>", _hk(self._open_new_source))
         self.root.bind_all("<b>",         _hk(self._toggle_browser))
@@ -23191,6 +23237,10 @@ class ImageSorter:
         self.root.bind_all("<H>",            _hk(self._toggle_header))
         self.root.bind_all("<x>",            _hk(self._zoom_original))
         self.root.bind_all("<X>",            _hk(self._zoom_original))
+        self.root.bind_all("<w>",            _hk(self._toggle_compare))
+        self.root.bind_all("<W>",            _hk(self._toggle_compare))
+        self.root.bind_all("<m>",            _hk(self._toggle_pdf_thumbs))
+        self.root.bind_all("<M>",            _hk(self._toggle_pdf_thumbs))
         self.root.bind_all("<KP_Decimal>", _hk(self._delete_current))
         self.root.bind_all("<Delete>",     _hk(self._delete_current))
         self.root.bind("<Escape>", self._on_escape_key)
@@ -24848,10 +24898,12 @@ class ImageSorter:
         """Alterna la modalita' "Confronta": affianca al canvas
         principale due anteprime piu' piccole (precedente/successiva),
         per un rapido confronto qualitativo — richiesto da Carlo. Sono
-        SOLO visive: nessun comando o tasto destro si applica a loro,
-        solo all'immagine principale al centro (nessun binding sui due
-        canvas laterali, di proposito). Stato di sola sessione, non
-        salvato in config — stessa scelta dello schermo intero."""
+        SOLO visive per click/tasto destro: nessun comando o menu si
+        applica a loro, solo all'immagine principale al centro. La
+        rotella del mouse fa eccezione (vedi _build_ui): naviga anche se
+        il cursore e' sopra questi due pannelli, non solo sul canvas
+        centrale. Stato di sola sessione, non salvato in config — stessa
+        scelta dello schermo intero."""
         self._compare_mode = not self._compare_mode
         if self._compare_mode:
             self._cmp_left_canvas.grid()

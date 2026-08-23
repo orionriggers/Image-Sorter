@@ -46,11 +46,15 @@ TASTI RAPIDI PRINCIPALI
   C / A              Ruota 90° orario / antiorario
   K                  Ritaglia (Krop)
   I                  Overlay info EXIF
+  Ctrl+F             Overlay valutazione (flag: stelle e colore)
+  W                  Modalità Confronta
+  M                  Miniature pagine PDF (con PDF multipagina aperto)
   T                  Apre/chiude Timeline
   O / B              Browser cartelle (Naviga) — apre/chiude
   S                  Sidebar
   R                  Apre/chiude Impostazioni
   Ctrl+R             Rinomina file corrente
+  Ctrl+T             Apre la finestra Tag sul file corrente
   Ctrl+H             Apre/chiude lo Storico operazioni
   Ctrl+D             Deck fisico: alterna modalità idle/preset
   Ctrl+Z             Annulla ultimo spostamento/crop

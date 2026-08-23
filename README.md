@@ -169,7 +169,9 @@ image-sorter/
 | `K` | Ritaglia |
 | `H` | Mostra/nascondi intestazione |
 | `I` | Overlay info EXIF |
-| `V` | Overlay valutazione/colorlabel |
+| `Ctrl+F` | Overlay valutazione/colorlabel |
+| `W` | Modalità Confronta |
+| `M` | Miniature pagine PDF (con PDF multipagina aperto) |
 
 ### Pannelli
 | Tasto | Azione |
@@ -180,6 +182,7 @@ image-sorter/
 | `T` | Timeline |
 | `R` | Impostazioni |
 | `Ctrl+R` | Rinomina file corrente |
+| `Ctrl+T` | Apre la finestra Tag sul file corrente |
 | `Q` / `Esc` | Esci |
 
 ---
@@ -188,7 +191,7 @@ image-sorter/
 
 Dalla v1.38, ogni file (foto, video o PDF) può avere una **valutazione da 0 a 5 stelle** e una o più **colorlabel** tra rosso, giallo, verde, blu, viola — non escludenti tra loro, un file può portarne più di una insieme. I dati vivono in un database JSON unico e portabile (`metadata_store.py`), separato dai file stessi, così funziona identicamente per immagini, video e PDF.
 
-Sono modificabili ovunque abbia senso: sotto ogni miniatura in Naviga e Timeline, nel pannello anteprima ingrandita, dal menu tasto destro, e da un overlay dedicato sull'immagine principale (tasto `V`). Naviga permette di filtrare per valutazione minima e colore accanto al filtro testuale esistente; Timeline mostra sezioni dedicate nella barra laterale con conteggi. Ogni cambiamento si riflette immediatamente ovunque, senza bisogno di ricaricare.
+Sono modificabili ovunque abbia senso: sotto ogni miniatura in Naviga e Timeline, nel pannello anteprima ingrandita, dal menu tasto destro, e da un overlay dedicato sull'immagine principale (tasto `Ctrl+F`). Naviga permette di filtrare per valutazione minima e colore accanto al filtro testuale esistente; Timeline mostra sezioni dedicate nella barra laterale con conteggi. Ogni cambiamento si riflette immediatamente ovunque, senza bisogno di ricaricare.
 
 ---
 
@@ -383,7 +386,9 @@ image-sorter/
 | `K` | Crop |
 | `H` | Show/hide header |
 | `I` | EXIF info overlay |
-| `V` | Rating/color-label overlay |
+| `Ctrl+F` | Rating/color-label overlay |
+| `W` | Compare mode |
+| `M` | PDF page thumbnails (with multi-page PDF open) |
 
 ### Panels
 | Key | Action |
@@ -394,6 +399,7 @@ image-sorter/
 | `T` | Timeline |
 | `R` | Settings |
 | `Ctrl+R` | Rename current file |
+| `Ctrl+T` | Open Tag window for current file |
 | `Q` / `Esc` | Quit |
 
 ---
@@ -402,7 +408,7 @@ image-sorter/
 
 Since v1.38, every file (photo, video, or PDF) can carry a **0–5 star rating** and one or more **color labels** — red, yellow, green, blue, purple — non-exclusive, so a file can carry several at once. Data lives in a single portable JSON database (`metadata_store.py`), kept separate from your files, so it works identically for images, videos, and PDFs.
 
-They're editable everywhere it makes sense: under every thumbnail in the browser and Timeline, in the enlarged preview pane, from the right-click menu, and via a dedicated overlay on the main image (`V` key). The folder browser lets you filter by minimum rating and color alongside the existing text filter; Timeline shows dedicated sidebar sections with live counts. Every change is reflected instantly everywhere else — no reload needed.
+They're editable everywhere it makes sense: under every thumbnail in the browser and Timeline, in the enlarged preview pane, from the right-click menu, and via a dedicated overlay on the main image (`Ctrl+F`). The folder browser lets you filter by minimum rating and color alongside the existing text filter; Timeline shows dedicated sidebar sections with live counts. Every change is reflected instantly everywhere else — no reload needed.
 
 ---
 

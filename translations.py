@@ -606,6 +606,8 @@ SHORTCUTS = {
             ("F  o  Invio (anche tastierino)",      "Schermo intero / Player"),
             ("H",                                  "Mostra / nascondi intestazione"),
             ("I",                                  "Overlay info EXIF"),
+            ("Ctrl + F",                           "Overlay valutazione (flag: stelle e colore)"),
+            ("W",                                  "Modalità Confronta (anteprime precedente/successiva)"),
         ]),
         ("Pannelli e finestre", [
             ("O  o  B",                            "Browser cartelle"),
@@ -614,6 +616,7 @@ SHORTCUTS = {
             ("Ctrl + D",                           "S-Deck: attiva/disattiva modalità preset"),
             ("R",                                  "Impostazioni"),
             ("Ctrl + R",                           "Rinomina file corrente"),
+            ("Ctrl + T",                           "Apre la finestra Tag sul file corrente"),
             ("Esc",                               "Chiudi finestra aperta / esci"),
             ("Q",                                  "Esci"),
         ]),
@@ -635,8 +638,10 @@ SHORTCUTS = {
         ("PDF multipagina", [
             ("\u2191 / \u2193",                    "Pagina precedente / successiva"),
             ("Slider barra",                       "Salta a pagina specifica"),
+            ("M",                                  "Mostra/nascondi miniature pagine"),
         ]),
         ("Browser cartelle (Naviga)", [
+            ("Ctrl + N",                           "Crea nuova sottocartella nella cartella aperta"),
             ("Ctrl + A",                           "Seleziona tutti i file"),
             ("Ctrl + C / X / V",                   "Copia / Taglia / Incolla"),
             ("Canc",                               "Cestina file selezionati"),
@@ -730,6 +735,8 @@ SHORTCUTS = {
             ("F  or  Enter (also numpad)",         "Fullscreen / Player"),
             ("H",                                  "Show / hide header"),
             ("I",                                  "EXIF info overlay"),
+            ("Ctrl + F",                           "Rating overlay (flag: stars and color)"),
+            ("W",                                  "Compare mode (previous/next preview)"),
         ]),
         ("Panels & windows", [
             ("O  or  B",                           "Folder browser"),
@@ -738,6 +745,7 @@ SHORTCUTS = {
             ("Ctrl + D",                           "S-Deck: toggle preset mode"),
             ("R",                                  "Settings"),
             ("Ctrl + R",                           "Rename current file"),
+            ("Ctrl + T",                           "Open Tag window for current file"),
             ("Q  /  Esc",                          "Quit"),
         ]),
         ("Image editing", [
@@ -756,8 +764,10 @@ SHORTCUTS = {
         ("Multi-page PDF", [
             ("\u2191 / \u2193",                    "Previous / next page"),
             ("Bar slider",                         "Jump to specific page"),
+            ("M",                                  "Show/hide page thumbnails"),
         ]),
         ("Folder browser (Navigate)", [
+            ("Ctrl + N",                           "Create new subfolder in the open folder"),
             ("Ctrl + A",                           "Select all files"),
             ("Ctrl + C / X / V",                   "Copy / Cut / Paste"),
             ("Delete",                             "Trash selected files"),

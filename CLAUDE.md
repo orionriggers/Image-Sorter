@@ -24,6 +24,28 @@ rating/tag), e ~25 principi codificati da bug reali già risolti. Questo file
 Non alzare MAI il secondo numero di versione di un file non toccato in
 quella sessione, salvo bump coordinato esplicito a fine fase.
 
+**Al bump coordinato** (quando il secondo numero di versione cambia sui
+cinque file core insieme): creare una cartella alla radice del progetto
+con il numero della nuova versione come nome (es. `1.42/`, stesso schema
+già in uso da `1.41/` a `1.43/`, fatte a mano da Carlo) e copiarci dentro
+un backup parallelo dei file di progetto veri — non generati, non di
+prova:
+
+```
+image_sorter.py, timeline.py, disk_analyzer.py, exif_editor.py, translations.py
+metadata_store.py, deck_core.py, deck_daemon.py
+installa.sh
+CLAUDE.md, journal_generale.txt
+LEGGIMI.txt, README.md, README_en.txt
+```
+
+Non includere: file generati a runtime (config/log/history/metadata json,
+`__pycache__/`), `deck_icons/` (asset, non codice — già tracciato da Git
+di suo), cartelle di prova, altre cartelle di backup già esistenti (mai
+annidare un backup dentro l'altro). Queste cartelle di backup restano
+FUORI da Git (vedi `.gitignore`, pattern `/[0-9].[0-9][0-9]/`) — sono un
+backup parallelo per Carlo, non fanno parte della cronologia versionata.
+
 ## Verifica obbligatoria prima di ogni consegna
 
 Ambiente grafico non disponibile: usare sempre `xvfb-run -a` per qualunque
@@ -121,3 +143,21 @@ reale e riporta l'esito in un ciclo stretto.
 - Non chiudere una sessione di lavoro senza aggiornare
   `journal_generale.txt` se il task ha introdotto un'architettura nuova o
   un insegnamento generalizzabile (non per ogni piccolo fix).
+
+## Git
+
+Repository su GitHub: `github.com/orionriggers/image-sorter`, ramo `main`.
+
+- Commit dopo ogni funzionalità completata e verificata (non ad ogni
+  piccola modifica) — messaggio breve, in italiano, che descrive cosa
+  cambia.
+- `git push` quando ha senso, non necessariamente ad ogni commit —
+  **ma sempre chiedendo prima conferma esplicita a Carlo**, mai in
+  automatico dopo il commit.
+- **Mai `--force` o riscrittura della cronologia senza chiedere prima
+  esplicitamente conferma a Carlo.** L'unico force push fatto finora
+  (agosto 2026) è stato un caso eccezionale per allineare due storie
+  Git mai collegate tra loro (il repository veniva aggiornato a mano via
+  web, non con `git push`) — non è un'abitudine da ripetere su un
+  repository ormai sano: rischierebbe di cancellare commit veri senza
+  che Carlo se ne accorga.
