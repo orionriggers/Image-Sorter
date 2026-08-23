@@ -104,8 +104,18 @@ costruire lo stato minimo necessario, eseguire l'azione, verificare il
 risultato con `assert`. Ripetere finché non passa, non fidarsi di "sembra
 corretto a occhio".
 
-Mai lasciare `image_sorter_config.json`/file di metadata residui nella
-cartella di lavoro dopo un test (`rm -f` a fine sessione di test).
+**`image_sorter_config.json`/`image_sorter_history.json`/
+`image_sorter_metadata.json` nella cartella del progetto sono i file
+VERI di Carlo, mai residui di test** — anche se sembrano generati "di
+default", perché li rigenera `load_config()` non appena mancano. Non
+vanno MAI cancellati con `rm -f` a fine sessione, nemmeno "per
+pulizia": lo si è fatto due volte (22/08 e 23/08 2026) perdendo preset
+e impostazioni reali entrambe le volte. Un test che istanzia
+`ImageSorter`/chiama `load_config()` deve girare in una cartella di
+lavoro isolata (copiare `image_sorter.py` e i moduli serviti in una
+tmpdir e lanciare lo script da lì, oppure `cd` in una tmpdir prima di
+eseguire), cosi' il file vero non viene toccato e non serve alcun
+cleanup successivo su di esso.
 
 ## Convenzioni di codice non ovvie (causa di bug reali, non teoria)
 

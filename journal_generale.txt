@@ -463,6 +463,24 @@ reale, o da riprovare in una sessione futura dopo aver liberato spazio.
 ===========================================================================
 KEY LEARNINGS & PRINCIPI CODIFICATI (validi per TUTTO il progetto)
 ===========================================================================
+  - image_sorter_config.json/image_sorter_history.json/
+    image_sorter_metadata.json nella cartella del progetto sono file
+    VERI di Carlo, MAI residui di test, anche quando sembrano
+    "rigenerabili" (config lo e' davvero, con valori vuoti, appena
+    manca — il che li rende PIU' pericolosi da cancellare per errore,
+    non meno: l'assenza sembra innocua finche' qualcuno non nota che
+    mancano i dati veri). Successo DUE VOLTE in due giorni consecutivi
+    (22/08 e 23/08) con lo stesso "rm -f" in pulizia post-test: un
+    principio scritto solo nel journal non e' bastato a evitare la
+    recidiva, perche' la frase corrispondente in CLAUDE.md diceva
+    letteralmente di fare rm -f su quel file (corretta il 23/08). Un
+    test che istanzia ImageSorter/load_config() deve girare in una
+    cartella isolata (copia di image_sorter.py + i moduli serviti in
+    una tmpdir), MAI nella cartella del progetto — cosi' il file vero
+    non viene mai toccato e non serve alcun cleanup su di esso. Rete di
+    sicurezza aggiuntiva dalla v1.43.4: _auto_backup_snapshot() salva
+    una copia giornaliera automatica in backup_auto/, ma resta un
+    ripiego, non una licenza per essere meno attenti alla causa
   - Lavorare SEMPRE dai file caricati da Carlo, mai da copie
     dell'ambiente - quattro incidenti documentati di modifiche
     anomale ai file, causa mai accertata con certezza
@@ -922,6 +940,59 @@ CRONOLOGIA CONDENSATA (per orientarsi nei journal di sessione)
             non ha completato il test grafico per disco pieno al 100%
             sul sistema di Carlo (non causato da questa sessione),
             da confermare a mano o in una sessione futura.
+  v1.43.4   Sessione dedicata al popup del tasto destro sull'immagine
+            principale (_show_image_menu): titolo file piu' leggibile
+            (font piu' grande/grassetto, colore azzurro HUD_CYAN come
+            gli altri titoli file del programma, non piu' bianco);
+            Ruota orario/antiorario affiancati; riga Converti spostata
+            sotto Modifica con...; Elimina e la spunta "senza conferma"
+            uniti in una riga sola (bordo doppio della spunta tolto);
+            Info EXIF spostata sopra Copia percorso; Apri cartella e
+            Copia percorso affiancati. Poi, su richiesta esplicita di
+            Carlo di riallineare "in colonna" tutte le voci: l'intero
+            popup e' passato da pack()+expand (confine fra le due
+            colonne che si spostava riga per riga in base alla
+            larghezza del testo di QUELLA riga) a una griglia grid()
+            vera condivisa da tutte le righe, con due colonne
+            columnconfigure(..., uniform="col") — cosi' la colonna di
+            destra (e quella di sinistra) sono allineate alla stessa X
+            assoluta su ogni riga, non solo "circa a meta'". Verificato
+            con test funzionale via Xvfb che confronta winfo_rootx()
+            delle voci di ciascuna colonna (deve essere identico).
+            RECIDIVA GRAVE nella sessione: cancellato per errore il
+            vero image_sorter_config.json (preset e impostazioni di
+            Carlo) TRE VOLTE con "rm -f" durante la pulizia post-test
+            del popup — stesso identico errore gia' documentato sopra
+            per il 22/08, stavolta pero' causato in parte dalla
+            frase di CLAUDE.md stesso ("rm -f a fine sessione di
+            test"), letta alla lettera senza isolare prima il test in
+            una cartella separata. Scoperto solo perche' Carlo ha
+            notato i preset spariti dalla finestra vera, non da un
+            controllo mio. Recuperato da 1.43/image_sorter_config.json
+            (backup manuale di Carlo, 22/08 14:08 — il piu' popolato
+            fra tutti i backup trovati: 9 preset/75 destinazioni,
+            confrontato numericamente con 1.42/ e con backup/, non
+            assunto "a occhio"). Corretto ALLA RADICE, non solo
+            recuperato: (1) riscritta la frase di CLAUDE.md che
+            istruiva a fare rm -f su quel file, sostituita con
+            l'obbligo esplicito di testare in una cartella isolata;
+            (2) aggiunta una memoria persistente rinforzata fuori da
+            questo repository, con la cronologia di entrambi gli
+            incidenti; (3) aggiunto un vero backup automatico silenzioso
+            (_auto_backup_snapshot(), chiamato a inizio main() prima di
+            qualunque lettura/scrittura) che copia config/storico/
+            metadata in backup_auto/AAAA-MM-GG/ una volta al giorno
+            all'avvio, senza mai sovrascrivere lo scatto del giorno gia'
+            fatto, con rotazione a 14 giornate — rete di sicurezza
+            indipendente dai backup manuali di Carlo, non richiede che
+            nessuno se ne ricordi. Testato in una cartella completamente
+            isolata (copia di image_sorter.py + moduli), non nel
+            progetto vero: primo scatto, non sovrascrittura nello
+            stesso giorno, rotazione a 14 giorni, tutti con assert.
+            Vedi il principio rinforzato piu' sotto — due incidenti
+            identici in due giorni consecutivi vogliono dire che il
+            principio scritto la prima volta non era stato reso
+            abbastanza vincolante, non solo che andava ripetuto.
 
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE

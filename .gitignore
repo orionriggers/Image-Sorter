@@ -4,6 +4,7 @@ image_sorter_config.json.bak
 image_sorter_error.log
 image_sorter_history.json
 image_sorter_metadata.json
+backup_auto/
 .deck_focus.json
 .deck_inbox_*.json
 .deck_owner.lock

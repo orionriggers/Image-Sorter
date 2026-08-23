@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.43.3"
+VERSION = "1.43.4"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -263,6 +263,8 @@ except Exception:
 CONFIG_FILE      = os.path.join(SCRIPT_DIR, "image_sorter_config.json")
 HISTORY_FILE     = os.path.join(SCRIPT_DIR, "image_sorter_history.json")
 HISTORY_MAX      = 200
+AUTO_BACKUP_DIR       = os.path.join(SCRIPT_DIR, "backup_auto")
+AUTO_BACKUP_KEEP_DAYS = 14
 BACKUP_DIR       = os.path.join(os.path.expanduser("~"), ".local", "share",
                                 "image_sorter", "backups")
 BACKUP_LIMIT_MB_DEFAULT = 500
@@ -2261,6 +2263,43 @@ def save_config(data):
             out[k] = v
     with open(CONFIG_FILE, "w") as f:
         f.write(_json_pretty(out))
+
+def _auto_backup_snapshot():
+    """Copia di sicurezza automatica e silenziosa di config, storico e
+    metadata, una volta al giorno all'avvio, in
+    backup_auto/AAAA-MM-GG/. Aggiuntiva rispetto ai backup manuali
+    di Carlo (cartelle di versione, backup/): qui basta avviare il
+    programma per avere sempre uno scatto recente, anche se nessuno se
+    ne ricorda a mano — nato da due incidenti (22 e 23/08/2026) in cui
+    image_sorter_config.json e' stato cancellato per errore fuori dal
+    programma, senza alcuna rete di sicurezza automatica.
+
+    Un solo scatto al giorno: se la cartella di oggi esiste gia' non
+    viene rifatta (non sovrascrive mai uno scatto del giorno con uno
+    stato eventualmente gia' danneggiato piu' tardi nella stessa
+    giornata) ne' cancellata. Rotazione: tiene solo gli ultimi
+    AUTO_BACKUP_KEEP_DAYS giorni. Non deve MAI bloccare l'avvio: ogni
+    errore viene ignorato in silenzio."""
+    try:
+        day_dir = os.path.join(AUTO_BACKUP_DIR, time.strftime("%Y-%m-%d"))
+        if os.path.isdir(day_dir):
+            return
+        sources = [CONFIG_FILE, HISTORY_FILE]
+        meta_file = getattr(metadata_store, "METADATA_FILE", None)
+        if meta_file:
+            sources.append(meta_file)
+        existing = [p for p in sources if os.path.isfile(p)]
+        if not existing:
+            return
+        os.makedirs(day_dir, exist_ok=True)
+        for p in existing:
+            shutil.copy2(p, os.path.join(day_dir, os.path.basename(p)))
+        giorni = sorted(d for d in os.listdir(AUTO_BACKUP_DIR)
+                        if os.path.isdir(os.path.join(AUTO_BACKUP_DIR, d)))
+        for vecchio in giorni[:-AUTO_BACKUP_KEEP_DAYS]:
+            shutil.rmtree(os.path.join(AUTO_BACKUP_DIR, vecchio), ignore_errors=True)
+    except Exception:
+        pass
 
 def _delete_history_thumb(entry):
     """Rimuove il file miniatura associato a una entry dello storico, se
@@ -21852,45 +21891,74 @@ class ImageSorter:
             self.root.after(50, self.root.focus_set)
         win.bind("<Destroy>", _safe_unbind_menu)
 
-        # Titolo
-        tk.Label(win, text=short, font=("TkFixedFont", 8),
-                 bg=PANEL_COLOR, fg=MUTED_COLOR,
+        # Titolo — piu' leggibile: font piu' grande, grassetto, e nello
+        # stesso azzurro (HUD_CYAN) usato per i titoli file nel resto del
+        # programma, invece del grigio attenuato delle altre etichette
+        # secondarie del menu (richiesto da Carlo).
+        tk.Label(win, text=short, font=("TkFixedFont", 10, "bold"),
+                 bg=PANEL_COLOR, fg=HUD_CYAN,
                  anchor="w").pack(fill="x", padx=10, pady=(8,4))
         tk.Frame(win, bg=ACCENT_COLOR, height=1).pack(fill="x", padx=6)
 
-        def btn(text, color, cmd):
-            tk.Button(win, text=text,
-                      font=("TkFixedFont", 9),
+        # Area a griglia vera (grid, non pack+expand): tutte le righe ad
+        # una o due voci vivono nella STESSA griglia con due colonne di
+        # uguale larghezza (uniform="col") — cosi' la colonna di destra
+        # si allinea davvero da una riga all'altra, invece di dipendere
+        # dalla larghezza del testo di ogni singola riga (che con
+        # pack+expand poteva spostare il confine riga per riga) —
+        # segnalato da Carlo.
+        grid_area = tk.Frame(win, bg=PANEL_COLOR)
+        grid_area.pack(fill="x")
+        grid_area.columnconfigure(0, weight=1, uniform="col")
+        grid_area.columnconfigure(1, weight=1, uniform="col")
+        _grow = [0]
+        def _next_row():
+            r = _grow[0]
+            _grow[0] += 1
+            return r
+
+        def _make_btn(text, color, cmd):
+            return tk.Button(grid_area, text=text, font=("TkFixedFont", 9),
                       bg=PANEL_COLOR, fg=TEXT_COLOR,
                       activebackground=color, activeforeground="white",
-                      relief="flat", anchor="w",
-                      command=lambda: (win.destroy(), cmd())
-                      ).pack(fill="x", padx=6, pady=1, ipady=4)
+                      relief="flat", anchor="w", padx=6,
+                      highlightthickness=1, highlightbackground="#d9d9d9",
+                      highlightcolor="#d9d9d9",
+                      command=lambda: (win.destroy(), cmd()))
+
+        def btn(text, color, cmd):
+            # Stesso riquadro/colonna di btn_row (con un solo bottone,
+            # esteso su entrambe le colonne): senza, i bottoni singoli
+            # restavano a piena larghezza senza bordo, disallineati
+            # rispetto alle colonne affiancate del resto del menu —
+            # segnalato da Carlo.
+            btn_row([(text, color, cmd)])
 
         def btn_row(items):
-            """Come btn(), ma per 1-2 pulsanti affiancati in UN SOLO
-            riquadro bordato (stesso bordo bianco della riga Valutazione),
+            """Come btn(), ma per 1-2 pulsanti affiancati sulla STESSA
+            riga della griglia (due celle bordate di uguale larghezza),
             invece di due righe separate — usata per Converti in JPG/GIF
-            e per Info EXIF/Modifica EXIF su richiesta esplicita: righe
-            separate SI', ma dentro lo stesso riquadro quando sono due
-            azioni imparentate, non un unico riquadro che le fonde tutte
-            insieme."""
+            e per Info EXIF/Modifica EXIF su richiesta esplicita, e ora
+            per (quasi) tutte le voci del menu per un allineamento
+            coerente in tutta la finestra."""
             if not items:
                 return
-            rowf = tk.Frame(win, bg=PANEL_COLOR, highlightthickness=1,
-                            highlightbackground="#d9d9d9",
-                            highlightcolor="#d9d9d9")
-            rowf.pack(fill="x", padx=6, pady=1)
-            for _idx, (text, color, cmd) in enumerate(items):
-                tk.Button(rowf, text=text, font=("TkFixedFont", 9),
-                          bg=PANEL_COLOR, fg=TEXT_COLOR,
-                          activebackground=color, activeforeground="white",
-                          relief="flat", highlightthickness=0, anchor="w",
-                          padx=6,
-                          command=lambda c=cmd: (win.destroy(), c())
-                          ).pack(side="left", fill="both", expand=True,
-                                 padx=(0, 1) if _idx < len(items) - 1 else 0,
-                                 ipady=4)
+            r = _next_row()
+            if len(items) == 1:
+                _make_btn(*items[0]).grid(row=r, column=0, columnspan=2,
+                                          sticky="nsew", padx=6, pady=1, ipady=4)
+            else:
+                _make_btn(*items[0]).grid(row=r, column=0, sticky="nsew",
+                                          padx=(6,3), pady=1, ipady=4)
+                _make_btn(*items[1]).grid(row=r, column=1, sticky="nsew",
+                                          padx=(3,6), pady=1, ipady=4)
+
+        def sep(top_pad=0):
+            """Separatore sottile, largo quanto l'intera griglia (entrambe
+            le colonne)."""
+            tk.Frame(grid_area, bg=ACCENT_COLOR, height=1).grid(
+                row=_next_row(), column=0, columnspan=2, sticky="ew",
+                padx=6, pady=(top_pad, 0))
 
         if is_video(filepath):
             btn("Play video",         SUCCESS,   lambda: self._play_video())
@@ -21899,12 +21967,19 @@ class ImageSorter:
                 ["xdg-open", filepath],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         else:
-            btn("Ritaglia...",        SUCCESS,   lambda: self._open_crop(filepath))
-            btn("Ridimensiona...",    SUCCESS,   lambda: self._open_resize(filepath))
+            btn_row([
+                ("Ritaglia...",     SUCCESS, lambda: self._open_crop(filepath)),
+                ("Ridimensiona...", SUCCESS, lambda: self._open_resize(filepath)),
+            ])
         btn("Rinomina...",        WARNING,      lambda: self._open_rename_direct(filepath))
         if not is_video(filepath) and not is_pdf(filepath):
-            btn("Ruota 90 orario  [C]",  "#4a90e2", lambda: self._rotate_image(filepath,  90))
-            btn("Ruota 90 antiorario  [A]","#4a90e2", lambda: self._rotate_image(filepath, -90))
+            # Orario/antiorario affiancati sulla stessa riga (richiesto da
+            # Carlo); "90" tolto dal testo per lasciare spazio ai due
+            # bottoni affiancati nello stesso riquadro.
+            btn_row([
+                ("Ruota orario  [C]",     "#4a90e2", lambda: self._rotate_image(filepath,  90)),
+                ("Ruota antiorario  [A]", "#4a90e2", lambda: self._rotate_image(filepath, -90)),
+            ])
 
         # Valutazione + colorlabel — spostate qui (dopo Ruota, prima di
         # Converti) per stare nella stessa posizione relativa che hanno
@@ -21935,15 +22010,15 @@ class ImageSorter:
                 if getattr(self, "_show_rating_overlay", False):
                     self._draw_rating_overlay(p)
 
-            rf = tk.Frame(win, bg=PANEL_COLOR, highlightthickness=1,
+            _rr = _next_row()
+            left_half = tk.Frame(grid_area, bg=PANEL_COLOR, highlightthickness=1,
                          highlightbackground="#d9d9d9",
                          highlightcolor="#d9d9d9")
-            rf.pack(fill="x", padx=6, pady=1, ipady=4)
-
-            left_half = tk.Frame(rf, bg=PANEL_COLOR)
-            left_half.pack(side="left", fill="both", expand=True)
-            right_half = tk.Frame(rf, bg=PANEL_COLOR)
-            right_half.pack(side="left", fill="both", expand=True)
+            left_half.grid(row=_rr, column=0, sticky="nsew", padx=(6,3), pady=1, ipady=4)
+            right_half = tk.Frame(grid_area, bg=PANEL_COLOR, highlightthickness=1,
+                         highlightbackground="#d9d9d9",
+                         highlightcolor="#d9d9d9")
+            right_half.grid(row=_rr, column=1, sticky="nsew", padx=(3,6), pady=1, ipady=4)
 
             stars_box = tk.Frame(left_half, bg=PANEL_COLOR)
             stars_box.pack(side="left", padx=(6,0))
@@ -21973,6 +22048,10 @@ class ImageSorter:
             dots_box.pack(side="left", padx=(6,0))
             _color_dots = draw_colorlabel_dots(dots_box, _cur_colors[0], _click_colorlabel)
 
+        # Converti in JPG/GIF: calcolati qui (serve _conv_ext gia' pronto),
+        # ma la riga vera e propria (btn_row) e' disegnata piu' in basso,
+        # sotto le due voci "Modifica con..." — spostata li' su richiesta
+        # di Carlo per liberare spazio subito sotto Valutazione/colorlabel.
         _conv_ext = os.path.splitext(filepath)[1].lower()
         # Mostra "Converti in JPG" per tutti i formati immagine, incluso .jpg
         # (utile per file .jpg con formato interno diverso, es. WebP rinominato)
@@ -21984,36 +22063,47 @@ class ImageSorter:
         if _conv_ext in {".webp",".jpg",".jpeg",".png",".bmp",".tiff",".pnm",".pbm",".pgm",".ppm",".heic",".heif"}:
             _conv_items.append(("Converti in GIF", "#5a3a7a",
                                 lambda: self._convert_to_gif(filepath)))
-        btn_row(_conv_items)
-        btn("Elimina",            HIGHLIGHT,    lambda: self._do_trash(filepath))
 
-        # Checkbox "non chiedere conferma" — vale per tutta la sessione
+        # Elimina + spunta "senza conferma" affiancati nello stesso
+        # riquadro bordato dei bottoni doppi (stesso ingombro delle righe
+        # Converti/Modifica) — richiesto da Carlo, prima erano due righe
+        # separate una sopra l'altra.
+        _del_row = tk.Frame(grid_area, bg=PANEL_COLOR, highlightthickness=1,
+                            highlightbackground="#d9d9d9",
+                            highlightcolor="#d9d9d9")
+        _del_row.grid(row=_next_row(), column=0, columnspan=2, sticky="nsew",
+                      padx=6, pady=1)
+        tk.Button(_del_row, text="Elimina", font=("TkFixedFont", 9),
+                  bg=PANEL_COLOR, fg=TEXT_COLOR,
+                  activebackground=HIGHLIGHT, activeforeground="white",
+                  relief="flat", highlightthickness=0, anchor="w", padx=6,
+                  command=lambda: (win.destroy(), self._do_trash(filepath))
+                  ).pack(side="left", fill="both", expand=True, padx=(0,1), ipady=4)
         ck_var = tk.BooleanVar(value=getattr(self, '_delete_no_confirm', False))
-        tk.Checkbutton(win,
-                       text="Elimina direttamente (senza conferma) per questa sessione",
+        tk.Checkbutton(_del_row,
+                       text="Senza conferma per questa sessione",
                        variable=ck_var,
                        font=("TkFixedFont", 8),
                        bg=PANEL_COLOR, fg=MUTED_COLOR,
                        selectcolor=PANEL_COLOR,
                        activebackground=PANEL_COLOR, activeforeground=TEXT_COLOR,
-                       relief="flat", anchor="w",
+                       relief="flat", highlightthickness=0, bd=0, anchor="w",
                        command=lambda: setattr(self, '_delete_no_confirm', ck_var.get())
-                       ).pack(fill="x", padx=10, pady=(2,4))
+                       ).pack(side="left", fill="both", expand=True)
 
-        tk.Frame(win, bg=ACCENT_COLOR, height=1).pack(fill="x", padx=6, pady=(0,0))
+        sep()
         # "Mostra su mappa" era raggiungibile solo cliccando il pallino
         # verde; ora quel click copia le coordinate, quindi la voce serve
         # anche qui — come gia' avviene in Naviga e in Timeline.
         try:
             from exif_editor import read_gps as _rg_menu
             if _rg_menu(filepath):
-                btn("Mostra su mappa", "#1a3a2a",
-                    lambda: self._open_map_single(filepath))
-                btn("Copia posizione GPS", "#1a3a2a",
-                    lambda: self._gps_copy_current(filepath))
+                btn_row([
+                    ("Mostra su mappa",      "#1a3a2a", lambda: self._open_map_single(filepath)),
+                    ("Copia posizione GPS",  "#1a3a2a", lambda: self._gps_copy_current(filepath)),
+                ])
         except Exception:
             pass
-        btn("Apri cartella",      ACCENT_COLOR, lambda: open_in_filemanager(filepath))
         if self.config.get("edit_with_always", False):
             # Le due voci "gemelle" affiancate nello stesso riquadro,
             # stesso stile gia' introdotto per Converti JPG/GIF e Info/
@@ -22032,9 +22122,9 @@ class ImageSorter:
             ])
         else:
             btn("Modifica con...", "#2a3a5a", lambda: self._open_edit_with(filepath))
-        btn("Copia percorso",     ACCENT_COLOR, lambda: self._copy_to_clipboard(filepath))
-        btn("Proprietà...",       "#1a2a3a",
-            lambda: self._file_properties_popup(filepath, parent=self.root))
+        # Converti: sotto le due voci "Modifica con..." (richiesto da
+        # Carlo). Info EXIF: sopra "Copia percorso" (richiesto da Carlo).
+        btn_row(_conv_items)
         _exif_items = []
         if not is_video(filepath) and not is_pdf(filepath):
             _exif_items.append(("Info EXIF  [I]", "#1a2a3a",
@@ -22043,11 +22133,20 @@ class ImageSorter:
             _exif_items.append(("Modifica EXIF...", "#2a1a4a",
                                 lambda: self._open_and_track_exif([filepath])))
         btn_row(_exif_items)
+        # Apri cartella + Copia percorso affiancati, Apri cartella a
+        # sinistra (richiesto da Carlo — prima "Apri cartella" era da
+        # solo piu' in alto, prima di Modifica con...).
+        btn_row([
+            ("Apri cartella",  ACCENT_COLOR, lambda: open_in_filemanager(filepath)),
+            ("Copia percorso", ACCENT_COLOR, lambda: self._copy_to_clipboard(filepath)),
+        ])
+        btn("Proprietà...",       "#1a2a3a",
+            lambda: self._file_properties_popup(filepath, parent=self.root))
 
         # Ripristina (compare solo se file nello storico recente)
         _hist_entry = find_history_entry(filepath, days=10)
         if _hist_entry:
-            tk.Frame(win, bg=ACCENT_COLOR, height=1).pack(fill="x", padx=6, pady=(4,0))
+            sep(top_pad=4)
             _action_lbl = {
                 "moved": "Ripristina (era stato spostato)",
                 "moved_browser": "Ripristina (era stato spostato)",
@@ -25890,6 +25989,11 @@ class ImageSorter:
 def main():
 
     log_file = ERROR_LOG_FILE
+
+    # Scatto di sicurezza automatico (config/storico/metadata), silenzioso
+    # e al piu' una volta al giorno — vedi _auto_backup_snapshot(). Va
+    # fatto qui, prima di qualunque lettura/scrittura di quei file.
+    _auto_backup_snapshot()
 
     # Avvisa se Wayland nativo senza XWayland
     if (os.environ.get("XDG_SESSION_TYPE","").lower() == "wayland"
