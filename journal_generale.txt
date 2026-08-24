@@ -993,6 +993,84 @@ CRONOLOGIA CONDENSATA (per orientarsi nei journal di sessione)
             identici in due giorni consecutivi vogliono dire che il
             principio scritto la prima volta non era stato reso
             abbastanza vincolante, non solo che andava ripetuto.
+  v1.43.5   Sessione (24/08) con tre bug reali segnalati da Carlo e una
+            funzione nuova, tutti solo su image_sorter.py. (1) Shift
+            durante il trascinamento delle maniglie del Crop inverte
+            temporaneamente il magnete ai bordi rispetto alla casella
+            di spunta (senza toccarla). Prima versione del fix
+            sbagliata: controllava e.state & 0x0101 (lo schema gia' in
+            uso altrove nel file per un CLICK con Shift), ma durante
+            un trascinamento <B1-Motion> il bit 0x0100 e' sempre acceso
+            (e' Button1Mask, il tasto del mouse tenuto premuto, non
+            Shift) — il magnete risultava sempre invertito
+            indipendentemente dalla tastiera. PRINCIPIO: 0x0100 in
+            e.state NON e' intercambiabile fra un evento di click e uno
+            di drag; durante un trascinamento va controllato solo
+            0x0001 (ShiftMask). (2) "Backup non trovato" annullando un
+            crop appena fatto pur comparendo nello storico: make_crop_
+            backup() usa shutil.copy2(), che preserva la mtime del file
+            ORIGINALE (es. uno screenshot del 2024) sul file di backup
+            appena creato; con lo spazio backup vicino al limite
+            configurato, _backup_enforce_limit() (ordina per mtime per
+            capire i piu' vecchi) vedeva il backup nuovissimo come il
+            piu' vecchio di tutti e lo cancellava per primo. Fix:
+            os.utime(dest, None) subito dopo la copia, per far contare
+            l'eta' del BACKUP e non quella del file copiato. PRINCIPIO:
+            shutil.copy2()/copystat() copiano anche i timestamp della
+            sorgente — qualunque logica di retention/pulizia che
+            ordina per mtime su file creati con copy2 va verificata per
+            questo, non solo il caso ovvio "il file e' nuovo quindi la
+            sua copia ha mtime nuova". (3) 438 file orfani accumulati
+            in ~/.local/share/image_sorter/history_thumbs (miniature
+            dello Storico senza piu' una entry corrispondente): causa
+            in _ripristina_file (menu contestuale "Ripristina" su un
+            file, percorso di annullamento SEPARATO da _history_undo_
+            entry della finestra Storico) che rimuoveva la entry dallo
+            storico persistente ma non chiamava _delete_history_thumb
+            — a differenza degli altri due punti di annullamento, che
+            lo fanno sempre. save_history() ripulisce le miniature solo
+            per le entry perse dal limite HISTORY_MAX, non per quelle
+            rimosse cosi'. Fix applicato + i 438 file gia' orfani
+            eliminati (confermati orfani confrontando i "thumb"
+            referenziati nello storico attuale coi file fisici, non
+            assunto). PRINCIPIO: un'azione con piu' implementazioni
+            indipendenti dello stesso concetto (qui "annulla
+            un'operazione dallo storico", presente in tre punti del
+            file) va controllata in TUTTI i punti quando se ne
+            corregge uno, non solo in quello segnalato — non e' detto
+            che condividano la stessa logica di pulizia.
+            Funzione nuova: colore personalizzato cartella in Naviga.
+            Tasto destro su una cartella -> voce "Colore: <nome>" per
+            ciascuno dei 5 colori di metadata_store.COLOR_LABELS (le
+            stesse colorlabel dei file), uno solo selezionabile per
+            cartella (ricliccare lo stesso, o "Nessun colore", per
+            toglierlo) — salvato in config["folder_colors"] per
+            percorso assoluto, non nel database metadata_store (che
+            indicizza file, non cartelle). Applicato a tutti e tre i
+            punti in cui una cartella e' disegnata in Naviga: bordo+
+            testo della cella nella griglia icone, testo nella vista a
+            lista, colore del testo del nodo nell'albero (nuovi tag
+            Treeview "fcolor_<id>", registrati una volta con
+            tag_configure). La privacy ha sempre precedenza sul colore
+            personalizzato (bordo rosso di una cartella privata
+            bloccata mai sostituito). Trovato e corretto un effetto
+            collaterale scoperto scrivendo la funzione, non segnalato
+            da Carlo: l'evidenziazione temporanea del bersaglio durante
+            un drag&drop sull'albero faceva self.tree.item(iid,
+            tags=()) per ripulire, azzerando anche il tag colore di
+            qualunque cartella toccata durante un trascinamento — ora
+            ripristina il tag colore invece di azzerare. Tutto
+            verificato con test funzionali reali via Xvfb in cartelle
+            di lavoro isolate (mai sul progetto vero): riproduzione
+            positiva/negativa del bug mtime copy2, riproduzione del
+            bug thumb orfano col codice precedente, colore riflesso
+            nella cella/albero e sopravvivenza al drag&drop, tutti con
+            assert. NOTA PROCESSO: i primi tre fix di questa sessione
+            sono stati commitati senza bump del terzo numero di
+            versione (dimenticato finche' non si e' arrivati alla
+            funzione nuova) — il bump a 1.43.5 qui copre retroattivamente
+            tutti e quattro i cambi di questa sessione su image_sorter.py,
+            nessuno dei quattro pushato ancora a fine sessione.
 
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
