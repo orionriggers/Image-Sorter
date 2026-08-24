@@ -21791,10 +21791,16 @@ class ImageSorter:
                     errors.append(str(ex))
 
         if done:
-            # Rimuovi entry dallo storico
+            # Rimuovi entry dallo storico e la sua miniatura associata:
+            # a differenza di _history_undo_entry/_history_clear (che la
+            # cancellano sempre), qui mancava e la miniatura restava
+            # orfana in history_thumbs/ per sempre (mai ripulita, perché
+            # save_history() elimina le miniature solo delle entry perse
+            # per il limite HISTORY_MAX, non di quelle rimosse così).
             entries = load_history()
             try:
                 entries.remove(entry)
+                _delete_history_thumb(entry)
             except ValueError:
                 pass
             save_history(entries)
