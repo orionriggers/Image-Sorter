@@ -13606,6 +13606,13 @@ class CropOverlay:
     def _on_snap_toggle(self):
         self.sorter.config["crop_snap_edges"] = self._snap_var.get()
 
+    def _snap_enabled(self, e):
+        """Stato effettivo del magnete per questo trascinamento: quello
+        della checkbox, invertito temporaneamente se Shift è premuto
+        durante il drag (la checkbox stessa non viene toccata)."""
+        shift = bool(e.state & 0x0101)   # Shift: 0x0001 o 0x0100
+        return self._snap_var.get() != shift
+
     def _snap_axis(self, value, candidates, scale):
         """Se un bordo candidato è entro il raggio del magnete (in pixel
         schermo, indipendente dallo zoom), ritorna il bordo agganciato;
@@ -14023,7 +14030,7 @@ class CropOverlay:
             # inquadramento, spostato di poco). La dimensione resta
             # sempre invariata: si aggancia il lato (inizio o fine, sui
             # due assi) più vicino a un bordo rilevato.
-            if self._snap_var.get():
+            if self._snap_enabled(e):
                 _, _, scale = self._get_offset()
                 snapped_x = self._snap_move_axis(nx1, nx1 + w,
                                                  self._edge_cols, scale)
@@ -14046,7 +14053,7 @@ class CropOverlay:
             # Magnete bordi: solo in modalità libera (senza proporzioni
             # vincolate, per non entrare in conflitto col ratio fisso) e solo
             # sul/sui lato/i effettivamente trascinato/i.
-            if aw is None and self._snap_var.get():
+            if aw is None and self._snap_enabled(e):
                 _, _, scale = self._get_offset()
                 if "l" in d:
                     nx1 = self._snap_axis(nx1, self._edge_cols, scale)
