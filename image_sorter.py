@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.43.4"
+VERSION = "1.43.5"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -597,6 +597,30 @@ def _is_private(path, private_folders):
         if p == apf or p.startswith(apf + os.sep):
             return True
     return False
+
+
+# ── Colore personalizzato cartella (Naviga) ──────────────────────────────
+# Riusa gli stessi 5 id di metadata_store.COLOR_LABELS (rosso/giallo/verde/
+# blu/viola) usati per le colorlabel dei file, ma qui e' un'etichetta SOLA
+# per cartella (non multipla come per i file): serve solo a distinguere
+# colpo d'occhio le cartelle nella visualizzazione di Naviga, salvata in
+# config invece che nel database metadata_store (che indicizza file, non
+# cartelle).
+def _get_folder_color(config, path):
+    """Id colore assegnato alla cartella, o None se non impostato."""
+    colors = config.get("folder_colors") or {}
+    return colors.get(os.path.abspath(path))
+
+def _set_folder_color(config, path, color_id):
+    """Imposta (color_id in metadata_store.COLOR_IDS) o rimuove
+    (color_id None) il colore della cartella, e salva la config."""
+    colors = config.setdefault("folder_colors", {})
+    ap = os.path.abspath(path)
+    if color_id:
+        colors[ap] = color_id
+    else:
+        colors.pop(ap, None)
+    save_config(config)
 
 
 BASE_DEST        = os.path.expanduser("~/Immagini/Smistati")
@@ -6572,6 +6596,12 @@ class FolderBrowser:
         self.tree.bind("<ButtonRelease-1>", self._on_click)
         self.tree.bind("<Double-Button-1>", self._on_double_click)
         self.tree.bind("<Button-3>",        self._on_tree_right_click)
+        # Tag per il colore cartella personalizzato (vedi
+        # _get_folder_color/_set_folder_color): un tag per ciascuno dei 5
+        # id di metadata_store.COLOR_LABELS, applicato ai nodi dell'albero
+        # via _folder_tree_tags(). Definiti una sola volta qui.
+        for _cid, _cname, _hex in metadata_store.COLOR_LABELS:
+            self.tree.tag_configure(f"fcolor_{_cid}", foreground=_hex)
         self.win.bind("<Control-a>", lambda e: self._sel_all())
         self.win.bind("<Control-A>", lambda e: self._sel_all())
         self.win.bind("<Control-c>", lambda e:
@@ -7551,7 +7581,14 @@ class FolderBrowser:
                 os.path.abspath(dpath).startswith(os.path.abspath(p)+os.sep)
                 for p in self.sorter._unlocked_private)
             _priv = _is_private(dpath, self.sorter._private_folders)
-            _dir_fg = PRIVACY_RED if (_priv and not _priv_unlkd) else HUD_CYAN
+            # Colore personalizzato cartella (vedi _get_folder_color): la
+            # privacy ha sempre precedenza visiva (bordo rosso), per non
+            # confondere una cartella privata bloccata con una colorata
+            # di proposito in rosso.
+            _fcolor_id  = _get_folder_color(self.sorter.config, dpath)
+            _fcolor_hex = metadata_store.COLOR_HEX.get(_fcolor_id) if _fcolor_id else None
+            _dir_fg = (PRIVACY_RED if (_priv and not _priv_unlkd)
+                      else (_fcolor_hex or HUD_CYAN))
             _lbl = tk.Label(cell, text=short, font=("TkFixedFont", 8),
                             bg=BG_COLOR, fg=_dir_fg,
                             wraplength=cell_sz - 4, justify="center")
@@ -7559,6 +7596,9 @@ class FolderBrowser:
             if _priv and not _priv_unlkd:
                 cv.config(highlightthickness=2,
                           highlightbackground=PRIVACY_RED)
+            elif _fcolor_hex:
+                cv.config(highlightthickness=2,
+                          highlightbackground=_fcolor_hex)
             if is_parent:
                 for w in (cell, cv):
                     w.bind("<Button-1>",
@@ -7683,8 +7723,11 @@ class FolderBrowser:
                 sub = f"{nf} immagini"
             except OSError:
                 sub = ""
+            _fcolor_id  = _get_folder_color(self.sorter.config, dpath)
+            _fcolor_hex = metadata_store.COLOR_HEX.get(_fcolor_id) if _fcolor_id else None
             tk.Label(info, text=dname, font=("TkFixedFont", 8, "bold"),
-                     bg=bg, fg=HUD_CYAN, anchor="w").grid(row=0, column=0, sticky="w")
+                     bg=bg, fg=_fcolor_hex or HUD_CYAN,
+                     anchor="w").grid(row=0, column=0, sticky="w")
             tk.Label(info, text=sub, font=("TkFixedFont", 7),
                      bg=bg, fg=MUTED_COLOR, anchor="w").grid(row=1, column=0, sticky="w")
             is_parent_dir = (dname == "..")
@@ -10595,16 +10638,21 @@ class FolderBrowser:
             return None, None
 
     def _drag_highlight_tree(self, xr, yr):
-        iid, _path = self._drag_tree_target(xr, yr)
+        iid, path = self._drag_tree_target(xr, yr)
         prev = getattr(self, "_drag_over", None)
         if iid == prev:
             return
         try:
             if prev:
-                self.tree.item(prev, tags=())
+                # Non azzerare a tags=(): cancellerebbe anche il tag del
+                # colore cartella personalizzato (vedi
+                # _get_folder_color), se questo nodo ne ha uno.
+                self.tree.item(prev, tags=self._folder_tree_tags_for_iid(prev))
             if iid:
                 self.tree.tag_configure("droptarget", background=HIGHLIGHT)
-                self.tree.item(iid, tags=("droptarget",))
+                # "droptarget" configura solo lo sfondo, fcolor_* solo il
+                # primo piano: combinabili senza conflitto.
+                self.tree.item(iid, tags=("droptarget",) + self._folder_tree_tags(path))
         except Exception:
             pass
         self._drag_over = iid
@@ -10656,7 +10704,7 @@ class FolderBrowser:
         prev = getattr(self, "_drag_over", None)
         if prev:
             try:
-                self.tree.item(prev, tags=())
+                self.tree.item(prev, tags=self._folder_tree_tags_for_iid(prev))
             except Exception:
                 pass
         self._drag_ghost = None
@@ -11190,10 +11238,48 @@ class FolderBrowser:
         except Exception:
             pass
 
+    def _folder_tree_tags(self, path):
+        """Tag Treeview per il colore cartella personalizzato di questo
+        percorso (vedi _get_folder_color), o tupla vuota se non impostato."""
+        cid = _get_folder_color(self.sorter.config, path)
+        return (f"fcolor_{cid}",) if cid else ()
+
+    def _folder_tree_tags_for_iid(self, iid):
+        """Come _folder_tree_tags, ma partendo da un iid dell'albero
+        (usato per ripristinare il tag colore dopo un evidenziamento
+        temporaneo, es. drag&drop, senza gia' avere il path a portata)."""
+        try:
+            vals = self.tree.item(iid, "values")
+        except Exception:
+            return ()
+        path = vals[0] if vals else None
+        return self._folder_tree_tags(path) if path and path != "__ph__" else ()
+
+    def _refresh_node_color(self, path):
+        """Riapplica il tag colore al nodo albero di questo percorso, se
+        gia' presente (visibile/espanso). I nodi non ancora creati lo
+        prendono automaticamente da _insert_node alla loro comparsa."""
+        want = os.path.normpath(path)
+        try:
+            def _walk(node):
+                for iid in self.tree.get_children(node):
+                    vals = self.tree.item(iid, "values")
+                    pth  = vals[0] if vals else None
+                    if pth and pth != "__ph__" and os.path.normpath(pth) == want:
+                        self.tree.item(iid, tags=self._folder_tree_tags(pth))
+                        return True
+                    if _walk(iid):
+                        return True
+                return False
+            _walk("")
+        except Exception:
+            pass
+
     def _insert_node(self, parent, path, label):
         text = self._node_text(label, path)
         iid  = self.tree.insert(parent, "end", text=text,
-                                values=[path], open=False)
+                                values=[path], open=False,
+                                tags=self._folder_tree_tags(path))
         if self._has_subdirs(path):
             self.tree.insert(iid, "end", text="...", values=["__ph__"])
         return iid
@@ -11733,9 +11819,34 @@ class FolderBrowser:
         menu.add_command(label="Proprietà...",
                          command=lambda p=path: self._folder_properties(p))
         menu.add_separator()
+        # Colore cartella: stessi 5 colori delle colorlabel dei file
+        # (metadata_store.COLOR_LABELS), ma qui uno solo scelbile per
+        # cartella (● = colore attuale). Riclicca lo stesso per toglierlo,
+        # oppure "Nessun colore".
+        _cur_fcolor = _get_folder_color(self.sorter.config, path)
+        for _cid, _cname, _hex in metadata_store.COLOR_LABELS:
+            _mark = "●" if _cid == _cur_fcolor else "○"
+            _next = None if _cid == _cur_fcolor else _cid
+            menu.add_command(label=f"{_mark} Colore: {_cname}",
+                             foreground=_hex,
+                             command=lambda p=path, c=_next: self._set_folder_color_action(p, c))
+        if _cur_fcolor:
+            menu.add_command(label="○ Nessun colore",
+                             command=lambda p=path: self._set_folder_color_action(p, None))
+        menu.add_separator()
         menu.add_command(label="Sposta nel cestino",
                          command=lambda p=path: self._trash_folder(p))
         _post_menu(menu, event.x_root, event.y_root, self.win)
+
+    def _set_folder_color_action(self, path, color_id):
+        """Imposta/rimuove il colore personalizzato della cartella e
+        aggiorna subito la sua visualizzazione in Naviga (griglia/lista
+        della cartella corrente e nodo dell'albero, se visibile)."""
+        _set_folder_color(self.sorter.config, path, color_id)
+        self._refresh_node_color(path)
+        parent = os.path.dirname(path)
+        if self._current_folder and os.path.normpath(self._current_folder) == os.path.normpath(parent):
+            self._load_thumbnails(self._current_folder)
 
     def _grid_background_context_menu(self, event):
         """Menu contestuale cliccando nello SFONDO della griglia (tra i
