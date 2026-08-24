@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.43.6"
+VERSION = "1.43.7"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -4417,14 +4417,19 @@ class DuplicateFinder:
 
         _add(self._initial_dir)
 
-        # Barra aggiungi (solo se multi)
+        # Barra aggiungi (solo se multi) — riga condivisa: il bottone sta a
+        # sinistra, "add_row" resta disponibile al chiamante per aggiungere
+        # altri controlli (es. ordinamento) allineati a destra sulla stessa riga.
+        add_row = None
         if multi:
-            add_btn = tk.Button(fr, text="+ Aggiungi cartella",
+            add_row = tk.Frame(fr, bg=BG_COLOR)
+            add_row.pack(fill="x", pady=(2,0))
+            add_btn = tk.Button(add_row, text="+ Aggiungi cartella",
                                 font=("TkFixedFont", 8),
                                 bg=PANEL_COLOR, fg=HUD_CYAN,
                                 relief="flat", padx=8,
                                 command=lambda: _add())
-            add_btn.pack(anchor="w", pady=(2,0))
+            add_btn.pack(side="left")
 
         def _get():
             result = []
@@ -4434,7 +4439,7 @@ class DuplicateFinder:
                     result.append((p, rv.get()))
             return result
 
-        return fr, _get
+        return fr, _get, add_row
 
     def _make_results_area(self, parent, row_paths=None):
         """Lista risultati + barra stato + bottoni azione."""
@@ -4620,7 +4625,10 @@ class DuplicateFinder:
         result_lbl = tk.Label(bot, text="",
                               font=("TkFixedFont", 9),
                               bg=PANEL_COLOR, fg=MUTED_COLOR)
-        result_lbl.pack(side="left", padx=10, pady=5)
+        # Non impacchettato qui: il chiamante lo posiziona DOPO aver
+        # impacchettato il bottone "Avvia scansione", cosi' il bottone
+        # resta sempre alla stessa posizione a sinistra invece di scivolare
+        # a destra ogni volta che il testo del risultato cambia lunghezza.
 
         # Chiudi per primo → appare più a destra
         tk.Button(bot, text="Chiudi",
@@ -4716,7 +4724,7 @@ class DuplicateFinder:
                  font=("TkFixedFont", 8), bg=BG_COLOR,
                  fg=MUTED_COLOR).grid(row=0, column=0, sticky="w", pady=(0,3))
 
-        folder_fr, get_folders = self._make_folder_list(top, multi=True)
+        folder_fr, get_folders, add_row = self._make_folder_list(top, multi=True)
         folder_fr.grid(row=1, column=0, sticky="ew", pady=(2,4))
 
         # Area risultati — creata prima così stop_btn è disponibile
@@ -4740,23 +4748,30 @@ class DuplicateFinder:
                                  prog_canvas, prog_bar,
                                  lb, clean_btn, row_paths, stop_btn))
         scan_btn.pack(side="left", padx=(6,4), pady=5, ipady=3)
+        result_lbl.pack(side="left", padx=10, pady=5)
 
-        # Ordinamento risultati
-        tk.Label(bot_sha, text="Ordina:",
-                 font=("TkFixedFont", 7), bg=BG_COLOR, fg=MUTED_COLOR
-                 ).pack(side="left", padx=(10,2))
+        # Ordinamento risultati — sulla riga di "+ Aggiungi cartella",
+        # allineato a destra (in fondo, dopo "Avvia scansione"/"Cestina",
+        # veniva spinto fuori dalla barra non appena compariva un risultato).
         self._sha_sort_var = tk.StringVar(value="size")
-        for sval, stxt in [("size","Dimensione"),("folder","Cartella"),("name","Nome file")]:
-            tk.Radiobutton(bot_sha, text=stxt, variable=self._sha_sort_var,
+        sort_opts = [("size","Dimensione"), ("folder","Cartella"),
+                     ("name","Nome file"), ("count","Numero doppioni"),
+                     ("mtime","Data modifica")]
+        for sval, stxt in reversed(sort_opts):
+            tk.Radiobutton(add_row, text=stxt, variable=self._sha_sort_var,
                            value=sval,
                            font=("TkFixedFont", 7), bg=BG_COLOR, fg=TEXT_COLOR,
                            selectcolor=BG_COLOR, activebackground=BG_COLOR,
                            activeforeground=HUD_CYAN,
                            command=lambda lb=lb, rp=row_paths: self._resort_dups(lb, rp)
-                           ).pack(side="left", padx=2)
+                           ).pack(side="right", padx=2)
+        tk.Label(add_row, text="Ordina:",
+                 font=("TkFixedFont", 7), bg=BG_COLOR, fg=MUTED_COLOR
+                 ).pack(side="right", padx=(10,2))
 
     def _resort_dups(self, lb, row_paths):
-        """Riordina i risultati già in listbox per dimensione/cartella/nome."""
+        """Riordina i risultati già in listbox per dimensione/cartella/nome/
+        numero doppioni/data modifica."""
         sort_mode = getattr(self, '_sha_sort_var', None)
         if not sort_mode: return
         mode = sort_mode.get()
@@ -4787,14 +4802,25 @@ class DuplicateFinder:
         for hidx, fidxs in groups.items():
             hdr = items[hidx]
             files = [(items[i], colors[i], bgs[i]) for i in fidxs]
-            # key per ordinamento
+            # key per ordinamento. Per 'folder'/'name' si usa min() su tutti
+            # i file del gruppo (non il primo trovato): l'ordine di
+            # inserimento nel gruppo dipende da os.walk(), non è alfabetico,
+            # quindi "il primo file" cambiava da una scansione all'altra a
+            # parità di contenuto — min() rende il risultato deterministico.
             if mode == 'size':
                 key = -max((os.path.getsize(f[0][1]) for f in files
                             if f[0][1] and os.path.isfile(f[0][1])), default=0)
             elif mode == 'folder':
-                key = os.path.dirname(files[0][0][1] or '') if files else ''
-            else:  # name
-                key = os.path.basename(files[0][0][1] or '') if files else ''
+                key = min((os.path.dirname(f[0][1]) for f in files if f[0][1]),
+                           default='')
+            elif mode == 'name':
+                key = min((os.path.basename(f[0][1]) for f in files if f[0][1]),
+                           default='')
+            elif mode == 'count':
+                key = -len(files)
+            else:  # mtime — più recente prima
+                key = -max((os.path.getmtime(f[0][1]) for f in files
+                            if f[0][1] and os.path.isfile(f[0][1])), default=0)
             group_list.append((key, hdr, files))
         group_list.sort(key=lambda x: x[0])
         # Ricostruisci listbox
@@ -4959,7 +4985,7 @@ class DuplicateFinder:
                  font=("TkFixedFont", 8), bg=BG_COLOR,
                  fg=MUTED_COLOR).grid(row=0, column=0, sticky="w", pady=(0,3))
 
-        folder_fr, get_folders = self._make_folder_list(top, multi=True)
+        folder_fr, get_folders, _add_row = self._make_folder_list(top, multi=True)
         folder_fr.grid(row=1, column=0, sticky="ew", pady=(2,4))
 
         # Opzioni modalità
@@ -5000,6 +5026,7 @@ class DuplicateFinder:
                                  prog_canvas, prog_bar,
                                  lb, clean_btn, row_paths, stop_btn))
         scan_btn.pack(side="left", padx=(6,4), pady=5, ipady=3)
+        result_lbl.pack(side="left", padx=10, pady=5)
 
     def _run_quick(self, get_folders, mode, scan_btn, result_lbl, status_lbl,
                    prog_canvas, prog_bar, lb, clean_btn, row_paths, stop_btn=None):
@@ -5395,7 +5422,9 @@ class DuplicateFinder:
         self._ab_result_lbl = tk.Label(bot, text="",
                                        font=("TkFixedFont", 9),
                                        bg=PANEL_COLOR, fg=MUTED_COLOR)
-        self._ab_result_lbl.pack(side="left", padx=10, pady=5)
+        # Non impacchettato qui: viene messo dopo "Confronta A vs B" più in
+        # basso, cosi' il bottone resta sempre alla stessa posizione a
+        # sinistra invece di scivolare a destra col testo del risultato.
 
         # Chiudi per primo → appare più a destra
         tk.Button(bot, text="Chiudi",
@@ -5441,6 +5470,7 @@ class DuplicateFinder:
                              command=lambda: self._run_ab_col(
                                  ab_mode_var.get(), scan_btn, stop_btn))
         scan_btn.pack(side="left", padx=(6,4), pady=5, ipady=3)
+        self._ab_result_lbl.pack(side="left", padx=10, pady=5)
 
     def _trash_selected_ab(self, lb, row_map, side_label):
         """Cestina in blocco i file attualmente selezionati in UNA sola
