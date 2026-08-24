@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.43.5"
+VERSION = "1.43.6"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -7114,8 +7114,15 @@ class FolderBrowser:
 
     def _toggle_tree_filter(self, attr, var):
         setattr(self, attr, var.get())
-        # Aggiorna solo i nodi già espansi senza ricostruire l'albero
+        # Aggiorna i nodi già espansi senza ricostruire l'albero...
         self._refresh_expanded_nodes()
+        # ...e la griglia/lista centrale della cartella corrente, che ha
+        # il proprio filtro separato (vedi _load_thumbnails): senza
+        # questa chiamata la spunta cambiava solo l'albero a sinistra,
+        # lasciando cartelle e file nascosti visibili al centro finché
+        # non si ricaricava la cartella in altro modo.
+        if self._current_folder:
+            self._load_thumbnails(self._current_folder)
 
     def _refresh_expanded_nodes(self):
         """Ricarica i figli di tutti i nodi già espansi mantenendo la struttura."""
@@ -8704,6 +8711,13 @@ class FolderBrowser:
         # Raccogli cartelle e immagini con scandir (1 syscall per entry)
         try:
             _entries = list(os.scandir(folder))
+            # Checkbox "Nascoste": qui mancava del tutto (a differenza
+            # dell'albero a sinistra, _populate_children, che gia' filtra
+            # con lo stesso _show_hidden) — cartelle e file puntini
+            # restavano sempre visibili nella griglia/lista centrale
+            # indipendentemente dalla spunta. Segnalato da Carlo.
+            if not getattr(self, "_show_hidden", False):
+                _entries = [e for e in _entries if not e.name.startswith(".")]
             dirs     = sorted([e.name for e in _entries if e.is_dir()],
                                key=lambda f: f.lower())
             mode     = getattr(self, '_sort_mode', 'name')
