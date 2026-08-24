@@ -1071,6 +1071,31 @@ CRONOLOGIA CONDENSATA (per orientarsi nei journal di sessione)
             funzione nuova) — il bump a 1.43.5 qui copre retroattivamente
             tutti e quattro i cambi di questa sessione su image_sorter.py,
             nessuno dei quattro pushato ancora a fine sessione.
+  v1.43.6   Bug segnalato da Carlo, stessa sessione: la spunta
+            "Nascoste" in Naviga sembrava agire solo sull'albero a
+            sinistra, lasciando cartelle e file puntini sempre
+            visibili nella griglia/lista centrale. Causa doppia: (1)
+            _toggle_tree_filter (handler della spunta) chiamava solo
+            _refresh_expanded_nodes(), che tocca esclusivamente
+            self.tree — non ricaricava mai la cartella corrente al
+            centro; (2) anche ricaricandola, _load_thumbnails (la
+            scansione della griglia/lista) non filtrava affatto i nomi
+            puntini, a differenza di _populate_children (albero) e
+            della ricerca, che gia' controllavano _show_hidden.
+            Servivano entrambi i fix insieme: solo il primo avrebbe
+            ricaricato una vista comunque non filtrata, solo il
+            secondo non si sarebbe mai visto senza un cambio cartella
+            manuale. PRINCIPIO: una funzione di visualizzazione con
+            PIU' viste indipendenti dello stesso dato (qui: albero e
+            griglia/lista centrale sono due scansioni separate della
+            stessa cartella) va controllata in OGNI vista quando si
+            aggiunge o si testa un filtro — un filtro implementato in
+            una sola vista sembra funzionare finche' non lo si guarda
+            dall'altra. Verificato con test funzionale via Xvfb in
+            cartella isolata con file e sottocartella sia normali che
+            puntini: contate le celle effettive nella griglia (non
+            solo l'elenco interno) prima/dopo la spunta, in entrambe
+            le direzioni ON->OFF e OFF->ON.
 
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
