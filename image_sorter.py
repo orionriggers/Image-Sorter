@@ -2610,6 +2610,14 @@ def make_crop_backup(filepath, config):
         ts        = datetime.datetime.now().strftime("%H%M%S")
         dest      = os.path.join(day_dir, f"{base}_{ts}{ext}")
         shutil.copy2(filepath, dest)
+        # copy2 preserva la mtime del file ORIGINALE (es. una vecchia
+        # foto/screenshot con data del 2024): senza questo reset,
+        # _backup_enforce_limit (che ordina per mtime per capire quali
+        # backup sono "più vecchi") vedrebbe questo backup appena creato
+        # come il più vecchio di tutti e lo cancellerebbe per primo,
+        # anche se il limite di spazio è di poco superato — annullamento
+        # impossibile subito dopo il ritaglio ("Backup non trovato").
+        os.utime(dest, None)
         _backup_enforce_limit(config)
         return dest
     except Exception:
