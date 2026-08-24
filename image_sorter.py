@@ -13610,7 +13610,12 @@ class CropOverlay:
         """Stato effettivo del magnete per questo trascinamento: quello
         della checkbox, invertito temporaneamente se Shift è premuto
         durante il drag (la checkbox stessa non viene toccata)."""
-        shift = bool(e.state & 0x0101)   # Shift: 0x0001 o 0x0100
+        # Solo 0x0001 (ShiftMask): qui NON va usato 0x0100 come altrove nel
+        # file, perché durante un trascinamento (<B1-Motion>) quel bit è
+        # Button1Mask (il tasto del mouse tenuto premuto), sempre acceso —
+        # userebbe "Shift" come sempre attivo, invertendo il magnete ad
+        # ogni drag indipendentemente da Shift.
+        shift = bool(e.state & 0x0001)
         return self._snap_var.get() != shift
 
     def _snap_axis(self, value, candidates, scale):
