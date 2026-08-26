@@ -25,7 +25,7 @@ AVVIO
 
 FILE DEL PROGRAMMA
 ------------------
-  image_sorter.py    programma principale           v1.45.0
+  image_sorter.py    programma principale           v1.45.1
   disk_analyzer.py   analisi utilizzo disco         v1.45.0
   timeline.py        timeline e mappa GPS           v1.45.0
   exif_editor.py     editor metadati EXIF           v1.45.0
@@ -1071,3 +1071,9 @@ reale:
     raggiunto la sua dimensione reale — un margine che su un sistema
     reale può non bastare. Aggiunti due tentativi più tardivi (500ms,
     1000ms), stesso margine già usato con successo in Naviga
+  - Piccola finestra grigia visibile un istante all'avvio, prima della
+    finestra principale vera: la finestra veniva resa visibile PRIMA
+    di costruire tutta l'interfaccia (canvas, sidebar...), mostrando
+    per una frazione di secondo una finestra vuota di dimensione
+    predefinita (200x200, grigia) — ora diventa visibile solo a
+    costruzione completata, come già avveniva per Naviga e Timeline

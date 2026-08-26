@@ -328,10 +328,18 @@ PARTE 7 — REGRESSIONI DALLA v1.44.0 SEGNALATE DA CARLO DOPO IL COMMIT
      reale. Da verificare con Carlo sul suo sistema.
 
   R. FINESTRA QUADRATA GRIGIA ALL'AVVIO (segnalata "da oggi")
-     Nessuna ipotesi solida trovata nel codice toccato in questa
-     sessione (ne' i debounce ne' la cache font ne' il salvataggio
-     ritardato creano finestre Tk all'avvio). Servono piu' dettagli da
-     Carlo: quando compare esattamente, per quanto tempo resta
-     visibile, se capita anche aprendo Naviga/Timeline da soli o solo
-     all'avvio del programma principale.
-     STATO: APERTO, in attesa di dettagli da Carlo.
+     ORA RISOLTO (v1.45.1): Carlo ha confermato che compare SOLO
+     all'avvio del programma principale (mai riaprendo Naviga/Timeline
+     su un'istanza gia' avviata), un lampo inferiore a mezzo secondo —
+     puntava a main(), non a FolderBrowser/DeepBrowser. Causa: in
+     main(), root.deiconify() veniva chiamato PRIMA di costruire
+     ImageSorter(root, ...), quindi la finestra principale diventava
+     visibile ancora VUOTA per tutto il tempo della costruzione.
+     Confermato con un test diretto: simulando la vecchia sequenza la
+     finestra risultava visibile a 200x200px (dimensione predefinita
+     di Tk, grigia) — esattamente il sintomo. Naviga/Timeline non ne
+     soffrivano perche' GIA' seguono il pattern corretto (withdraw in
+     apertura, deiconify solo a costruzione completata). Spostato
+     root.deiconify()/root.lift() dopo la costruzione riuscita di
+     ImageSorter. Verificato con test funzionale diretto.
+     STATO: RISOLTO.

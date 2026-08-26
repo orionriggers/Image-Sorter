@@ -1641,13 +1641,31 @@ CAUSA 2 (ipotesi, non confermata) E FIX: TIMELINE, DIVISORE ANTEPRIMA
   principled (stessa tecnica gia' provata altrove) ma NON verificato
   end-to-end sul sintomo reale — da confermare con Carlo.
 
-CAUSA 3: FINESTRA GRIGIA ALL'AVVIO — NON INDAGATA A FONDO
-  Nessuna ipotesi solida trovata nel codice toccato in questa sessione
-  (ne' deck_core.py ne' metadata_store.py ne' i debounce aggiunti
-  creano finestre Tk all'avvio). Segnalato a Carlo che servono piu'
-  dettagli (quando esattamente compare, quanto dura, se capita anche
-  aprendo Naviga/Timeline da soli) prima di continuare a cercare alla
-  cieca. STATO: APERTO, in attesa di dettagli.
+CAUSA 3: FINESTRA GRIGIA ALL'AVVIO — TROVATA E RISOLTA (v1.45.1)
+  Chiesto a Carlo dove/quanto compare: solo all'avvio del programma
+  principale (mai aprendo Naviga/Timeline da un'istanza gia' avviata),
+  un lampo inferiore a mezzo secondo — indizio decisivo, puntava dritto
+  a main() invece che a codice dentro FolderBrowser/DeepBrowser.
+  CAUSA: in main(), root.deiconify() veniva chiamato PRIMA di costruire
+  ImageSorter(root, source, start_file) — quindi la finestra principale
+  diventava visibile ancora VUOTA (nessun canvas, sidebar, toolbar: non
+  ancora costruiti) per tutto il tempo che quella costruzione richiede.
+  Confermato con un test diretto: simulando la vecchia sequenza, la
+  finestra risultava visibile a 200x200px (dimensione predefinita di
+  Tk) — esattamente la "piccola finestra quadrata grigia" descritta.
+  Naviga e Timeline non ne soffrono perche' GIA' seguono il pattern
+  corretto (win.withdraw() in apertura, deiconify() solo a fine
+  costruzione) — solo la finestra principale non lo seguiva.
+  FIX: root.deiconify()/root.lift() spostati DOPO la costruzione
+  riuscita di ImageSorter (dentro il blocco try, subito dopo
+  "sorter = ImageSorter(...)"). Se la costruzione fallisce, root resta
+  nascosta e compare solo la finestra di errore (anche quella prima
+  compariva a fianco di una finestra principale vuota, senza motivo).
+  Verificato con test funzionale diretto: la finestra non e' "viewable"
+  subito dopo la costruzione se il chiamante non ha ancora chiamato
+  deiconify() esplicitamente, e il canvas ha gia' dimensioni reali
+  (non 1x1) nel momento in cui la finestra diventa visibile.
+  STATO: RISOLTO.
 
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE

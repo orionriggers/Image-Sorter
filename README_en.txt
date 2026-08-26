@@ -24,7 +24,7 @@ LAUNCH
 
 PROGRAM FILES
 -------------
-  image_sorter.py    main program                   v1.45.0
+  image_sorter.py    main program                   v1.45.1
   disk_analyzer.py   disk usage analyzer            v1.45.0
   timeline.py        timeline and GPS map           v1.45.0
   exif_editor.py     EXIF metadata editor           v1.45.0
@@ -917,3 +917,9 @@ row), reported right away by Carlo after real-world use:
     real size - a margin that can fall short on a real system. Added
     two later attempts (500ms, 1000ms), the same margin already used
     successfully in the Browser
+  - Small gray window briefly visible at startup, before the real main
+    window: the window was made visible BEFORE the whole interface
+    (canvas, sidebar...) was built, showing an empty default-sized
+    window (200x200, gray) for a fraction of a second - now it only
+    becomes visible once fully built, as the Browser and Timeline
+    already did

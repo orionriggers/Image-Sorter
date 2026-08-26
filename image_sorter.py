@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.45.0"
+VERSION = "1.45.1"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -26679,8 +26679,16 @@ def main():
     except Exception:
         pass
 
-    root.deiconify()
-    root.lift()
+    # NOTA: root.deiconify() NON va qui (prima costruiva ImageSorter()
+    # veniva chiamato) — cosi' facendo la finestra principale, ancora
+    # vuota (ImageSorter.__init__/_build_ui non hanno ancora costruito
+    # nulla), diventava visibile per tutto il tempo che quella
+    # costruzione richiede: un lampo di finestra piccola e grigia prima
+    # che compaia quella vera, segnalato da Carlo. deiconify() e' stato
+    # spostato subito dopo la costruzione riuscita di ImageSorter (o
+    # non chiamato affatto se fallisce, lasciando solo la finestra di
+    # errore sotto — anche quella non aveva motivo di comparire a
+    # fianco di una finestra principale vuota).
 
     # Completa con tutte le dimensioni in background
     def _load_icons_bg():
@@ -26714,6 +26722,8 @@ def main():
             open_browser_path = sys.argv[2] if os.path.isdir(sys.argv[2]) else None
 
         sorter = ImageSorter(root, source or None, start_file=start_file)
+        root.deiconify()
+        root.lift()
         if open_browser_path and sorter:
             root.after(600, lambda: sorter._open_browser_to(open_browser_path))
     except Exception:
