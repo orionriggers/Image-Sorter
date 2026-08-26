@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.45.1"
+VERSION = "1.45.2"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -25446,10 +25446,21 @@ class ImageSorter:
         inner = tk.Frame(canvas, bg=PANEL_COLOR)
         inner_id = canvas.create_window((0,0), window=inner, anchor="nw")
 
+        def _update_scrollregion(event=None):
+            # scrollregion mai piu' bassa dell'altezza visibile del canvas,
+            # altrimenti Tkinter permette comunque lo scroll e stacca le
+            # miniature dall'alto lasciando spazio vuoto sopra la prima.
+            bbox = canvas.bbox("all")
+            if not bbox:
+                return
+            x1, y1, x2, y2 = bbox
+            y2 = max(y2, canvas.winfo_height())
+            canvas.configure(scrollregion=(x1, y1, x2, y2))
+
         canvas.bind("<Configure>",
-                    lambda e: canvas.itemconfig(inner_id, width=e.width))
-        inner.bind("<Configure>",
-                   lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+                    lambda e: (canvas.itemconfig(inner_id, width=e.width),
+                               _update_scrollregion()))
+        inner.bind("<Configure>", _update_scrollregion)
         canvas.bind("<Button-4>",      lambda e: canvas.yview_scroll(-1, "units"))
         canvas.bind("<Button-5>",      lambda e: canvas.yview_scroll(1,  "units"))
         canvas.bind("<MouseWheel>",    lambda e: canvas.yview_scroll(
