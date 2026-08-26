@@ -37,8 +37,9 @@ import os
 import json
 import threading
 import time
+import atexit
 
-VERSION = "1.3.1"
+VERSION = "1.3.2"
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -198,9 +199,74 @@ def _is_default(entry):
     return entry["rating"] == 0 and not entry["colors"] and not entry["tags"]
 
 
+_save_timer   = None    # debounce: vedi _save()
+_save_dirty   = False   # True fra una modifica e la scrittura reale
+_SAVE_DEBOUNCE_S = 1.0
+
 def _save():
-    """Scrive _cache su disco, in modo atomico. Le entry tornate al default
-    vengono escluse (vedi nota nel docstring del modulo)."""
+    """Segna la cache come "da salvare" e programma la scrittura reale
+    dopo un breve debounce, invece di riscrivere subito l'intero file
+    JSON ad ogni singola chiamata.
+
+    set_rating/toggle_color/add_tag/ecc. chiamano tutte questa funzione
+    a ogni singolo click — con una libreria grande (migliaia di file
+    mai valutati) ogni riscrittura completa introduceva un micro-freeze
+    di UI proporzionale alla dimensione del file, non al singolo
+    cambiamento: valutare 50 foto di fila in Naviga generava 50
+    riscritture complete. Il debounce raggruppa una sequenza ravvicinata
+    di modifiche in una sola scrittura, senza perdere nulla: ogni
+    chiamata RIPROGRAMMA (cancella e ricrea) il timer, quindi anche
+    l'ultima modifica di una sequenza viene comunque scritta
+    _SAVE_DEBOUNCE_S secondi dopo che l'attivita' si ferma. flush_pending()
+    (chiamata anche automaticamente alla chiusura del programma, vedi
+    atexit piu' sotto) forza subito la scrittura se ce n'e' una in
+    sospeso, cosi' un salvataggio in coda non si perde mai per davvero."""
+    global _save_timer, _save_dirty
+    _save_dirty = True
+    if _save_timer is not None:
+        _save_timer.cancel()
+    _save_timer = threading.Timer(_SAVE_DEBOUNCE_S, _debounced_flush)
+    _save_timer.daemon = True
+    _save_timer.start()
+
+
+def _debounced_flush():
+    """Chiamata dal timer di debounce (thread separato): riacquisisce
+    _lock (rilasciato da tempo dal chiamante originale di _save()) prima
+    di scrivere davvero."""
+    with _lock:
+        _write_now()
+
+
+def flush_pending():
+    """Forza SUBITO la scrittura su disco se c'e' un salvataggio in
+    sospeso, annullando il debounce residuo — usata alla chiusura del
+    programma (vedi atexit qui sotto) cosi' l'ultima modifica entro la
+    finestra di debounce non va mai persa. Innocua se non c'e' nulla
+    da salvare (_write_now controlla _save_dirty)."""
+    global _save_timer
+    if _save_timer is not None:
+        try:
+            _save_timer.cancel()
+        except Exception:
+            pass
+        _save_timer = None
+    with _lock:
+        _write_now()
+
+
+atexit.register(flush_pending)
+
+
+def _write_now():
+    """Scrive _cache su disco, in modo atomico. Le entry tornate al
+    default vengono escluse (vedi nota nel docstring del modulo). Va
+    chiamata SEMPRE sotto _lock (da _debounced_flush o flush_pending),
+    mai direttamente — vedi _save() per la richiesta di scrittura."""
+    global _save_timer, _save_dirty
+    _save_timer = None
+    if not _save_dirty:
+        return
     if _cache is None:
         return
     try:
@@ -219,6 +285,7 @@ def _save():
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2, ensure_ascii=False)
         os.replace(tmp_path, METADATA_FILE)
+        _save_dirty = False
     except Exception:
         try:
             if os.path.isfile(tmp_path):

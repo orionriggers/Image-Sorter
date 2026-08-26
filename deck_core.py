@@ -29,7 +29,7 @@
 # VERSION = "1.36.9" — allineata a image_sorter.py al momento
 # dell'estrazione; da qui in poi le due versioni possono divergere sul
 # terzo numero se si corregge solo uno dei due file.
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
 import os
 import sys
@@ -41,6 +41,29 @@ import subprocess
 import traceback
 
 from PIL import Image, ImageDraw, ImageFont
+
+# Cache dei font TrueType: _make_key_image()/_render_rating_color_key()
+# li ricaricavano da disco (ImageFont.truetype, che apre e fa il parse
+# del file .ttf) a OGNI singola immagine tasto generata — quindi ad
+# ogni pressione fisica in modalita' preset (_flash_key_sd) e per
+# TUTTI i tasti ad ogni refresh_all() (cambio pagina/modalita'). Con
+# poche decine di tasti al minuto durante uno smistamento normale
+# erano altrettante letture/parse di file ripetute per nulla, visto
+# che il font non cambia mai a runtime. Cache per (path, size),
+# popolata al primo uso — il fallback a load_default() resta
+# identico, solo cachato anche lui per non ritentare l'apertura del
+# file ad ogni chiamata su sistemi dove quel percorso non esiste.
+_FONT_CACHE = {}
+def _get_font(path, size):
+    key = (path, size)
+    font = _FONT_CACHE.get(key)
+    if font is None:
+        try:
+            font = ImageFont.truetype(path, size)
+        except Exception:
+            font = ImageFont.load_default()
+        _FONT_CACHE[key] = font
+    return font
 
 # --- PERCORSI ------------------------------------------------------------
 # Duplicati (non importati) da image_sorter.py apposta: questo modulo
@@ -705,13 +728,10 @@ class StreamDeckManager:
         img  = Image.new("RGB", (key_w, key_h), BG)
         draw = ImageDraw.Draw(img)
 
-        # Font
-        try:
-            font_lg = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
-            font_sm = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 11)
-            font_xs = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 9)
-        except Exception:
-            font_lg = font_sm = font_xs = ImageFont.load_default()
+        # Font (cache: vedi _get_font in testa al file)
+        font_lg = _get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
+        font_sm = _get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 11)
+        font_xs = _get_font("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 9)
 
         def ctext(text, font, y, color):
             try:
@@ -969,11 +989,8 @@ class StreamDeckManager:
                 draw.ellipse(box, fill=None, outline=rgb, width=3)
 
         if label:
-            try:
-                font = ImageFont.truetype(
-                    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 12)
-            except Exception:
-                font = ImageFont.load_default()
+            font = _get_font(
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 12)
             bbox = draw.textbbox((0, 0), label, font=font)
             tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
             draw.text((cx - tw // 2, h - th - 6), label,

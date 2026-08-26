@@ -1,8 +1,8 @@
-IMAGE SORTER v1.43
+IMAGE SORTER v1.44
 ==================
 Un programma per gestire, visualizzare e smistare immagini, video e PDF.
 
-Versione        : 1.43
+Versione        : 1.44
 Linguaggio      : Python 3.8+
 Interfaccia     : tkinter + Pillow
 Piattaforma     : Linux (testato su Linux Mint / Ubuntu)
@@ -25,11 +25,11 @@ AVVIO
 
 FILE DEL PROGRAMMA
 ------------------
-  image_sorter.py    programma principale           v1.43.3
-  disk_analyzer.py   analisi utilizzo disco         v1.43.0
-  timeline.py        timeline e mappa GPS           v1.43.0
-  exif_editor.py     editor metadati EXIF           v1.43.0
-  translations.py    stringhe IT/EN                 v1.43.0
+  image_sorter.py    programma principale           v1.44.0
+  disk_analyzer.py   analisi utilizzo disco         v1.44.0
+  timeline.py        timeline e mappa GPS           v1.44.0
+  exif_editor.py     editor metadati EXIF           v1.44.0
+  translations.py    stringhe IT/EN                 v1.44.0
   installa.sh        script di installazione        v1.36.1
 
 TASTI RAPIDI PRINCIPALI
@@ -986,3 +986,70 @@ CORREZIONI VARIE (selezione, non esaustiva - vedi journal_generale.txt)
   - Rating/colore assegnati dal tasto destro in Timeline che a volte
     non risultavano salvati (bug di doppio import di metadata_store,
     gia' capitato e ricorretto una volta in un altro punto)
+
+NOVITÀ v1.43 → v1.44
+--------------------
+CORREZIONI DI RIDISEGNO IN NAVIGA
+  - Eliminato il lampeggio/salto che comparivano cliccando una cartella
+    nella griglia (la cartella cliccata e quelle successive, incluse le
+    righe stelle/colorlabel dei file sotto): causato da un contenitore
+    interno privo di grid_propagate(False), che faceva ricalcolare a Tk
+    la propria geometria (con un valore transitorio sbagliato) ad ogni
+    minima riconfigurazione di una cella cartella
+  - Eliminato il doppio caricamento della cartella navigando con
+    "cartella precedente" (bottone Indietro o cella ".."), e dopo
+    spostare/cestinare una cartella: alcuni punti caricavano le
+    miniature due volte di seguito (una diretta, una via debounce)
+  - Eliminato il salto del divisore fra colonna miniature e colonna
+    anteprima (e fra albero e miniature) visibile per un istante
+    all'apertura della finestra Naviga, prima che le miniature
+    finissero di caricarsi
+
+NAVIGA: PRESET SEMPRE VISIBILE
+  - La riga con le destinazioni del preset attivo (fino a 10, tasti
+    0-9) resta ora sempre visibile sotto la griglia, anche senza alcun
+    file selezionato — prima spariva del tutto, lasciando una riga
+    vuota con la spunta "Preset" attiva. Senza selezione i bottoni
+    restano presenti ma "spenti" (disabilitati); tornano attivi non
+    appena selezioni un file. Stesso comportamento anche in Timeline
+
+NAVIGA: TASTI PAGINA SU/GIÙ E HOME/FINE
+  - Nella griglia miniature di Naviga, oltre alle frecce singole ora
+    funzionano anche Pagina Su/Giù (salto di una schermata di righe) e
+    Home/Fine (primo/ultimo file) — mancavano del tutto
+
+NAVIGA: TAGLIA/COPIA/INCOLLA COME UN VERO FILE MANAGER
+  - Incollare una copia nella STESSA cartella di origine crea ora un
+    nuovo file con un nome diverso (es. "foto_1.jpg"), come in
+    Nemo/Nautilus/Esplora risorse — prima tentava di copiare il file
+    su se stesso, senza alcun effetto visibile
+  - Tagliare e incollare nella stessa cartella di origine non fa più
+    nulla (il file è già lì), invece di un tentativo di spostamento a
+    vuoto
+  - Corretto un crash (AttributeError) nel dialogo "File già esistente"
+    (Rinomina/Sovrascrivi/Salta/Annulla) quando incollando o spostando
+    in una cartella DIVERSA c'è una vera collisione di nome — mancava
+    l'inoltro di quel dialogo dal browser alla finestra principale
+
+NAVIGA: COLORE CARTELLA NEL MENU TASTO DESTRO
+  - I 5 colori assegnabili a una cartella sono ora su un'unica riga di
+    QUADRATI (non più pallini con etichetta testuale su più righe) —
+    per non confondersi a colpo d'occhio con i pallini tondi delle
+    colorlabel dei file
+
+USO DI CPU E RISORSE — DEBUG APPROFONDITO
+  - Deck fisico: i font venivano ricaricati da disco a ogni singolo
+    tasto disegnato (ogni pressione, ogni cambio pagina) — ora in
+    cache, letti una sola volta
+  - Navigazione principale: tenendo premuta una freccia (o scorrendo
+    veloce con la rotella) partiva un thread di decodifica completo
+    per OGNI passaggio, anche se solo l'ultimo veniva mostrato — ora
+    un breve raggruppamento (50ms, impercettibile su un singolo scatto)
+    evita le decodifiche sprecate
+  - Timeline: il caricamento di una pagina di miniature apriva fino a
+    120 thread insieme (uno per foto) — ora un massimo di 6 thread
+    condivisi, senza rallentare il caricamento
+  - Rating/colorlabel/tag: ogni singola modifica riscriveva subito
+    l'intero file su disco — ora le modifiche ravvicinate vengono
+    raggruppate in un solo salvataggio (comunque mai perso, anche
+    chiudendo il programma subito dopo una modifica)

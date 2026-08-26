@@ -1,8 +1,8 @@
-IMAGE SORTER v1.43
+IMAGE SORTER v1.44
 ==================
 A program to manage, view, and sort images, videos, and PDFs.
 
-Version         : 1.43
+Version         : 1.44
 Language        : Python 3.8+
 Interface       : tkinter + Pillow
 Platform        : Linux (tested on Linux Mint / Ubuntu)
@@ -24,11 +24,11 @@ LAUNCH
 
 PROGRAM FILES
 -------------
-  image_sorter.py    main program                   v1.43.3
-  disk_analyzer.py   disk usage analyzer            v1.43.0
-  timeline.py        timeline and GPS map           v1.43.0
-  exif_editor.py     EXIF metadata editor           v1.43.0
-  translations.py    IT/EN strings                  v1.43.0
+  image_sorter.py    main program                   v1.44.0
+  disk_analyzer.py   disk usage analyzer            v1.44.0
+  timeline.py        timeline and GPS map           v1.44.0
+  exif_editor.py     EXIF metadata editor           v1.44.0
+  translations.py    IT/EN strings                  v1.44.0
   installa.sh        installation script            v1.36.1
 
 MAIN SHORTCUTS
@@ -839,3 +839,66 @@ VARIOUS FIXES (a selection, not exhaustive - see journal_generale.txt)
   - Rating/color set from the Timeline right-click menu sometimes
     didn't appear saved (a metadata_store double-import bug, already
     hit and fixed once before in another spot)
+
+WHAT'S NEW v1.43 -> v1.44
+-------------------------
+BROWSER REDRAW FIXES
+  - Fixed the flash/jump that happened when clicking a folder in the
+    grid (the clicked folder and the ones after it, including the
+    file star/colorlabel rows below): caused by an inner container
+    missing grid_propagate(False), which made Tk recompute its own
+    geometry (with a wrong transient value) on every minor
+    reconfiguration of a folder cell
+  - Fixed the double load when navigating with "previous folder" (Back
+    button or the ".." cell), and after moving/trashing a folder: some
+    spots loaded the thumbnails twice in a row (one direct call, one
+    via debounce)
+  - Fixed the divider jump between the thumbnail column and the
+    preview column (and between the tree and thumbnails) visible for
+    an instant when opening the Browse window, before the thumbnails
+    finished loading
+
+BROWSER: PRESET ROW ALWAYS VISIBLE
+  - The row with the active preset's destinations (up to 10, keys 0-9)
+    now stays visible under the grid even with no file selected -
+    before it disappeared entirely, leaving an empty row with the
+    "Preset" checkbox on. With no selection the buttons stay present
+    but "off" (disabled); they turn active again as soon as you select
+    a file. Same behavior in Timeline
+
+BROWSER: PAGE UP/DOWN AND HOME/END KEYS
+  - In the browser's thumbnail grid, besides the single arrow keys,
+    Page Up/Down (jump one screenful of rows) and Home/End (first/last
+    file) now work - they were completely missing
+
+BROWSER: CUT/COPY/PASTE LIKE A REAL FILE MANAGER
+  - Pasting a copy into the SAME source folder now creates a new file
+    with a different name (e.g. "photo_1.jpg"), like in
+    Nemo/Nautilus/Explorer - before it tried to copy the file onto
+    itself, with no visible effect
+  - Cutting and pasting into the same source folder now does nothing
+    (the file is already there), instead of an empty move attempt
+  - Fixed a crash (AttributeError) in the "File already exists" dialog
+    (Rename/Overwrite/Skip/Cancel) when pasting or moving into a
+    DIFFERENT folder with a genuine name collision - the delegation of
+    that dialog from the browser to the main window was missing
+
+BROWSER: FOLDER COLOR IN THE RIGHT-CLICK MENU
+  - The 5 assignable folder colors are now on a single row of SQUARES
+    (no longer round dots with a text label across several rows) - so
+    they're not confused at a glance with the round file colorlabel
+    dots
+
+CPU AND RESOURCE USAGE — THOROUGH DEBUG PASS
+  - Physical deck: fonts were reloaded from disk for every single key
+    rendered (every press, every page change) - now cached, read once
+  - Main navigation: holding down an arrow key (or scrolling fast)
+    started a full decode thread for EVERY step, even though only the
+    last one ever got shown - a short debounce (50ms, imperceptible on
+    a single step) now avoids the wasted decodes
+  - Timeline: loading a page of thumbnails opened up to 120 threads at
+    once (one per photo) - now capped at 6 shared threads, with no
+    slowdown in loading
+  - Rating/colorlabel/tags: every single change rewrote the entire file
+    to disk right away - nearby changes are now batched into one save
+    (still never lost, even closing the program right after a change)

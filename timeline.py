@@ -1,11 +1,12 @@
 # timeline.py — Timeline, mappa GPS, scansione ricorsiva
-VERSION = "1.43.0"
+VERSION = "1.44.0"
 # Visualizzazione profonda: scansione ricorsiva, timeline per data/luogo, mappa GPS
 # Dipendenze: reverse_geocode, folium (pip install reverse-geocode folium)
 
 import os, sys, threading, datetime, tempfile, webbrowser, subprocess
 import shutil
 import html as _html
+import concurrent.futures
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk, ExifTags, ImageOps
@@ -573,6 +574,24 @@ def make_thumb(path, w=THUMB_W, h=THUMB_H):
     except Exception:
         return None
 
+_THUMB_EXECUTOR = None
+def _get_thumb_executor():
+    """Pool di thread CONDIVISO fra tutte le finestre Timeline per il
+    caricamento delle miniature (_add_thumb_cell) — prima ogni cella
+    apriva un threading.Thread proprio, fino a PAGE_SIZE (120) thread
+    del sistema operativo avviati insieme ad ogni pagina caricata o
+    scrollata: overhead di creazione thread e contesa GIL sprecati
+    invece di limitare il parallelismo reale, specialmente pesante con
+    cartelle da migliaia di foto. Un pool piccolo e fisso, non uno per
+    finestra: anche con piu' Timeline aperte insieme il numero totale
+    di decodifiche concorrenti resta limitato."""
+    global _THUMB_EXECUTOR
+    if _THUMB_EXECUTOR is None:
+        _THUMB_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+            max_workers=6, thread_name_prefix="timeline-thumb")
+    return _THUMB_EXECUTOR
+
+
 # ── Finestra principale DeepBrowser ──────────────────────────────────────────
 class DeepBrowser:
     """Visualizzazione profonda — timeline, mappa GPS, lazy loading."""
@@ -662,6 +681,10 @@ class DeepBrowser:
         self.win = win
 
         self._build()
+        # Mostra subito la riga del preset attivo (spenta, nessuna
+        # selezione ancora) invece di lasciarla nascosta finche' non si
+        # seleziona un file — richiesto da Carlo, coerente con Naviga.
+        self._update_sel_bar()
 
         win.update_idletasks()
         sw = win.winfo_screenwidth()
@@ -1884,7 +1907,7 @@ class DeepBrowser:
                                    width=1, tags="fmt_dot")
 
             self.win.after(0, _show)
-        threading.Thread(target=_load, daemon=True).start()
+        _get_thumb_executor().submit(_load)
 
         # Binding GPS sul canvas — apre mappa singola foto
         if item.get("gps"):
@@ -2457,40 +2480,46 @@ class DeepBrowser:
         self._update_preview_pane()
 
     def _update_sel_bar(self):
-        """Aggiorna la barra destinazioni in fondo e la nuvola di tag."""
+        """Aggiorna la barra destinazioni in fondo e la nuvola di tag.
+
+        Le destinazioni del preset ATTIVO (quello impostato in cima in
+        Impostazioni) restano ora SEMPRE visibili, anche senza alcuna
+        selezione — solo "spente" (state=disabled) in quel caso, invece
+        di far collassare l'intera riga come prima: richiesto da Carlo,
+        coerente con lo stesso cambiamento in Naviga (vedi
+        FolderBrowser._build_sel_bar/_refresh_sel_bar_enabled in
+        image_sorter.py)."""
         if not hasattr(self,"_sort_bar") or not self.sorter: return
         show_preset = (getattr(self, "_show_preset_row_var", None) is None
                        or self._show_preset_row_var.get())
+        for w in self._sort_bar.winfo_children():
+            w.destroy()
         if not show_preset:
-            for w in self._sort_bar.winfo_children():
-                w.destroy()
             self._sort_bar.grid_remove()
         else:
             n = len(self._selected)
-            for w in self._sort_bar.winfo_children():
-                w.destroy()
-            if n == 0:
-                self._sort_bar.grid_remove()
-            else:
-                self._sort_bar.grid()
-                tk.Label(self._sort_bar, text=f"  {n} selezionati  ",
-                         font=("TkFixedFont",9,"bold"),
-                         bg=PANEL_COLOR, fg=SUCCESS).pack(side="left", padx=4)
-                preset_name = self.sorter.config.get("active_preset","")
-                slots = self.sorter.config["presets"].get(preset_name, {})
-                for k in KEYS:
-                    slot = slots.get(k, {})
-                    dest = slot.get("path","").strip()
-                    if not dest: continue
-                    lbl   = slot.get("label", k) or k
-                    short = lbl[:8] + "." if len(lbl)>8 else lbl
-                    col   = KEY_COLORS[KEYS.index(k)]
-                    tk.Button(self._sort_bar, text=f"{k} {short}",
-                              font=("TkFixedFont",8,"bold"),
-                              bg=col, fg="white", relief="flat", padx=5,
-                              activebackground=HIGHLIGHT,
-                              command=lambda d=dest: self._move_selected_to(d)
-                              ).pack(side="left", padx=2, pady=3, ipady=2)
+            self._sort_bar.grid()
+            tk.Label(self._sort_bar, text=f"  {n} selezionati  ",
+                     font=("TkFixedFont",9,"bold"),
+                     bg=PANEL_COLOR, fg=SUCCESS).pack(side="left", padx=4)
+            preset_name = self.sorter.config.get("active_preset","")
+            slots = self.sorter.config["presets"].get(preset_name, {})
+            state = "normal" if n > 0 else "disabled"
+            for k in KEYS:
+                slot = slots.get(k, {})
+                dest = slot.get("path","").strip()
+                if not dest: continue
+                lbl   = slot.get("label", k) or k
+                short = lbl[:8] + "." if len(lbl)>8 else lbl
+                col   = KEY_COLORS[KEYS.index(k)]
+                tk.Button(self._sort_bar, text=f"{k} {short}",
+                          font=("TkFixedFont",8,"bold"),
+                          bg=col, fg="white", relief="flat", padx=5,
+                          activebackground=HIGHLIGHT,
+                          disabledforeground=MUTED_COLOR,
+                          state=state,
+                          command=lambda d=dest: self._move_selected_to(d)
+                          ).pack(side="left", padx=2, pady=3, ipady=2)
         self._build_tag_row()
 
     def _build_tag_row(self):

@@ -1,7 +1,8 @@
 ===========================================================================
 PUNTI APERTI — Image Sorter
-Verificato contro il codice in data 2026-08-22, versione core v1.42.0.
-Sostituisce e aggiorna: last journals/report_punti_aperti_v2.txt (v1.30.12).
+Verificato contro il codice in data 2026-08-26, versione core v1.44.0.
+Aggiornato rispetto alla verifica precedente (2026-08-22, v1.42.0): vedi
+PARTE 6 in fondo per il debug/ottimizzazione di questa sessione.
 Verifica fatta leggendo direttamente il codice (grep + lettura mirata),
 non per memoria di sessioni precedenti.
 ===========================================================================
@@ -75,9 +76,18 @@ PARTE 3 — BACKLOG FUNZIONALITÀ
      questa soluzione: "DA CHIUDERE" → chiuso).
 
   E. ThreadPoolExecutor PER LE MINIATURE DI TIMELINE
-     Confermato invariato: timeline.py usa ancora 6 threading.Thread
-     liberi, nessun ThreadPoolExecutor.
-     STATO: APERTO, invariato. Rilevante solo su cartelle molto grandi.
+     ORA RISOLTO (sessione 26/08): il vecchio report sottostimava il
+     problema ("6 thread liberi") — in realta' _add_thumb_cell() apriva
+     un threading.Thread PROPRIO per OGNI cella miniatura, quindi fino
+     a PAGE_SIZE (120) thread del sistema operativo avviati insieme ad
+     ogni pagina caricata o scrollata. Aggiunta _get_thumb_executor()
+     (timeline.py): un concurrent.futures.ThreadPoolExecutor condiviso
+     fra tutte le finestre Timeline, max_workers=6 — _add_thumb_cell ora
+     sottomette il lavoro al pool invece di creare un thread ad-hoc.
+     Verificato con un test funzionale (40 foto, una cartella scansionata
+     davvero): mai piu' di 6 thread del pool attivi insieme, tutte le
+     miniature si caricano correttamente.
+     STATO: RISOLTO.
 
   F. SEPARAZIONE GUI/LOGICA (SorterEngine)
      Nessuna classe SorterEngine trovata.
@@ -185,3 +195,103 @@ PARTE 5 — DEBITO DI DOCUMENTAZIONE E VERSIONING
   last journals/journal_generale41.txt) e aggiornato a v1.42.0 con bump
   coordinato dei 5 file core. Vedi journal_generale.txt per i dettagli
   architetturali e la cronologia condensata.
+
+
+===========================================================================
+PARTE 6 — DEBUG/OTTIMIZZAZIONE RICHIESTA DA CARLO (sessione 26/08, v1.44.0)
+===========================================================================
+
+Analisi mirata su gestione risorse CPU/memoria in tutto il software
+(image_sorter.py, deck_core.py, deck_daemon.py, timeline.py,
+disk_analyzer.py, exif_editor.py, metadata_store.py), fatta con tre
+analisi in parallelo su aree distinte del codice. Risolti i punti a
+rischio basso/medio con test funzionali diretti; documentati sotto
+quelli lasciati aperti perche' piu' delicati o non verificabili senza
+hardware/scenario reale.
+
+RISOLTI IN QUESTA SESSIONE:
+
+  J. FONT DEL DECK FISICO RICARICATI DA DISCO AD OGNI TASTO
+     deck_core.py: _make_key_image() (modalita' preset) e
+     _render_rating_color_key() chiamavano ImageFont.truetype() da zero
+     ad ogni singola immagine tasto generata — quindi ad ogni pressione
+     fisica (_flash_key_sd) e per TUTTI i tasti ad ogni refresh_all()
+     (cambio pagina/modalita', fino a 45 letture file in un colpo su un
+     deck a 15 tasti). Aggiunta _get_font(path, size): cache a livello
+     di modulo, popolata al primo uso, stesso fallback a
+     load_default() di prima. Verificato con test diretto (stessa
+     chiamata due volte -> stesso oggetto Font, nessuna rilettura).
+     STATO: RISOLTO.
+
+  K. THREAD DI DECODIFICA NON LIMITATI NELLA NAVIGAZIONE PRINCIPALE
+     image_sorter.py: _show_image() avviava SUBITO un thread di
+     decodifica completo (lettura file, EXIF, rotazione) ad ogni
+     singola chiamata — tenendo premuta una freccia di navigazione o
+     scorrendo veloce con la rotella si accumulavano N thread
+     concorrenti, di cui solo l'ultimo veniva davvero usato (il token
+     _load_generation scarta gli altri MA dopo che hanno gia' consumato
+     CPU/IO per niente). Aggiunto un debounce di 50ms prima di avviare
+     il thread (non dell'intera _show_image: placeholder e
+     aggiornamento di Confronta restano immediati). Verificato con test
+     diretto: 8 avanzamenti rapidi (10ms l'uno dall'altro) producevano
+     8 thread PRIMA del fix, 1 solo DOPO; una singola richiesta isolata
+     continua ad avviare comunque il suo thread (nessun ritardo
+     percepibile sulla navigazione normale).
+     STATO: RISOLTO.
+
+  L. SALVATAGGIO metadata_store SINCRONO AD OGNI SINGOLA MODIFICA
+     metadata_store.py: set_rating/toggle_color/add_tag/ecc. chiamavano
+     tutte _save(), che riscriveva l'INTERO file JSON per intero, in
+     modo sincrono, ad ogni singolo click — valutare 50 foto di fila in
+     Naviga generava 50 riscritture complete (costo proporzionale alla
+     dimensione della libreria, non al singolo cambiamento). _save() ora
+     programma un debounce di 1s (threading.Timer, rischedulato ad ogni
+     nuova modifica) prima di scrivere davvero; flush_pending() forza
+     la scrittura immediata ed e' registrata anche con atexit, cosi'
+     l'ultima modifica entro la finestra di debounce non si perde mai
+     alla chiusura del programma (verificato con un sotto-processo
+     reale: modifica + uscita immediata, senza aspettare ne' chiamare
+     flush_pending esplicitamente — il file risulta comunque scritto
+     correttamente grazie al solo hook atexit). Verificato anche che 20
+     modifiche ravvicinate producano UNA sola scrittura, con tutti i 20
+     valori corretti nel file finale.
+     STATO: RISOLTO.
+
+APERTI, VALUTATI MA NON MODIFICATI (rischio o incertezza piu' alti):
+
+  M. deck_core.py refresh_all() RIDISEGNA SEMPRE TUTTI I TASTI
+     Nessun controllo "salta se il contenuto e' identico a quanto gia'
+     mostrato": ogni refresh_all() ridisegna, converte in JPEG e
+     trasferisce via USB OGNI tasto, anche tornando su una pagina gia'
+     vista. Servirebbe una cache dell'ultimo JPEG per indice tasto + una
+     firma di cosa lo ha generato (preset attivo, etichetta, colore,
+     percorso immagine...) — non banale da definire con certezza senza
+     rischiare di "dimenticare" un ridisegno dovuto, quindi non tentato
+     in questa sessione.
+     STATO: APERTO, bassa/media priorita'.
+
+  N. deck_core.py: PERCORSO FONT HARD-CODED (solo Debian/Ubuntu)
+     "/usr/share/fonts/truetype/dejavu/..." non esiste su tutte le
+     distro (es. Fedora usa un prefisso diverso): il fallback silenzioso
+     a load_default() (bitmap minuscolo) diventa attivo su OGNI render
+     su quei sistemi, senza alcun avviso. Soluzione suggerita:
+     impacchettare un font in sorter_icons/ o deck_icons/ cosi' e'
+     garantito presente a prescindere dalla distro.
+     STATO: APERTO, bassa priorita'.
+
+  O. FLASH RICORRENTE SULLE CARTELLE DI NAVIGA (segnalato di nuovo da
+     Carlo dopo il fix v1.43.11)
+     Vedi journal_generale.txt (voce "FLASH SULLE CARTELLE: RICOMPARSO
+     SEGNALATO DA CARLO, CAUSA NON TROVATA") per i dettagli completi.
+     Riassunto: il meccanismo gia' corretto in precedenza (holder senza
+     grid_propagate) resta confermato attivo e funzionante — verificato
+     con centinaia di click simulati, in griglia e in lista, anche
+     riselezionando ripetutamente la stessa cartella. Analizzato anche
+     un video reale (telefono puntato sul monitor) fornito da Carlo:
+     un'anomalia isolata di un solo fotogramma, non correlata a un
+     cambio di selezione visibile, che potrebbe essere un artefatto
+     della ripresa stessa (rolling shutter/interferenza col refresh di
+     un monitor LCD) invece di un vero difetto software.
+     STATO: IRRISOLTO. PROSSIMO PASSO SUGGERITO: una vera registrazione
+     schermo (strumento di cattura nativo, non il telefono) per
+     eliminare il dubbio dell'artefatto da camera.

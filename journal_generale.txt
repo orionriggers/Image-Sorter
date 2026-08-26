@@ -1096,6 +1096,502 @@ CRONOLOGIA CONDENSATA (per orientarsi nei journal di sessione)
             puntini: contate le celle effettive nella griglia (non
             solo l'elenco interno) prima/dopo la spunta, in entrambe
             le direzioni ON->OFF e OFF->ON.
+  v1.43.8-10 Sessione (25/08) su un difetto visivo segnalato da Carlo
+            in Naviga, MAI risolto del tutto — chiusa in stand-by,
+            non per mancanza di tentativi. Sintomo: cliccando una
+            cartella nella griglia miniature centrale, le altre
+            cartelle e le miniature "lampeggiano/ridisegnano" (non si
+            spostano — confermato da Carlo stesso dopo una domanda
+            mirata); un ridimensionamento/sussulto leggero e' visibile
+            proprio dentro il bordo verde di evidenziazione della
+            cartella cliccata. Effetto collaterale scoperto in corsa:
+            dopo aver cliccato alcune cartelle, il PRIMO clic
+            successivo su una qualsiasi miniatura mostra lo stesso
+            sfarfallio, i clic successivi sulle miniature restano
+            puliti; il difetto NON si presenta se si clicca una
+            miniatura subito all'apertura, senza passare da un clic su
+            cartella prima.
+            Tre correzioni applicate in sequenza, ciascuna verificata
+            ma nessuna risolutiva del sintomo residuo:
+            - v1.43.8: _refresh_nav_history_btns (bottoni "cronologia
+              cartelle recenti" sopra la griglia) distruggeva e
+              ricreava TUTTI i bottoni ad ogni clic in albero, anche
+              quelli non cliccati (si spostano in cima alla lista) —
+              ora riusa i widget esistenti e li riordina con
+              pack_forget()+pack() (un secondo pack() da solo NON
+              sposta un widget gia' impacchettato, verificato).
+            - v1.43.9: _highlight_folder_cell/_deselect_folder_cell
+              (selezione di una cartella nella griglia/lista)
+              riempivano di verde cella+canvas+etichetta (3 widget, x2
+              contando la deselezione della precedente) — passato a un
+              bordo (highlightbackground, spessore FISSO dalla
+              creazione per evitare il classico salto di dimensione
+              alla prima interazione) su un solo widget, stesso
+              principio gia' in uso per la selezione delle miniature
+              file (_set_cell_selected).
+            - v1.43.10: aggiunto self.win.update_idletasks() a fine
+              _show_tree_actions, tentativo mirato a un ridisegno Tk
+              lasciato in sospeso (idle task) che potrebbe "attaccarsi"
+              visivamente al prossimo evento qualsiasi — ipotesi
+              plausibile per lo schema "si ripara al secondo clic" ma
+              NON confermata: dopo questo fix Carlo riporta ancora il
+              difetto.
+            Piste ESCLUSE con verifica diretta, non per supposizione
+            (utile per non ripeterle in una sessione futura): nessuno
+            spostamento di posizione delle celle (winfo_rootx/rooty
+            invariati, test con click singoli/multipli/su piu' righe);
+            nessuna cella ricreata (id() dei widget invariato prima/
+            dopo click, incluse le righe rating stelle/pallini);
+            nessun riordino nello stacking X11 reale (xwininfo -tree
+            sulla finestra padre delle celle, identico prima/dopo);
+            nessuna chiamata nascosta a _load_thumbnails o
+            _request_thumb_reload (verificato strumentando le funzioni
+            stesse); TUTTE le chiamate .config()/.configure() di Tk
+            durante un clic intercettate direttamente (monkeypatch di
+            tk.Misc.configure): risultavano solo le 6 attese e minime
+            (2 label status bar, 1 bordo cartella, 1 bordo miniatura
+            preselezionata che si deseleziona, 2 scrollregion) — niente
+            che tocchi le righe rating. Compositor: Carlo ha disattivato
+            "Effetti" in Impostazioni di sistema (Cinnamon/Muffin), il
+            difetto persiste (ma nota per la prossima sessione: quella
+            voce disattiva le ANIMAZIONI, non necessariamente il
+            compositing stesso, che in Cinnamon moderno resta sempre
+            attivo salvo passare a un WM senza compositor — non e' un
+            test decisivo al 100%, solo indicativo).
+            PRINCIPIO: quando un test funzionale automatizzato (Xvfb)
+            non trova NESSUNA discrepanza a livello di stato Tk/X11
+            (posizione, identita' widget, stacking, ogni singola
+            chiamata di configurazione) ma l'utente vede comunque un
+            artefatto visivo ripetibile e ben descritto, l'ipotesi piu'
+            probabile e' un comportamento di rendering/timing reale
+            (refresh differito, composting) che un server X headless
+            senza schermo vero non riproduce — la verifica automatica
+            ha un soffitto per questa classe di bug "solo visivi,
+            nessun cambio di stato", e serve la conferma di Carlo sul
+            suo sistema reale per ogni ipotesi, non basta il codice.
+            PROSSIMI PASSI (non tentati in questa sessione): la pista
+            piu' promettente rimasta e' lo schema "primo clic su
+            miniatura dopo click su cartella e' sporco, i successivi
+            no" — indica qualcosa che si "consuma"/corregge da solo,
+            non un difetto strutturale fisso. Da provare: registrare
+            uno screen recording al rallentatore del difetto reale
+            (per vedere ESATTAMENTE cosa si muove, non solo "la
+            cartella"); provare con poche cartelle/miniature (3-4) per
+            vedere se il fenomeno dipende dal numero di celle (chiesto
+            a Carlo ma non ancora risposto quando la sessione si e'
+            chiusa). STATO: IRRISOLTO, sessione chiusa in stand-by su
+            richiesta di Carlo.
+  v1.43.11  RISOLTO (sessione 25/08, ripresa) il difetto lasciato
+            IRRISOLTO in v1.43.8-10 sopra. La causa reale sfuggiva al
+            monkeypatch di tk.Misc.configure della sessione precedente
+            perche' non era una chiamata .config() applicativa in piu':
+            e' Tk STESSO che, internamente, ricalcola la geometria del
+            CONTENITORE ("holder", il Frame che ospita le celle cartella
+            dentro _thumb_inner) ogni volta che una qualunque opzione di
+            una cella FIGLIA viene riconfigurata — anche un banale bg,
+            non solo il bordo verde di selezione — perche' quella cella
+            e' gestita da holder.grid() e "holder" stesso non aveva
+            grid_propagate(False). Confermato con una traccia diretta
+            (bind temporaneo su <Configure> di holder, non sulle
+            .config() applicative): ogni riconfigurazione di UNA cella
+            produce DUE eventi Configure consecutivi su holder, il primo
+            con un'altezza SBAGLIATA (piu' alta del reale) seguito subito
+            dal secondo che la corregge — e siccome holder occupa la riga
+            1 di _thumb_inner (la stessa colonna sotto cui iniziano le
+            righe dei file), quel rimbalzo di altezza sposta transitoriamente
+            in basso e poi di nuovo su la cartella cliccata E tutto quello
+            che viene dopo, incluse le righe stelle/colorlabel dei file:
+            esattamente il sintomo descritto. Riprodotto in modo
+            DETERMINISTICO anche headless via Xvfb (bastava un
+            cell.config(bg=...) qualsiasi su una cella cartella per
+            vedere i due Configure spuri su holder), a differenza di
+            quanto concluso nella sessione precedente — quindi NON serve
+            necessariamente un compositor reale per osservarlo, la
+            sessione precedente non lo vedeva perche' guardava le
+            .config() applicative (giuste) invece dell'evento <Configure>
+            generato da Tk come reazione indiretta.
+            FIX: _layout_dir_cells (chiamata da _load_dirs_grid alla
+            creazione e ad ogni ridimensionamento reale del pannello) ora
+            blocca esplicitamente la geometria di "holder" con
+            holder.config(width=cols*colw, height=nrows*row_h) +
+            holder.grid_propagate(False), stesso principio gia' in uso
+            per le singole celle file/cartella (_thumb_inner.rowconfigure
+            minsize) — cosi' il ricalcolo interno di Tk non ha piu' un
+            valore "sbagliato" da poter riportare: la dimensione e'
+            fissa, quindi il rimbalzo non ha piu' nulla da mostrare.
+            Verificato con test funzionale Xvfb in cartella isolata
+            (4 e 25 sottocartelle): 0 eventi Configure spuri su holder
+            dopo un click su cartella (prima: sempre 2, indipendente dal
+            numero di cartelle, coerente con quanto gia' notato da
+            Carlo); scroll fino in fondo alla griglia cartelle+file
+            verificato via screenshot per escludere che il nuovo
+            grid_propagate(False)/altezza fissa tagli contenuto reale.
+            Probabile causa anche del "le anteprime si caricano due
+            volte all'apertura" segnalato nella stessa richiesta di
+            Carlo (holder viene costruito e disposto la prima volta
+            proprio dentro la stessa _load_thumbnails che poi costruisce
+            la griglia file: un rimbalzo di holder a quel punto avrebbe
+            scosso l'intera griglia file appena creata) — non riprodotto
+            pero' in modo deterministico come chiamata doppia a
+            _load_thumbnails in ambiente isolato, quindi da confermare
+            con Carlo sul suo sistema reale dopo questo fix invece di
+            darlo per certo. Il terzo sintomo segnalato (aprire/chiudere
+            il pannello albero ricarica visibilmente la griglia) resta
+            un comportamento sostanzialmente atteso — il numero di
+            colonne cambia davvero, quindi un ricaricamento e' legittimo
+            (gia' filtrato da _on_thumb_canvas_configure con il
+            confronto new_cols!=_thumb_ncols) — ma beneficia comunque
+            dello stesso fix per la parte di sfarfallio dovuta a holder.
+            PRINCIPIO: quando un monkeypatch su .config()/.configure()
+            applicativo non trova nulla ma un artefatto visivo resta
+            ripetibile, controllare anche gli EVENTI <Configure> che Tk
+            genera DA SOLO sui contenitori — un contenitore con figli
+            gestiti da grid() e senza grid_propagate(False) puo'
+            ricalcolare (e riportare per un istante un valore sbagliato)
+            la propria geometria alla riconfigurazione di QUALSIASI
+            opzione di QUALSIASI figlio, non solo a un cambio di
+            contenuto/dimensione reale.
+  v1.43.12  Stesso filone (Carlo ha ritestato subito dopo v1.43.11 e
+            confermato il lampeggio sparito, ma segnalato un difetto
+            residuo): navigando con "cartella precedente" ("<Indietro" o
+            la cella ".." in griglia) la cartella di destinazione si
+            apre/carica per intero DUE VOLTE consecutive. Causa: sia
+            _navigate_to sia _move_folder_to/_trash_folder chiamavano
+            _load_thumbnails(path) DIRETTAMENTE e SUBITO DOPO anche
+            _expand_to(path) — che pero' fa anche lei _request_thumb_
+            reload() incondizionatamente (per il caso in cui e' l'UNICO
+            chiamante, es. i bottoni di accesso rapido o "Vai a"), quindi
+            programma un secondo ricaricamento via debounce (~150ms
+            dopo) della stessa identica cartella appena caricata.
+            Confermato con un confronto diretto A/B (stessa traccia di
+            _load_thumbnails, codice originale vs corretto): 2 chiamate
+            contro 1 dopo il click su "Indietro".
+            FIX: _expand_to ha ora un parametro _reload=True (default
+            invariato per tutti gli altri chiamanti, che continuano a
+            fare l'UNICA richiesta di ricaricamento loro); i tre punti
+            che caricavano gia' le miniature per conto proprio passano
+            _reload=False. In _rename_folder (che aveva lo stesso
+            schema ma con una condizione in piu': un ricaricamento
+            esplicito "se stavamo guardando la cartella rinominata",
+            self._current_folder.startswith(new_path)) il bug era anche
+            piu' subdolo — quella condizione veniva letta DOPO che
+            _expand_to aveva gia' sovrascritto self._current_folder con
+            new_path stesso, quindi risultava sempre vera e ricaricava
+            sempre new_path invece dell'eventuale sottocartella piu' in
+            profondita' che si stava davvero guardando. Corretto
+            catturando il percorso "_was_viewing" PRIMA di chiamare
+            _expand_to, passando _reload=False quando c'e' gia' un
+            _was_viewing da ricaricare esplicitamente dopo.
+            Verificato con traccia strumentata su _load_thumbnails: 1
+            sola chiamata (non piu' 2) dopo "Indietro"/_navigate_to e
+            dopo _move_folder_to/_trash_folder.
+            Terzo sintomo di Carlo (il ricaricamento visibile
+            aprendo/chiudendo il pannello albero) NON e' invece un
+            doppio caricamento: verificato con la stessa traccia
+            strumentata (con thumb size ridotta apposta per forzare un
+            vero cambio di colonne tra albero aperto/chiuso, altrimenti
+            con poche celle il numero di colonne non cambia affatto e
+            _on_thumb_canvas_configure non richiede alcun ricaricamento)
+            che _load_thumbnails viene chiamata UNA sola volta per ogni
+            toggle. E' quindi il ricaricamento REALE e necessario (le
+            colonne cambiano davvero, gia' filtrato da new_cols!=
+            _thumb_ncols) a essere visivamente un po' brusco (distrugge
+            e ricrea tutte le celle), non un bug di duplicazione — per
+            renderlo piu' morbido servirebbe riposizionare le celle
+            esistenti invece di ricostruirle da zero (stesso principio
+            di _layout_dir_cells per le sole cartelle, ma esteso alle
+            miniature file: lavoro non banale, non tentato in questa
+            sessione, da valutare con Carlo se vale la pena).
+  v1.43.13  Stesso filone, terzo difetto residuo segnalato da Carlo dopo
+            v1.43.12: all'apertura della finestra Naviga, il divisore tra
+            colonna miniature e colonna anteprima "salta" da solo prima
+            che le miniature si carichino. Causa: quando il pannello
+            anteprima viene aggiunto al PanedWindow (paned.add(..,
+            weight=4), dentro _toggle_preview_pane) o quando l'albero
+            viene aggiunto (paned.add(tf, weight=2), dentro _build), Tk
+            assegna SUBITO al divisore una posizione automatica basata
+            sui pesi dei pannelli — quasi sempre diversa da quella
+            salvata in config — e SOLO dopo (rispettivamente 20/90ms per
+            l'anteprima, 150/500/1000ms per l'albero, vedi v1.36-v1.43
+            per la storia di questi ritardi) il codice esistente la
+            corregge al valore giusto. La finestra e' pero' gia' visibile
+            in quell'intervallo (nessun withdraw/deiconify a protezione),
+            quindi quella posizione automatica viene davvero disegnata a
+            schermo per un istante: e' il salto segnalato.
+            Confermato con un test diretto (non solo strumentazione:
+            campionato winfo_rootx() del pannello anteprima con un vero
+            giro di eventi update() ogni 4ms) — codice originale: x=821
+            al primo campione (6ms), poi x=713 (valore corretto) a 22ms,
+            uno spostamento di 108px realmente disegnato. Stesso test sul
+            pannello miniature/albero per il sash 0.
+            FIX: sia _set_sash (albero) sia il ramo "mostra" di
+            _toggle_preview_pane (anteprima) ora chiamano la correzione
+            anche SUBITO, in modo sincrono, appena dopo il rispettivo
+            paned.add() — non solo nei ritardi, che restano come rete di
+            sicurezza per sistemi dove la geometria non fosse ancora
+            stabile. La larghezza del paned era gia' nota in modo
+            sincrono in ogni test (winfo_width() gia' corretto anche al
+            primo add()), quindi la correzione immediata arriva prima che
+            Tk abbia occasione di disegnare il valore automatico.
+            Riverificato con lo stesso test di campionamento: x=713 fin
+            dal primo campione (9ms), nessun valore intermedio osservato,
+            sia per il divisore anteprima che per quello albero.
+            PRINCIPIO: un ritardo (after) per "dare tempo al layout di
+            assestarsi prima di correggerlo" lascia comunque una finestra
+            visibile per il valore SBAGLIATO se il widget e' gia' a
+            schermo — quando la grandezza necessaria per calcolare la
+            posizione giusta (qui: winfo_width() del paned) e' gia'
+            disponibile in modo sincrono subito dopo l'operazione che l'ha
+            resa necessaria (qui: il paned.add() appena eseguito), la
+            correzione va applicata li' per prima, tenendo i ritardi solo
+            come rete di sicurezza aggiuntiva.
+
+===========================================================================
+BUMP COORDINATO v1.43 -> v1.44 (25-26/08)
+===========================================================================
+Stessa sessione dei tre fix sopra (v1.43.11-13), proseguita con quattro
+richieste di Carlo su Naviga — tocca sia image_sorter.py che timeline.py,
+da qui il bump coordinato (secondo numero) invece che solo il terzo.
+Cartella di backup 1.44/ creata alla radice con i file elencati in
+CLAUDE.md.
+
+MENU TASTO DESTRO CARTELLA: COLORE SU UNA RIGA DI QUADRATI
+  Prima: 5 (+1 "nessun colore") voci di menu separate, una per riga, con
+  testo ("● Colore: Rosso" ecc.) e pallino tondo — richiesto un'unica
+  riga senza testo, con QUADRATI invece di pallini (per non confondersi
+  con le colorlabel dei file, che sono tonde). Nuova funzione
+  _make_folder_color_square() (disegna un piccolo PNG PIL con
+  ImageDraw, quadrato pieno o con una X per "nessun colore", bordo piu'
+  spesso e ciano se e' il colore attuale) — questa resta, usata da
+  entrambi i tentativi sotto.
+  PRIMO TENTATIVO (scartato, Carlo l'ha trovato "brutto"): sei voci
+  di menu con image=<quadrato>, hidemargin=True, columnbreak=1.
+  PRINCIPIO SU columnbreak scoperto verificando con uno screenshot
+  diretto (contro l'assunzione iniziale, sbagliata, che sarebbe
+  bastato metterlo solo dal secondo elemento in poi): ogni voce con
+  columnbreak=1 apre una NUOVA colonna che riparte SEMPRE dalla PRIMA
+  riga del menu, mai dalla riga dell'elemento precedente — quindi la
+  riga di quadrati (aggiunta per ultima nel codice, dopo "Sposta nel
+  cestino") finiva visivamente incollata in ALTO, vicino ad "Apri",
+  non in fondo dove il codice la costruiva. Un compromesso (columnbreak
+  solo dal secondo quadrato in poi) lasciava il primo isolato in fondo,
+  staccato dagli altri cinque — bug trovato solo guardando lo
+  screenshot, non deducibile dal codice.
+  SOLUZIONE FINALE (adottata): overlay sovrapposto, stessa tecnica gia'
+  in uso per stelle/colorlabel dei FILE (attach_rating_overlay,
+  suggerita direttamente da Carlo: "come nel tasto destro sui file").
+  Nuova coppia add_folder_color_row_reserve()/
+  attach_folder_color_overlay() (modellate su add_rating_row_reserve/
+  attach_rating_overlay qui sopra): una riga vuota disabilitata viene
+  riservata nel menu VERO nel punto giusto (dopo "Sposta nel
+  cestino"), poi — dopo _post_menu() — un piccolo Toplevel senza
+  bordi si sovrappone esattamente sopra quella riga (stesso bg del
+  menu, stessa chiusura ridondante su <Unmap>/<ButtonRelease-1>/
+  <Destroy>). A differenza della valutazione file (che resta aperta
+  per correggere piu' volte), qui il click chiude SUBITO overlay e
+  menu insieme: un colore per cartella e' una scelta singola ed
+  esclusiva, non serve restare aperti. Verificato con un test diretto
+  (simulato un click su un quadrato dell'overlay trovato per tipo fra
+  i Toplevel figli del menu): il colore viene impostato e sia overlay
+  che menu si chiudono, nessuna finestra residua.
+
+NAVIGA: PRESET ATTIVO SEMPRE VISIBILE (spento senza selezione)
+  Richiesta di Carlo: "il preset primario" = il preset ATTIVO
+  (Impostazioni > preset attivo), quello con le sue fino a 10
+  destinazioni mostrato nella barra sotto la griglia — non un singolo
+  tasto. Prima _update_sel_bar distruggeva TUTTI i bottoni quando
+  _selected_files era vuoto, lasciando una riga vuota (ma di altezza
+  fissa, per non causare il salto gia' noto). Ora _build_sel_bar()
+  costruisce SEMPRE i bottoni del preset attivo (tenuti in
+  self._sel_preset_btns), e una nuova _refresh_sel_bar_enabled() li
+  abilita/disabilita (state=normal/disabled) secondo la presenza di una
+  selezione, senza mai distruggerli. _load_thumbnails chiama
+  _update_sel_bar() subito dopo aver ripulito la barra, cosi' la riga
+  (spenta) compare gia' all'apertura della cartella, non solo al primo
+  click su un file. Stessa modifica speculare in timeline.py
+  (_update_sel_bar, che prima faceva grid_remove() dell'intera barra
+  senza selezione — richiesto anche li' da Carlo).
+  NOTA PER TEST FUTURI: aprire una cartella per la prima volta
+  seleziona GIA' un file di default (comportamento intenzionale, v1.38
+  circa, "_selected_browser_folder"/preload anteprima in
+  _load_thumbnails) — un test che verifica lo stato "spento" deve
+  azzerare esplicitamente la selezione prima di controllare, altrimenti
+  il primo controllo fallisce per un motivo estraneo al fix.
+
+NAVIGA: PAGINA SU/GIU' E HOME/FINE NELLA GRIGLIA MINIATURE
+  Mancavano del tutto (solo le frecce singole funzionavano, via
+  _on_arrow). Aggiunta nuova _page_rows() (righe visibili nel canvas,
+  misurata sulla vera altezza di una cella esistente — non un valore
+  presunto fisso, cosi' resta corretta con qualunque taglia miniatura
+  S/M/L e con/senza la riga Ratings) e _on_arrow ora gestisce anche
+  Prior/Next (Pagina Su/Giu', salto di ncols*_page_rows() posizioni) e
+  Home/End (primo/ultimo file), bindati sia su keysym normale che
+  KP_*. Nessuna variante Shift (estensione selezione) aggiunta: non
+  richiesta, le frecce singole gia' esistenti non ce l'avevano nemmeno
+  loro per queste combinazioni.
+
+NAVIGA: TAGLIA/COPIA/INCOLLA "COME UNA VERA CARTELLA DI SISTEMA"
+  Causa: _dest_for(fpath, dest_dir, mode) restituiva il percorso
+  INVARIATO (== fpath) ogni volta che dest_dir coincideva con la
+  cartella di partenza del file — pensato per non far scattare un
+  prompt di collisione inutile in quel caso, ma il chiamante poi
+  tentava comunque shutil.copy2/move del file su se stesso, senza
+  alcun effetto visibile (copia) o un tentativo di move a vuoto
+  (taglia). Aggiunto un parametro is_cut a _dest_for: nella stessa
+  cartella, is_cut=True restituisce None (nessuna operazione, il file
+  e' gia' li'), is_cut=False genera invece SEMPRE un nuovo nome con lo
+  stesso schema "_N" gia' usato per le vere collisioni altrove — come
+  incollare una copia nella stessa cartella in Nemo/Nautilus/Esplora
+  risorse. Aggiornati i tre chiamanti: _clipboard_paste (is_cut preso
+  da _os_clipboard_get_files, che lo sa gia'), _move_files_to
+  (is_cut=True, sposta sempre), _copy_files_to invariata (default
+  is_cut=False, copia sempre).
+  BUG SCOPERTO VERIFICANDO (non introdotto in questa sessione):
+  _ask_collisions chiamava self._hud_choice(...) ma FolderBrowser non
+  aveva mai definito quel delegato (aveva _hud_alert/_hud_yesno, non
+  _hud_choice) — un vero conflitto di nome copiando/spostando in una
+  cartella DIVERSA (l'unico caso rimasto, dopo il fix sopra, che arriva
+  ancora al dialogo Rinomina/Sovrascrivi/Salta/Annulla) faceva
+  crashare con AttributeError invece di mostrare la scelta. Aggiunta la
+  stessa forma di delega gia' presente per gli altri due HUD dialog.
+  LIMITE DI TEST NOTO: il vero round-trip end-to-end via clipboard di
+  sistema (_os_clipboard_set/get_files, che sotto Xvfb usa xclip se
+  installato) si blocca in modo indefinito quando proprietario e
+  richiedente della selezione X sono lo STESSO processo Tk senza un
+  window manager reale (verificato isolando xclip da solo fuori da
+  Tk: si blocca identico anche lui) — non e' un difetto del programma
+  ne' di questa sessione, e' un limite noto dell'ambiente Xvfb
+  effimero usato per i test (nessun window manager). Verificato quindi
+  con la lettura della clipboard mockata (bypassando solo il trasporto
+  di sistema, non la logica) per _clipboard_paste/_dest_for/
+  _move_files_to: 12 controlli, tutti passati.
+
+REVISIONE MENU COLORE CARTELLA: DA columnbreak A OVERLAY
+  Carlo ha trovato "brutto" il risultato della v1.44.0 (riga di quadrati
+  incollata in alto vicino ad "Apri" per via del comportamento di
+  columnbreak spiegato sopra) e ha suggerito lui stesso l'alternativa
+  giusta: "come nel tasto destro sui file per i pallini colorati".
+  Sostituita l'implementazione con add_folder_color_row_reserve()/
+  attach_folder_color_overlay() (nuove funzioni modulo, modellate su
+  add_rating_row_reserve/attach_rating_overlay gia' in uso per i file):
+  una riga vuota disabilitata riservata nel punto giusto del menu vero
+  (dopo "Sposta nel cestino"), un piccolo Toplevel senza bordi
+  sovrapposto sopra quella riga dopo _post_menu(). A differenza della
+  valutazione file (resta aperta per correggere piu' volte), qui il
+  click chiude SUBITO overlay e menu insieme — scelta singola ed
+  esclusiva. Verificato con screenshot (posizione corretta, in fondo
+  al menu) e un test diretto (click simulato su un quadrato: colore
+  impostato, overlay e menu chiusi, nessuna finestra residua).
+
+FLASH SULLE CARTELLE: RICOMPARSO SEGNALATO DA CARLO, CAUSA NON TROVATA
+  Dopo le correzioni precedenti (v1.43.11) Carlo ha ritestato e
+  confermato il lampeggio di nuovo presente, "piu' evidente dopo un
+  certo numero di click, ciclicamente" (poi precisato: il numero
+  VARIA, non e' fisso; capita fin dall'apertura di Naviga, MAI da
+  fermo, solo cliccando davvero).
+  Verificato ESTESAMENTE senza trovare alcuna regressione nel fix
+  v1.43.11 (che resta confermato attivo e corretto):
+  - 80 click reali (event_generate, non chiamate dirette a
+    _show_tree_actions) alternando due cartelle: zero eventi
+    <Configure> spuri su holder.
+  - 150 click su una griglia di 25 cartelle (piu' vicina a un uso
+    reale): zero eventi spuri.
+  - Uso misto: aprire il menu colore su piu' cartelle, assegnare
+    colori (che FORZA un vero _load_thumbnails, verificato: ogni volta
+    che si cambia il colore di una sottocartella della cartella
+    aperta, questa si ricarica per mostrare subito il nuovo bordo —
+    comportamento atteso, non un bug), poi tanti click sinistri di
+    seguito: nessun evento spurio dopo il ricaricamento.
+  - Stesso identico test in modalita' LISTA (_load_list_view, MAI
+    verificata prima per questo bug specifico — le righe cartella li'
+    usano un Frame "info" gridato direttamente in _thumb_inner, senza
+    un contenitore dedicato come "holder" e senza grid_propagate):
+    zero eventi <Configure> spuri su _thumb_inner sia alternando
+    cartelle diverse sia RICLICCANDO ripetutamente la STESSA cartella
+    gia' selezionata (il caso che deseleziona+riseleziona lo stesso
+    widget in sequenza, l'ipotesi piu' sospetta) — 20 riclic ripetuti,
+    zero eventi.
+  Carlo ha fornito una registrazione (telefono puntato sullo schermo,
+  480x864, 14.5s, "video schermo.mp4" nella cartella del progetto —
+  NON committata, e' un file suo). Analisi fotogramma per fotogramma
+  (estratti a 30fps, diff fra frame consecutivi per isolare i cambi):
+  trovato UN singolo fotogramma (su 436) con un bordo blu attorno al
+  pannello, presente per un solo frame (~33ms) e assente in quello
+  prima e dopo. Ma in quel frame il nome della cartella selezionata a
+  schermo era IDENTICO al frame prima e dopo — nessun cambio di
+  selezione visibile in quell'istante, il che sembrerebbe escludere un
+  click (Carlo pero' conferma che il lampeggio non capita mai da
+  fermo). Ipotesi aperte, nessuna confermata: (a) riclic sulla STESSA
+  cartella gia' selezionata nel momento esatto ripreso — testato
+  apposta (vedi sopra), non riprodotto; (b) artefatto della ripresa
+  stessa (telefono che filma un monitor LCD: rolling shutter/
+  interferenza col refresh — nel video sono visibili anche bande di
+  disturbo in altre zone del fotogramma, quindi la camera ha
+  comunque questo tipo di interferenza in generale); (c) qualcos'altro
+  non ancora identificato.
+  STATO: IRRISOLTO, annotato anche in punti_aperti.txt (voce O).
+  PROSSIMO PASSO SUGGERITO (non tentato): una VERA registrazione
+  schermo (strumento di cattura nativo, non il telefono) eliminerebbe
+  il dubbio dell'artefatto da camera e permetterebbe un esame
+  pixel-per-pixel affidabile.
+
+CHIUSURA SESSIONE: DEBUG APPROFONDITO E OTTIMIZZAZIONE CPU/RISORSE
+  Richiesto da Carlo per chiudere la sessione: un debug approfondito su
+  tutto il software, codice ottimizzabile, soluzioni migliorative per
+  la gestione delle risorse del processore, verifica dei leggimi.
+  METODO: tre analisi in parallelo (fork), ciascuna assegnata ad
+  un'area distinta per non doverla leggere per intero io stesso (il
+  file principale da solo supera le 26.700 righe): (1) deck_core.py +
+  deck_daemon.py, (2) image_sorter.py escluso il perimetro Naviga gia'
+  investigato a fondo in questa stessa sessione, (3) timeline.py +
+  disk_analyzer.py + exif_editor.py + metadata_store.py. Ogni analisi
+  ha riportato solo risultati concreti (file:riga, scenario di impatto,
+  proposta, livello di rischio), senza applicare nulla direttamente —
+  le correzioni sono state poi valutate, implementate e verificate una
+  per una di seguito, in ordine di rischio crescente.
+
+  RISOLTI (vedi punti_aperti.txt PARTE 6 per il dettaglio completo dei
+  singoli fix, qui solo il riassunto):
+  - deck_core.py: font TrueType ricaricati da disco ad ogni singolo
+    tasto del deck fisico -> cache di modulo (_get_font). VERSION
+    1.1.0 -> 1.1.1.
+  - image_sorter.py: navigazione principale (_show_image) avviava un
+    thread di decodifica completo ad ogni singolo passo, anche tenendo
+    premuta una freccia -> debounce di 50ms prima di avviare il thread
+    (non dell'intera funzione: placeholder e Confronta restano
+    immediati). Verificato: 8 passi rapidi = 8 thread prima, 1 dopo.
+  - timeline.py: _add_thumb_cell apriva un threading.Thread PROPRIO per
+    OGNI cella miniatura (fino a 120 insieme, PAGE_SIZE) invece dei "6
+    thread liberi" che punti_aperti.txt riportava da tempo (nota
+    imprecisa, corretta) -> concurrent.futures.ThreadPoolExecutor
+    condiviso fra tutte le finestre Timeline, max_workers=6
+    (_get_thumb_executor). Verificato con una scansione reale di 40
+    foto: mai piu' di 6 thread del pool attivi, miniature tutte
+    caricate correttamente.
+  - metadata_store.py: _save() riscriveva l'intero file JSON in modo
+    sincrono ad ogni singola modifica (rating/colore/tag) -> debounce
+    di 1s (threading.Timer) + flush_pending() esplicito, registrato
+    anche come atexit per non perdere l'ultima modifica alla chiusura
+    del programma. Verificato con un vero sotto-processo (modifica +
+    uscita immediata senza chiamare flush_pending a mano): il file
+    risulta comunque scritto, grazie al solo hook atexit. VERSION
+    1.3.1 -> 1.3.2.
+
+  VALUTATI MA NON MODIFICATI (rischio/incertezza piu' alti, lasciati
+  aperti in punti_aperti.txt voci M/N): deck_core.py refresh_all() non
+  salta il ridisegno se il contenuto di un tasto non e' cambiato
+  (servirebbe una firma affidabile di "cosa e' cambiato", non banale
+  da definire senza rischiare falsi negativi); percorso font
+  hard-coded assume Debian/Ubuntu (bassa priorita', soluzione
+  suggerita: impacchettare un font invece di dipendere dal sistema).
+
+  Nessun altro problema di correttezza o di risorse trovato nelle tre
+  analisi (disk_analyzer.py, exif_editor.py, e il resto di
+  image_sorter.py/deck_daemon.py gia' ben progettati su questo fronte).
+
+  Verifica finale eseguita su tutti i file toccati: py_compile +
+  pyflakes puliti, confronto AST cumulativo contro l'originale (nessuna
+  funzione persa, solo le nuove aggiunte).
 
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.43.7"
+VERSION = "1.44.0"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -3786,6 +3786,129 @@ def attach_rating_overlay(menu, row_index, targets, on_change=None):
     return ov
 
 
+def add_folder_color_row_reserve(menu):
+    """Riserva UNA riga vuota e disabilitata per il colore cartella nel
+    menu tasto destro — stesso principio di add_rating_row_reserve()
+    qui sopra (un vero tk.Menu non puo' ospitare widget al proprio
+    interno: il contenuto vero lo disegna attach_folder_color_overlay()
+    sovrapposto sopra questa riga). Una sola riga (non due come per
+    stelle+pallini): qui c'e' solo una fila di quadrati."""
+    _before = menu.index("end")
+    _idx = 0 if _before is None else _before + 1
+    menu.add_command(label="", state="disabled")
+    return _idx
+
+
+def attach_folder_color_overlay(menu, row_index, cur_color, on_pick):
+    """Sovrappone la riga di quadrati colore cartella esattamente sopra
+    la riga vuota riservata da add_folder_color_row_reserve() — stesso
+    principio e stessa gestione di chiusura/allineamento di
+    attach_rating_overlay() qui sopra, ma per un valore ESCLUSIVO
+    singolo (un colore per cartella, non piu' colori insieme come le
+    colorlabel file) e senza stelle.
+
+    Sostituisce un primo tentativo con columnbreak (colonne di menu
+    affiancate) scartato perche' "brutto" secondo Carlo: quella riga
+    finiva incollata in alto vicino ad "Apri" invece che nella
+    posizione in cui il codice la costruiva, perche' columnbreak apre
+    sempre una nuova colonna che riparte dalla PRIMA riga del menu, mai
+    dalla posizione dell'elemento — verificato con uno screenshot
+    diretto. Un overlay sovrapposto invece rispetta la posizione reale
+    scelta nel codice, come gia' fa attach_rating_overlay() per i file.
+
+    on_pick(color_id): chiamata con l'id scelto (None per "nessun
+    colore"). A differenza della valutazione, qui il menu si richiude
+    SUBITO dopo il click — una scelta sola ed esclusiva, non serve
+    restare aperti per provare piu' colori insieme."""
+    try:
+        menu.update_idletasks()
+        mx, my = menu.winfo_rootx(), menu.winfo_rooty()
+        mw = menu.winfo_width()
+        row_y = menu.yposition(row_index)
+        try:
+            next_y = menu.yposition(row_index + 1)
+            row_h = max(28, next_y - row_y)
+        except Exception:
+            row_h = 28
+    except Exception:
+        return None
+
+    ov = tk.Toplevel(menu)
+    ov.withdraw()
+    ov.wm_overrideredirect(True)
+    ov.configure(bg=PANEL_COLOR)
+    # Niente bordo, stesso bg del menu: stesso motivo di
+    # attach_rating_overlay (nasconde un eventuale disallineamento di
+    # un paio di pixel invece di evidenziarlo).
+
+    row = tk.Frame(ov, bg=PANEL_COLOR)
+    row.pack(fill="both", expand=True, padx=3, pady=3)
+
+    _closed = [False]
+    def _close_overlay(event=None):
+        if _closed[0]:
+            return
+        _closed[0] = True
+        try:
+            ov.after_idle(lambda: ov.destroy() if ov.winfo_exists() else None)
+        except Exception:
+            try: ov.destroy()
+            except Exception: pass
+
+    def _pick(cid):
+        # Richiude SUBITO overlay e menu (scelta singola ed esclusiva),
+        # poi applica il cambiamento — a differenza di
+        # attach_rating_overlay, che resta aperto.
+        _close_overlay()
+        try:
+            menu.unpost()
+        except Exception:
+            pass
+        on_pick(cid)
+
+    _sq_imgs = []
+    for _cid, _cname, _hex in metadata_store.COLOR_LABELS:
+        _img = _make_folder_color_square(_hex, size=18, selected=(_cid == cur_color))
+        _sq_imgs.append(_img)
+        _lbl = tk.Label(row, image=_img, bg=PANEL_COLOR, cursor="hand2", bd=0)
+        _lbl.pack(side="left", padx=3)
+        _lbl.bind("<Button-1>", lambda e, c=_cid: _pick(c))
+    _none_img = _make_folder_color_square(None, size=18, selected=(cur_color is None), empty=True)
+    _sq_imgs.append(_none_img)
+    _none_lbl = tk.Label(row, image=_none_img, bg=PANEL_COLOR, cursor="hand2", bd=0)
+    _none_lbl.pack(side="left", padx=3)
+    _none_lbl.bind("<Button-1>", lambda e: _pick(None))
+    # Riferimenti tenuti vivi sull'overlay stesso finche' esiste (vedi
+    # _make_folder_color_square): senza, Tk scarica le PhotoImage e i
+    # quadrati appaiono vuoti.
+    ov._color_imgs = _sq_imgs
+
+    ov.update_idletasks()
+    _req_w = ov.winfo_reqwidth()
+    _req_h = ov.winfo_reqheight()
+    _inset = 5
+    _final_w = max(mw - 2 * _inset, _req_w)
+    _final_h = max(row_h - 2 * _inset, _req_h)
+    ov.geometry(f"{_final_w}x{_final_h}+{mx + _inset}+{my + row_y + _inset}")
+    ov.deiconify()
+    ov.lift()
+
+    try:
+        menu.bind("<Unmap>", _close_overlay, add="+")
+    except Exception:
+        pass
+    try:
+        menu.bind("<ButtonRelease-1>", _close_overlay, add="+")
+    except Exception:
+        pass
+    try:
+        menu.bind("<Destroy>", _close_overlay, add="+")
+    except Exception:
+        pass
+
+    return ov
+
+
 if _DEEP_BROWSER_AVAILABLE and _METADATA_STORE_AVAILABLE:
     # Iniezione differita fino a qui (va fatta DOPO che
     # attach_rating_overlay e' definita — vedi il commento accanto a
@@ -3904,6 +4027,32 @@ def _paint_colorlabel_dot(cv, size, r, hexcol, filled):
     else:
         cv.create_oval(cx-r, cy-r, cx+r, cy+r, fill=PANEL_COLOR,
                        outline=hexcol, width=2)
+
+
+def _make_folder_color_square(hexcolor, size=16, selected=False, empty=False):
+    """Piccolo QUADRATO colorato (non un pallino) per il selettore di
+    colore cartella nel menu tasto destro — quadrati apposta per non
+    confondersi visivamente con i pallini tondi delle colorlabel dei
+    file (draw_colorlabel_dots qui sopra), richiesto da Carlo.
+
+    empty=True disegna il quadrato "nessun colore" (una X sottile,
+    invece di un riempimento pieno). selected=True disegna un bordo piu'
+    spesso e chiaro per indicare il colore attualmente assegnato — un
+    tk.Menu con hidemargin non ha altro modo nativo di marcare la voce
+    corrente quando non c'e' testo.
+
+    Ritorna un ImageTk.PhotoImage: il chiamante deve tenerne un
+    riferimento vivo (es. su un attributo del menu stesso) finche' il
+    menu resta aperto, altrimenti Tk lo scarica e il quadrato sparisce."""
+    img = Image.new("RGB", (size, size), PANEL_COLOR if empty else hexcolor)
+    draw = ImageDraw.Draw(img)
+    if empty:
+        draw.line((4, 4, size-5, size-5), fill=MUTED_COLOR, width=2)
+        draw.line((4, size-5, size-5, 4), fill=MUTED_COLOR, width=2)
+    draw.rectangle((0, 0, size-1, size-1),
+                   outline=(HUD_CYAN if selected else "#000000"),
+                   width=(2 if selected else 1))
+    return ImageTk.PhotoImage(img)
 
 
 def repaint_colorlabel_dots(dots, cur_colors, size=14):
@@ -6169,6 +6318,7 @@ class FolderBrowser:
         self._thumb_size     = 200
         self._current_folder = None
         self._nav_history     = []   # ultime 3 cartelle navigate
+        self._nav_hist_btns   = {}   # {cartella: Button}, per aggiornare la barra in-place
         self._nav_back_stack  = []   # cartelle precedenti per il pulsante Indietro
         self._nav_forward_stack = [] # cartelle per il pulsante Avanti (si popola tornando Indietro)
         self._size_btns      = {}
@@ -6776,6 +6926,21 @@ class FolderBrowser:
                         self._paned.sashpos(self._preview_sash_index(), saved_preview)
                     except Exception:
                         pass
+        # Chiamata SUBITO, non solo nei ritardi qui sotto: appena i
+        # pannelli albero/miniature vengono aggiunti al paned, Tk assegna
+        # da solo una posizione automatica al divisore (basata sui pesi),
+        # quasi sempre diversa da quella salvata — e siccome la finestra è
+        # già visibile a questo punto, quella posizione sbagliata si vede
+        # per un istante prima di essere corretta ai ritardi sotto: lo
+        # "spostamento" della barra segnalato da Carlo, visibile ancora
+        # prima che le miniature vengano caricate. Chiamandola già qui, in
+        # modo sincrono, la larghezza del paned è già nota (verificato
+        # con una traccia diretta: winfo_width() e' gia' quella finale
+        # anche a questo punto) e il valore corretto viene applicato
+        # PRIMA che quello automatico abbia la possibilità di essere
+        # disegnato. I ritardi restano come rete di sicurezza per i
+        # sistemi dove la geometria non fosse ancora stabile.
+        _set_sash()
         self.win.after(150,  _set_sash)
         self.win.after(500,  _set_sash)
         self.win.after(1000, _set_sash)
@@ -6795,8 +6960,13 @@ class FolderBrowser:
                     "<Shift-KP_Right>","<Shift-KP_Left>","<Shift-KP_Down>","<Shift-KP_Up>"):
             self._thumb_canvas.bind(_sk, self._on_shift_arrow)
             self._thumb_inner.bind(_sk, self._on_shift_arrow)
+        # Pagina Su/Giu' (Prior/Next nel keysym X11) e Home/Fine: mancavano
+        # del tutto, segnalato da Carlo — stessa gestione delle frecce
+        # semplici (_on_arrow), solo con un salto diverso (vedi li').
         for _ak in ("<Right>","<Left>","<Down>","<Up>",
-                    "<KP_Right>","<KP_Left>","<KP_Down>","<KP_Up>"):
+                    "<KP_Right>","<KP_Left>","<KP_Down>","<KP_Up>",
+                    "<Prior>","<Next>","<Home>","<End>",
+                    "<KP_Prior>","<KP_Next>","<KP_Home>","<KP_End>"):
             self._thumb_canvas.bind(_ak, self._on_arrow)
             self._thumb_inner.bind(_ak, self._on_arrow)
         self._thumb_inner.bind("<Configure>", self._on_thumb_frame_configure)
@@ -7210,7 +7380,19 @@ class FolderBrowser:
             pass
 
     def _refresh_nav_history_btns(self):
-        """Aggiorna i bottoni cronologia navigazione (ultime 3 cartelle)."""
+        """Aggiorna i bottoni cronologia navigazione (ultime 3 cartelle).
+
+        Chiamata ad ogni singolo clic su una cartella (anche nell'albero),
+        quindi molto di frequente. Prima distruggeva e ricreava TUTTI i
+        bottoni ad ogni chiamata: con la cartella cliccata che si sposta
+        in testa alla lista, anche quelle NON cliccate cambiavano widget
+        (e posizione) ad ogni clic — il "salto" di tutta la barra
+        segnalato da Carlo, stesso principio della nuvola di bottoni
+        (vedi _highlight_folder_cell/_deselect_folder_cell qui sopra).
+        Ora i bottoni esistenti sono riusati (solo ri-pack nell'ordine
+        giusto, che DI PROPOSITO li riposiziona secondo la cronologia
+        aggiornata) e vengono ricreati solo quelli nuovi o quelli usciti
+        dalla cronologia."""
         if not hasattr(self, '_nav_hist_frame'):
             return
         try:
@@ -7218,21 +7400,30 @@ class FolderBrowser:
                 return
         except Exception:
             return
-        for w in self._nav_hist_frame.winfo_children():
-            w.destroy()
-        for folder in self._nav_history:
-            if not os.path.isdir(folder):
-                continue
-            name = os.path.basename(folder) or folder
-            short = name if len(name) <= 14 else name[:12] + ".."
-            tk.Button(self._nav_hist_frame,
-                      text=tk_safe(f"< {short}"),
-                      font=("TkFixedFont", 8),
-                      bg="#2a1a3a", fg=HUD_CYAN,
-                      relief="flat", padx=6,
-                      activebackground=HIGHLIGHT, activeforeground="white",
-                      command=lambda p=folder: self._load_thumbnails(p)
-                      ).pack(side="left", padx=2, pady=2, ipady=2)
+        valid = [f for f in self._nav_history if os.path.isdir(f)]
+        for folder in list(self._nav_hist_btns):
+            if folder not in valid:
+                self._nav_hist_btns.pop(folder).destroy()
+        for folder in valid:
+            btn = self._nav_hist_btns.get(folder)
+            if btn is None:
+                name = os.path.basename(folder) or folder
+                short = name if len(name) <= 14 else name[:12] + ".."
+                btn = tk.Button(self._nav_hist_frame,
+                          text=tk_safe(f"< {short}"),
+                          font=("TkFixedFont", 8),
+                          bg="#2a1a3a", fg=HUD_CYAN,
+                          relief="flat", padx=6,
+                          activebackground=HIGHLIGHT, activeforeground="white",
+                          command=lambda p=folder: self._load_thumbnails(p))
+                self._nav_hist_btns[folder] = btn
+            else:
+                # Un secondo pack() su un widget gia' impacchettato NON
+                # lo sposta in fondo (Tk lo ignora se le opzioni non
+                # cambiano) — serve scollegarlo prima, altrimenti
+                # l'ordine visivo non seguirebbe affatto la cronologia.
+                btn.pack_forget()
+            btn.pack(side="left", padx=2, pady=2, ipady=2)
 
     def _refresh_fav_btns(self):
         """Aggiorna i bottoni dei preferiti (cartelle scelte dall'utente,
@@ -7358,6 +7549,19 @@ class FolderBrowser:
         return self.sorter._hud_yesno(title, message, yes_label, no_label,
                                       parent or self.win)
 
+    def _hud_choice(self, title, message, options, parent=None):
+        """Delega a ImageSorter._hud_choice.
+
+        Mancava (a differenza di _hud_alert/_hud_yesno qui sopra), e
+        _ask_collisions la chiama da sempre per il dialogo "File gia'
+        esistente" (Rinomina/Sovrascrivi/Salta/Annulla): un vero
+        conflitto di nome copiando/spostando in una cartella DIVERSA
+        (non lo stesso-cartella risolto altrove, vedi _dest_for) faceva
+        crashare con AttributeError invece di mostrare la scelta —
+        scoperto verificando le funzioni taglia/copia/incolla."""
+        return self.sorter._hud_choice(title, message, options,
+                                       parent or self.win)
+
     def _open_duplicate_finder(self):
         """Apre la finestra di ricerca doppioni per la cartella corrente."""""
         initial = self._current_folder or self.sorter.source_folder or os.path.expanduser("~")
@@ -7414,7 +7618,12 @@ class FolderBrowser:
         _pshort = (_pparent if len(_pparent) <= 40
                    else ".." + _pparent[-38:])
         self._status_set(f"{_pshort}/  ", _pname)
-        self._expand_to(path)
+        # _reload=False: le miniature di "path" sono gia' state caricate
+        # dalla riga sopra — _expand_to serve solo per sincronizzare la
+        # selezione nell'albero a sinistra, non per ricaricare la griglia
+        # una seconda volta (doppio caricamento visibile, segnalato da
+        # Carlo navigando con "cartella precedente"/"..").
+        self._expand_to(path, _reload=False)
         # Dopo il caricamento, evidenzia il file corrente se è in questa cartella
         current = self.sorter._current_file()
         if current and os.path.dirname(current) == path:
@@ -7554,6 +7763,12 @@ class FolderBrowser:
         # sfalsando l'allineamento di tutta la griglia.
         _dir_col_w = DIR_SIZE + 8
         self._dir_col_w = _dir_col_w
+        # Stessa formula usata piu' sotto per cell_h (icon_size/gap/DIR_SIZE
+        # sono identici per ogni cella): serve gia' qui perche' _layout_dir_
+        # cells la usa per bloccare l'altezza di "holder" — vedi il perche'
+        # in _layout_dir_cells.
+        _icon_size_tmp = min(DIR_SIZE - 8, 80)
+        self._dir_cell_h = DIR_SIZE + 18 - (_icon_size_tmp // 4)
         self._dir_cells = []      # celle in ordine, per la ridisposizione
         self._dir_cols  = None    # forza la prima disposizione
         self._sel_dir_cell = None # le celle sono nuove: nessuna evidenziata
@@ -7587,8 +7802,14 @@ class FolderBrowser:
             icon_h    = s - _gap
             cell_sz   = DIR_SIZE + 4
             cell_h    = DIR_SIZE + 18 - _gap
+            # highlightthickness FISSO fin dalla creazione (stesso valore
+            # da selezionata e non): la selezione ora e' un bordo, non un
+            # riempimento — vedi _highlight_folder_cell piu' sotto.
             cell = tk.Frame(holder, bg=BG_COLOR,
-                            width=cell_sz, height=cell_h)
+                            width=cell_sz, height=cell_h,
+                            highlightthickness=2,
+                            highlightbackground=BG_COLOR,
+                            highlightcolor=BG_COLOR)
             cell.grid_propagate(False)
             self._dir_cells.append(cell)
             cv = tk.Canvas(cell, width=s, height=icon_h,
@@ -7696,6 +7917,27 @@ class FolderBrowser:
                     continue
                 cell.grid(row=i // cols, column=i % cols,
                           padx=2, pady=2, sticky="nw")
+            # "holder" stesso NON ha grid_propagate(False): senza,
+            # riconfigurare una qualsiasi opzione di una cella figlia (per
+            # esempio il solo colore del bordo in _highlight_folder_cell/
+            # _deselect_folder_cell, alla selezione di una cartella) fa si'
+            # che Tk ricalcoli la geometria di "holder" da capo — e per un
+            # singolo giro (due eventi Configure consecutivi, confermato
+            # con una traccia diretta) quel ricalcolo riporta un'altezza
+            # transitoria SBAGLIATA (piu' alta del reale) prima di
+            # correggersi da solo. Quell'altezza sbagliata e' quella che si
+            # vede davvero a schermo per un istante: e' il salto della
+            # cartella cliccata E di quelle sotto, e delle righe
+            # stelle/colorlabel dei file sotto ancora (tutti nella stessa
+            # riga 1 di _thumb_inner, che segue l'altezza di "holder").
+            # Bloccando l'altezza di "holder" a quella REALE appena
+            # calcolata (stesso principio gia' usato per le singole celle
+            # file/cartella), quel ricalcolo interno non ha piu' modo di
+            # propagarsi in un ridisegno visibile.
+            nrows = (len(cells) + cols - 1) // cols
+            row_h = getattr(self, "_dir_cell_h", 106) + 4  # +2*pady
+            holder.config(width=cols * colw, height=nrows * row_h)
+            holder.grid_propagate(False)
         except Exception:
             pass
 
@@ -7751,7 +7993,9 @@ class FolderBrowser:
                                 fill=HUD_DIM, outline=HUD_CYAN, width=1)
             cv.create_rectangle(4, s//4, s//3, s//4+s//8,
                                 fill=HUD_CYAN, outline="")
-            info = tk.Frame(inner, bg=bg)
+            info = tk.Frame(inner, bg=bg,
+                            highlightthickness=2,
+                            highlightbackground=bg, highlightcolor=bg)
             info.grid(row=i+1, column=1, sticky="ew", padx=(2,4), pady=1)
             info.columnconfigure(0, weight=1)
             try:
@@ -8710,6 +8954,12 @@ class FolderBrowser:
         if hasattr(self, '_sel_bar') and self._sel_bar.winfo_exists():
             for _w in self._sel_bar.winfo_children():
                 _w.destroy()
+        # Ricostruisce subito la riga preset (spenta, nessuna selezione
+        # ancora in questa cartella appena aperta) invece di lasciarla
+        # vuota finche' non si clicca un file — richiesto da Carlo, che
+        # vuole vedere sempre le destinazioni del preset attivo.
+        if hasattr(self, '_sel_bar') and self._sel_bar.winfo_exists():
+            self._update_sel_bar()
         for w in self._thumb_inner.winfo_children():
             w.destroy()
         self._thumb_images.clear()
@@ -9337,10 +9587,20 @@ class FolderBrowser:
                         self._paned.sashpos(self._preview_sash_index(), saved_pos)
                     except Exception:
                         pass
-                # Doppio tentativo: il layout del pannello appena
-                # aggiunto potrebbe non essersi ancora assestato al primo
-                # tentativo, sovrascrivendo silenziosamente la posizione
-                # impostata troppo presto.
+                # Chiamata SUBITO oltre che nei ritardi sotto: paned.add()
+                # appena eseguito assegna da solo una posizione automatica
+                # al divisore (in base ai pesi dei pannelli), quasi sempre
+                # diversa da quella salvata qui sopra — e la finestra e'
+                # gia' visibile a questo punto, quindi quella posizione
+                # sbagliata si vede per un istante prima della correzione
+                # nei ritardi sotto: lo "spostamento" della barra tra
+                # colonna miniature e colonna anteprima segnalato da
+                # Carlo, visibile ancora prima che le miniature vengano
+                # caricate (confermato con una traccia diretta: subito
+                # dopo add() il divisore era gia' a un valore diverso da
+                # quello salvato, corretto solo ~20ms dopo). I ritardi
+                # restano come rete di sicurezza.
+                _restore_sash()
                 self.win.after(20, _restore_sash)
                 self.win.after(90, _restore_sash)
             self.win.after_idle(self._update_preview_pane)
@@ -9880,18 +10140,51 @@ class FolderBrowser:
         if hasattr(self, "_tag_row_frame"):
             self._build_tag_row()
 
+    def _page_rows(self):
+        """Quante righe di celle entrano nell'altezza visibile del canvas
+        miniature — usata da Pagina Su/Giu' per saltare di una
+        "schermata" invece che di una sola riga. Misurata sulla cella
+        vera (winfo_height, comprende la riga stelle/colorlabel sotto se
+        attiva) invece di un valore presunto fisso, cosi' resta corretta
+        con qualunque taglia miniatura (S/M/L) o spunta "Ratings"."""
+        try:
+            files = list(self._cell_refs.keys())
+            cell0 = self._cell_refs.get(files[0]) if files else None
+            row_h = (cell0.winfo_height() + 6
+                      if cell0 is not None and cell0.winfo_exists()
+                      else self._thumb_size + 28)
+            canvas_h = self._thumb_canvas.winfo_height()
+            return max(1, canvas_h // max(1, row_h))
+        except Exception:
+            return 1
+
     def _on_arrow(self, e):
-        """Freccia senza Shift: sposta la selezione su un singolo file."""
+        """Freccia senza Shift: sposta la selezione su un singolo file.
+
+        Include anche Pagina Su/Giu' (Prior/Next) e Home/Fine, che
+        saltano rispettivamente di una schermata di righe o all'inizio/
+        fine dell'elenco invece che di un singolo file — mancavano del
+        tutto, segnalato da Carlo."""
         files = list(self._cell_refs.keys())
         if not files: return
         ncols = max(1, getattr(self, "_thumb_ncols", 3))
         ks = e.keysym
-        delta = {"Right":1,"Left":-1,"Down":ncols,"Up":-ncols,
-                 "KP_Right":1,"KP_Left":-1,"KP_Down":ncols,"KP_Up":-ncols}.get(ks, 0)
-        if delta == 0: return
         cur = getattr(self, "_last_clicked", None)
         if cur not in files: cur = files[0]
-        new_idx = max(0, min(len(files)-1, files.index(cur) + delta))
+        cur_idx = files.index(cur)
+        if ks in ("Home", "KP_Home"):
+            new_idx = 0
+        elif ks in ("End", "KP_End"):
+            new_idx = len(files) - 1
+        elif ks in ("Prior", "KP_Prior"):
+            new_idx = max(0, cur_idx - ncols * self._page_rows())
+        elif ks in ("Next", "KP_Next"):
+            new_idx = min(len(files) - 1, cur_idx + ncols * self._page_rows())
+        else:
+            delta = {"Right":1,"Left":-1,"Down":ncols,"Up":-ncols,
+                     "KP_Right":1,"KP_Left":-1,"KP_Down":ncols,"KP_Up":-ncols}.get(ks, 0)
+            if delta == 0: return
+            new_idx = max(0, min(len(files)-1, cur_idx + delta))
         new_fp = files[new_idx]
         # Deseleziona tutto senza flash (non ricostruisce la barra)
         self._sel_clear_silent()
@@ -10009,6 +10302,13 @@ class FolderBrowser:
             text=tk_safe(f"  {T('n_selected', _lang_sel).format(n=n)}"))
         preset_name = self.sorter.config.get("active_preset", "")
         slots = self.sorter.config["presets"].get(preset_name, {})
+        # I bottoni del preset ATTIVO (quello impostato in cima in
+        # Impostazioni, con le sue fino a 10 destinazioni) restano ora
+        # SEMPRE presenti qui — non solo quando c'e' una selezione, vedi
+        # _refresh_sel_bar_enabled piu' sotto per lo stato acceso/spento.
+        # Richiesto da Carlo: prima sparivano del tutto senza selezione,
+        # lasciando una riga vuota anche con la spunta "Preset" attiva.
+        self._sel_preset_btns = []
         if getattr(self, "_show_preset_row_var", None) is None or \
                 self._show_preset_row_var.get():
             for k in sorted(KEYS, key=int):
@@ -10018,18 +10318,21 @@ class FolderBrowser:
                 lbl   = slot.get("label", k) or k
                 short = lbl[:7] + "." if len(lbl) > 7 else lbl
                 color = KEY_COLORS[KEYS.index(k)]
-                tk.Button(row1, text=f"{k} {short}",
+                btn = tk.Button(row1, text=f"{k} {short}",
                           font=("TkFixedFont", 8, "bold"),
                           bg=color, fg="white", relief="flat", padx=5,
                           activebackground=HIGHLIGHT,
-                          command=lambda d=dest: self._sel_move(d)
-                          ).pack(side="left", padx=2, pady=2, ipady=2)
+                          disabledforeground=MUTED_COLOR,
+                          command=lambda d=dest: self._sel_move(d))
+                btn.pack(side="left", padx=2, pady=2, ipady=2)
+                self._sel_preset_btns.append(btn)
         self._sel_conv_btn = tk.Button(row1, text="Converti",
                       font=("TkFixedFont", 8), bg="#5a3a7a", fg="white",
                       relief="flat", padx=8, activebackground=HIGHLIGHT,
                       command=self._sel_convert_current)
         self._sel_conv_btn.pack(side="left", padx=2, pady=2, ipady=2)
         self._sel_bar_built = True
+        self._refresh_sel_bar_enabled()
 
     def _sel_convert_current(self):
         conv = [f for f in self._selected_files
@@ -10037,21 +10340,30 @@ class FolderBrowser:
                 {".webp",".png",".bmp",".tiff",".gif",".avif",".heic",".heif"}]
         if conv: self.sorter._sel_convert_dialog(conv)
 
+    def _refresh_sel_bar_enabled(self):
+        """Accende/spegne (senza distruggerli) i bottoni del preset attivo
+        secondo la presenza di una selezione — la riga stessa resta
+        sempre visibile e costruita, vedi _build_sel_bar."""
+        n = len(self._selected_files)
+        state = "normal" if n > 0 else "disabled"
+        for btn in getattr(self, "_sel_preset_btns", []):
+            try:
+                if btn.winfo_exists():
+                    btn.config(state=state)
+            except Exception:
+                pass
+
     def _update_sel_bar(self):
         """Aggiorna la barra di selezione.
 
-        Due situazioni DIVERSE per cui la riga puo' apparire vuota, con
-        due comportamenti DIVERSI di proposito:
-          - nessuna selezione: la riga resta ad altezza fissa ma vuota
-            (mai grid_remove/grid qui) — succede ad ogni singolo click,
-            farla collassare causerebbe il "salto" visibile gia' risolto
-            altrove in questa sessione.
-          - casella "Preset" disattivata: e' una scelta rara e
-            deliberata dell'utente, non automatica ad ogni selezione —
-            qui invece la riga DEVE collassare per davvero (grid_remove),
-            altrimenti resta "alta anche se vuota" come notato da Carlo.
+        La riga del preset attivo resta sempre costruita e visibile
+        (mostra le destinazioni anche senza alcuna selezione, solo
+        "spente" — richiesto da Carlo, coerente con Timeline), a meno
+        che la spunta "Preset" non sia disattivata: quella e' una scelta
+        rara e deliberata dell'utente, e solo in quel caso la riga
+        collassa per davvero (grid_remove), altrimenti resta "alta anche
+        se vuota" come notato da Carlo in passato.
         """
-        n = len(self._selected_files)
         show_preset = (getattr(self, "_show_preset_row_var", None) is None
                        or self._show_preset_row_var.get())
         if not show_preset:
@@ -10061,17 +10373,14 @@ class FolderBrowser:
             self._sel_bar.grid_remove()
             return
         self._sel_bar.grid()
-        if n == 0:
-            for w in self._sel_bar.winfo_children():
-                w.destroy()
-            self._sel_bar_built = False
-            return
         if not getattr(self, "_sel_bar_built", False):
             self._build_sel_bar()
+        n = len(self._selected_files)
         if hasattr(self,"_sel_count_lbl") and self._sel_count_lbl.winfo_exists():
             _lang_sel = self.sorter.config.get("language","it")
             _sel_txt = T("n_selected", _lang_sel).format(n=n)
             self._sel_count_lbl.config(text=tk_safe(f"  {_sel_txt}"))
+        self._refresh_sel_bar_enabled()
         if hasattr(self,"_sel_conv_btn") and self._sel_conv_btn.winfo_exists():
             conv=[f for f in self._selected_files
                   if os.path.splitext(f)[1].lower() in
@@ -10168,7 +10477,7 @@ class FolderBrowser:
         for src_path in clip_files:
             if not os.path.isfile(src_path):
                 continue
-            dst_path = self._dest_for(src_path, dest_folder, _mode)
+            dst_path = self._dest_for(src_path, dest_folder, _mode, is_cut=is_cut)
             if dst_path is None:
                 skipped += 1
                 continue
@@ -10575,7 +10884,7 @@ class FolderBrowser:
         for fpath in list(paths):
             if not os.path.isfile(fpath):
                 continue
-            dest_path = self._dest_for(fpath, dest_dir, mode)
+            dest_path = self._dest_for(fpath, dest_dir, mode, is_cut=True)
             if dest_path is None:
                 skipped += 1
                 continue
@@ -10786,15 +11095,36 @@ class FolderBrowser:
              ("Annulla", None)],
             parent=self.win)
 
-    def _dest_for(self, fpath, dest_dir, mode):
+    def _dest_for(self, fpath, dest_dir, mode, is_cut=False):
         """Percorso di destinazione secondo la scelta fatta sui conflitti.
 
         Restituisce None se il file va saltato. In sovrascrittura il file
         gia' presente passa dal cestino di transito invece di sparire:
         cosi' anche una sovrascrittura resta recuperabile.
+
+        is_cut: True per un vero spostamento (taglia/sposta), False per
+        una copia. Quando dest_dir e' la STESSA cartella in cui il file
+        gia' si trova, un vero file manager si comporta diversamente a
+        seconda del caso — qui prima si restituiva sempre il percorso
+        INVARIATO (== fpath), facendo poi tentare a chi chiama uno
+        shutil.copy2/move del file su se stesso: segnalato da Carlo
+        ("incolla nella stessa cartella copia il file con un nuovo
+        nome", come in Nemo/Nautilus/Esplora risorse). TAGLIA+INCOLLA
+        nella stessa cartella non ha invece nulla da fare (il file e'
+        gia' li'): restituisce None (saltato in silenzio), non un
+        errore ne' un file mosso su se stesso.
         """
         dst = os.path.join(dest_dir, os.path.basename(fpath))
-        if not os.path.exists(dst) or os.path.dirname(fpath) == dest_dir:
+        if os.path.dirname(fpath) == dest_dir:
+            if is_cut:
+                return None
+            base, ext = os.path.splitext(os.path.basename(fpath))
+            i = 1
+            while os.path.exists(dst):
+                dst = os.path.join(dest_dir, f"{base}_{i}{ext}")
+                i += 1
+            return dst
+        if not os.path.exists(dst):
             return dst
         if mode == "skip":
             return None
@@ -11379,8 +11709,15 @@ class FolderBrowser:
             pass
         return False
 
-    def _expand_to(self, target):
-        """Espande l'albero fino a target e seleziona il nodo."""
+    def _expand_to(self, target, _reload=True):
+        """Espande l'albero fino a target e seleziona il nodo.
+
+        _reload=False: usato da chi ha gia' caricato (o sta per caricare
+        esplicitamente) le miniature di target per conto proprio — senza
+        questo, la richiesta di ricaricamento qui sotto (con un ritardo di
+        debounce) arriva comunque un attimo dopo, e la griglia si vede
+        costruire due volte di seguito. Vedi _navigate_to/_move_folder_to/
+        _trash_folder/_rename_folder, segnalato da Carlo."""
         if not os.path.isdir(target):
             return
         target = os.path.normpath(os.path.realpath(target))
@@ -11425,7 +11762,8 @@ class FolderBrowser:
             # questa invece di produrre un secondo caricamento separato
             # e visibile.
             self._current_folder = target
-            self._request_thumb_reload()
+            if _reload:
+                self._request_thumb_reload()
 
     def _go_to_path(self):
         p = self._path_var.get().strip()
@@ -11781,21 +12119,31 @@ class FolderBrowser:
         # _close_on_outside già gestito da _post_menu
 
     def _highlight_folder_cell(self, dpath):
-        """Colora in verde la cella della cartella selezionata."""
+        """Evidenzia con un bordo verde la cella della cartella selezionata.
+
+        Prima riempiva di verde cella+canvas+etichetta (3 widget, +3 per
+        deselezionare la precedente): su alcuni sistemi riconfigurare cosi'
+        tanti widget innestati dentro il Canvas scorrevole produceva un
+        lampeggio visibile su TUTTA la griglia ad ogni clic, segnalato da
+        Carlo pur restando le celle ferme al loro posto (non uno
+        spostamento reale, un ridisegno). Un bordo (highlightbackground,
+        spessore FISSO impostato gia' alla creazione — vedi _load_dirs_grid/
+        _load_list_view) tocca un solo widget per cella invece di tre,
+        stesso principio del bordo di selezione delle miniature file
+        (_set_cell_selected)."""
         info = self._dir_cell_refs.get(dpath)
         if info:
-            widget, orig_bg = info
+            widget, _orig_bg = info
             try:
-                widget.config(bg="#1a4a1a")
-                for w in widget.winfo_children():
-                    try: w.config(bg="#1a4a1a")
-                    except Exception: pass
+                widget.config(highlightbackground="#2ecc71",
+                              highlightcolor="#2ecc71")
                 self._sel_dir_cell = dpath
             except Exception:
                 pass
 
     def _deselect_folder_cell(self):
-        """Ripristina il colore originale della cella selezionata.
+        """Ripristina il bordo (invisibile, dello stesso colore dello
+        sfondo della cella) della cartella che era selezionata.
 
         Solo di QUELLA: prima si riconfiguravano tutte le celle ad ogni
         selezione, e con molte cartelle il ridisegno era visibile come un
@@ -11811,10 +12159,7 @@ class FolderBrowser:
             return
         widget, orig_bg = info
         try:
-            widget.config(bg=orig_bg)
-            for w in widget.winfo_children():
-                try: w.config(bg=orig_bg)
-                except Exception: pass
+            widget.config(highlightbackground=orig_bg, highlightcolor=orig_bg)
         except Exception:
             pass
 
@@ -11863,24 +12208,26 @@ class FolderBrowser:
         menu.add_command(label="Proprietà...",
                          command=lambda p=path: self._folder_properties(p))
         menu.add_separator()
-        # Colore cartella: stessi 5 colori delle colorlabel dei file
-        # (metadata_store.COLOR_LABELS), ma qui uno solo scelbile per
-        # cartella (● = colore attuale). Riclicca lo stesso per toglierlo,
-        # oppure "Nessun colore".
-        _cur_fcolor = _get_folder_color(self.sorter.config, path)
-        for _cid, _cname, _hex in metadata_store.COLOR_LABELS:
-            _mark = "●" if _cid == _cur_fcolor else "○"
-            _next = None if _cid == _cur_fcolor else _cid
-            menu.add_command(label=f"{_mark} Colore: {_cname}",
-                             foreground=_hex,
-                             command=lambda p=path, c=_next: self._set_folder_color_action(p, c))
-        if _cur_fcolor:
-            menu.add_command(label="○ Nessun colore",
-                             command=lambda p=path: self._set_folder_color_action(p, None))
-        menu.add_separator()
         menu.add_command(label="Sposta nel cestino",
                          command=lambda p=path: self._trash_folder(p))
+        menu.add_separator()
+        # Colore cartella: stessi 5 colori delle colorlabel dei file
+        # (metadata_store.COLOR_LABELS), ma qui uno solo scelbile per
+        # cartella, su un'UNICA riga di quadrati senza testo (quadrati,
+        # non pallini, per non confondersi con le colorlabel dei file —
+        # richiesto da Carlo). Una riga vuota RISERVATA nel menu vero,
+        # col contenuto reale disegnato da un overlay sovrapposto dopo
+        # l'apertura — stessa tecnica gia' in uso per la riga
+        # valutazione/colorlabel del menu file (attach_rating_overlay):
+        # un primo tentativo con colonne di menu affiancate
+        # (columnbreak) risultava "brutto" secondo Carlo, la riga finiva
+        # incollata in alto vicino ad "Apri" invece che qui in fondo.
+        _cur_fcolor = _get_folder_color(self.sorter.config, path)
+        _color_row_idx = add_folder_color_row_reserve(menu)
         _post_menu(menu, event.x_root, event.y_root, self.win)
+        attach_folder_color_overlay(
+            menu, _color_row_idx, _cur_fcolor,
+            on_pick=lambda c, p=path: self._set_folder_color_action(p, c))
 
     def _set_folder_color_action(self, path, color_id):
         """Imposta/rimuove il colore personalizzato della cartella e
@@ -11967,6 +12314,14 @@ class FolderBrowser:
             self._sel_clear()
         self.sorter._selected_browser_folder = path
         self._highlight_folder_cell(path)
+        # Chiude subito qui ogni ridisegno/ricalcolo che Tk potrebbe
+        # accodare per gli aggiornamenti sopra (idle task), invece di
+        # lasciarlo in sospeso: senza questo, il primo evento successivo
+        # qualsiasi (es. il clic su una miniatura) rischia di far
+        # scattare visibilmente un ridisegno accumulato che sembra suo,
+        # segnalato da Carlo come sussulto/lampeggio "attaccato" al primo
+        # clic dopo aver navigato tra cartelle.
+        self.win.update_idletasks()
 
     def _move_folder_to(self, folder_path, dest_dir, dest_label):
         """Sposta una cartella in una destinazione preset."""
@@ -11994,7 +12349,7 @@ class FolderBrowser:
             self._status_msg(folder_name + "  ->  " + dest_label + "  (" + dest_dir + ")", SUCCESS)
             parent = os.path.dirname(folder_path)
             self._load_thumbnails(parent)
-            self._expand_to(parent)
+            self._expand_to(parent, _reload=False)
         except Exception as ex:
             self._status_msg("Errore: " + str(ex)[:60], HIGHLIGHT)
 
@@ -12013,7 +12368,7 @@ class FolderBrowser:
                 self._status_msg("Cartella '" + name + "' cestinata.", SUCCESS)
                 parent = os.path.dirname(folder_path)
                 self._load_thumbnails(parent)
-                self._expand_to(parent)
+                self._expand_to(parent, _reload=False)
                 self._clear_action_btns()
             else:
                 self._status_msg("Impossibile cestinare.", HIGHLIGHT)
@@ -12083,15 +12438,25 @@ class FolderBrowser:
                     metadata_store.rename_path_prefix(folder_path, new_path)
                 win.destroy()
                 # Aggiorna la cartella corrente se necessario
+                _was_viewing = None
                 if self._current_folder and self._current_folder.startswith(folder_path):
                     self._current_folder = self._current_folder.replace(
                         folder_path, new_path, 1)
-                # Ricostruisce l'albero e naviga al nuovo path
+                    _was_viewing = self._current_folder
+                # Ricostruisce l'albero e naviga al nuovo path. Se pero'
+                # stavamo gia' guardando dentro la cartella rinominata (o
+                # una sua sottocartella), _reload=False: la ricarica la
+                # riga sotto con il percorso GIUSTO (che puo' essere piu'
+                # in profondita' di new_path) — senza questo, _expand_to
+                # ricaricava sempre new_path per conto suo E la riga sotto
+                # ricaricava una seconda volta, un doppio caricamento
+                # segnalato da Carlo (in piu' con il percorso sbagliato,
+                # perche' _expand_to sovrascrive self._current_folder con
+                # new_path prima che la riga sotto lo leggesse).
                 self._populate_root()
-                self._expand_to(new_path)
-                # Ricarica thumbnail se stavamo guardando la cartella rinominata
-                if self._current_folder and self._current_folder.startswith(new_path):
-                    self._load_thumbnails(self._current_folder)
+                self._expand_to(new_path, _reload=(_was_viewing is None))
+                if _was_viewing:
+                    self._load_thumbnails(_was_viewing)
             except Exception as ex:
                 msg.config(text=_Tf("Errore: {msg}", self.sorter.config.get("language","it"), msg=str(ex)[:40]))
 
@@ -18949,6 +19314,7 @@ class ImageSorter:
         # che Tk emette subito dopo l'apertura di un file. I secondi non
         # devono far ripartire la lettura del file da disco.
         self._load_generation     = 0     # invalida i risultati dei worker vecchi
+        self._load_debounce_job   = None  # vedi _show_image: rimanda l'avvio del thread
         self._loading_in_progress = False # un thread di caricamento e' attivo
         self._loading_filepath    = None  # file della richiesta in corso
         self._pending_image       = None  # PIL Image gia' decodificata in RAM
@@ -20562,7 +20928,27 @@ class ImageSorter:
             # unico rendering.
             self.root.after(0, lambda fp=filepath, im=img, gen=generation:
                             self._finish_show_image(fp, im, gen))
-        threading.Thread(target=_load_in_thread, daemon=True).start()
+        # Debounce PRIMA di avviare il thread vero (non dell'intera
+        # _show_image: il placeholder e l'aggiornamento di Confronta qui
+        # sopra restano immediati, solo la lettura/decodifica pesante
+        # viene rimandata) — tenendo premuta una freccia di navigazione o
+        # scorrendo veloce con la rotella, ogni passaggio avviava SUBITO
+        # un thread di decodifica completo (lettura file, EXIF, rotazione),
+        # anche se solo l'ULTIMO risultato viene mai usato (il token
+        # generation scarta gli altri, ma dopo che hanno gia' consumato
+        # CPU/IO per niente) — pesante specialmente su immagini grandi o
+        # storage lento. 50ms non e' percepibile su un singolo passo, ma
+        # raggruppa una sequenza rapida in un solo thread reale.
+        if self._load_debounce_job:
+            try:
+                self.root.after_cancel(self._load_debounce_job)
+            except Exception:
+                pass
+
+        def _start_load_thread():
+            self._load_debounce_job = None
+            threading.Thread(target=_load_in_thread, daemon=True).start()
+        self._load_debounce_job = self.root.after(50, _start_load_thread)
         return   # la funzione continua in _finish_show_image
 
 
