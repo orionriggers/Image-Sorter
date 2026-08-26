@@ -1594,6 +1594,62 @@ CHIUSURA SESSIONE: DEBUG APPROFONDITO E OTTIMIZZAZIONE CPU/RISORSE
   funzione persa, solo le nuove aggiunte).
 
 ===========================================================================
+v1.45.0 — REGRESSIONI DALLA v1.44.0 SEGNALATE DA CARLO DOPO IL COMMIT
+===========================================================================
+Carlo ha testato il commit v1.44.0 sul suo sistema reale e segnalato
+tre problemi: (1) Naviga sembra piu' lenta ad aprire una cartella,
+(2) Timeline si apre con la colonna centrale schiacciata dalla colonna
+anteprima, (3) da oggi compare una piccola finestra quadrata grigia
+prima che si apra la finestra principale.
+
+CAUSA 1 E FIX: PULSANTI PRESET RICOSTRUITI AD OGNI CARTELLA
+  La riga preset sempre visibile (v1.44.0) aveva reso _load_thumbnails
+  troppo zelante: forzava _sel_bar_built=False (quindi un vero
+  distruggi-e-ricrea di tutti i bottoni preset) ad OGNI singola
+  cartella aperta, anche restando sullo stesso preset attivo — prima
+  della v1.44.0 questo lavoro veniva fatto solo quando c'era
+  effettivamente una selezione, molto meno spesso. Corretto:
+  _build_sel_bar() ora salva una "firma" del preset appena costruito
+  (nome + tuple ordinata di path/etichetta di ogni slot, non solo il
+  nome — cosi' anche una modifica del CONTENUTO dello stesso preset
+  fatta da Impostazioni con Naviga gia' aperta viene rilevata), e
+  _load_thumbnails ricostruisce i bottoni solo se quella firma e'
+  davvero cambiata rispetto all'ultima costruzione. Verificato con un
+  test funzionale diretto (5 controlli): bottoni riusati (stessa
+  identita' di oggetto Tk) navigando con lo stesso preset; ricostruiti
+  cambiando preset; ricostruiti anche solo cambiando il path di uno
+  slot con lo stesso nome di preset.
+
+CAUSA 2 (ipotesi, non confermata) E FIX: TIMELINE, DIVISORE ANTEPRIMA
+  Non riprodotto in ambiente headless (stesso limite gia' incontrato
+  piu' volte in questa sessione per bug di timing/geometria reale):
+  un test A/B diretto (con/senza la riga aggiunta in v1.44.0 subito
+  dopo self._build() in DeepBrowser.__init__) produceva lo STESSO
+  sashpos in entrambi i casi, quindi quella riga specifica non sembra
+  la causa diretta. Ipotesi piu' plausibile trovata confrontando
+  Timeline con Naviga: _toggle_preview_pane() (Timeline) ha solo DUE
+  tentativi ravvicinati (20ms, 90ms) per riapplicare la posizione del
+  divisore salvata, mentre il meccanismo equivalente in Naviga
+  (_set_sash, FolderBrowser) ne ha QUATTRO su un arco molto piu' lungo
+  (subito, poi 150/500/1000ms) — un margine che su un vero window
+  manager (a differenza di Xvfb, senza WM, dove le geometrie si
+  applicano quasi all'istante) puo' non bastare se la finestra
+  raggiunge la sua dimensione reale piu' lentamente del previsto.
+  Aggiunti due tentativi piu' tardivi (500ms, 1000ms) a
+  _toggle_preview_pane(), stesso margine di Naviga. Non essendo
+  riprodotto il difetto originale, il fix e' un rafforzamento
+  principled (stessa tecnica gia' provata altrove) ma NON verificato
+  end-to-end sul sintomo reale — da confermare con Carlo.
+
+CAUSA 3: FINESTRA GRIGIA ALL'AVVIO — NON INDAGATA A FONDO
+  Nessuna ipotesi solida trovata nel codice toccato in questa sessione
+  (ne' deck_core.py ne' metadata_store.py ne' i debounce aggiunti
+  creano finestre Tk all'avvio). Segnalato a Carlo che servono piu'
+  dettagli (quando esattamente compare, quanto dura, se capita anche
+  aprendo Naviga/Timeline da soli) prima di continuare a cercare alla
+  cieca. STATO: APERTO, in attesa di dettagli.
+
+===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
 ===========================================================================
 Allegare:

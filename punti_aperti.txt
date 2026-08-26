@@ -1,8 +1,9 @@
 ===========================================================================
 PUNTI APERTI — Image Sorter
-Verificato contro il codice in data 2026-08-26, versione core v1.44.0.
+Verificato contro il codice in data 2026-08-26, versione core v1.45.0.
 Aggiornato rispetto alla verifica precedente (2026-08-22, v1.42.0): vedi
-PARTE 6 in fondo per il debug/ottimizzazione di questa sessione.
+PARTE 6 per il debug/ottimizzazione della sessione precedente, PARTE 7
+per le regressioni dalla v1.44.0 segnalate da Carlo dopo il commit.
 Verifica fatta leggendo direttamente il codice (grep + lettura mirata),
 non per memoria di sessioni precedenti.
 ===========================================================================
@@ -295,3 +296,42 @@ APERTI, VALUTATI MA NON MODIFICATI (rischio o incertezza piu' alti):
      STATO: IRRISOLTO. PROSSIMO PASSO SUGGERITO: una vera registrazione
      schermo (strumento di cattura nativo, non il telefono) per
      eliminare il dubbio dell'artefatto da camera.
+
+
+===========================================================================
+PARTE 7 — REGRESSIONI DALLA v1.44.0 SEGNALATE DA CARLO DOPO IL COMMIT
+===========================================================================
+
+  P. NAVIGA PIU' LENTA AD APRIRE UNA CARTELLA
+     Causa: la riga preset sempre visibile (v1.44.0) distruggeva e
+     ricreava tutti i bottoni preset ad OGNI cartella aperta, anche
+     restando sullo stesso preset attivo. Corretto: _build_sel_bar()
+     salva ora una firma (nome preset + contenuto di ogni slot) e
+     _load_thumbnails ricostruisce i bottoni solo se quella firma e'
+     davvero cambiata. Verificato con test funzionale diretto (5
+     controlli: riuso su stesso preset, ricostruzione su cambio preset,
+     ricostruzione su cambio contenuto a parita' di nome).
+     STATO: RISOLTO.
+
+  Q. TIMELINE: COLONNA CENTRALE SCHIACCIATA DALLA COLONNA ANTEPRIMA
+     ALL'APERTURA
+     Non riprodotto in ambiente headless (test A/B diretto: stesso
+     sashpos con e senza la riga aggiunta in v1.44.0). Ipotesi piu'
+     plausibile, trovata per confronto con Naviga: _toggle_preview_pane
+     di Timeline aveva solo due tentativi ravvicinati (20/90ms) per
+     riapplicare la posizione salvata del divisore, contro i quattro
+     (subito, 150/500/1000ms) del meccanismo equivalente in Naviga —
+     margine insufficiente su un vero window manager. Aggiunti due
+     tentativi piu' tardivi (500ms, 1000ms).
+     STATO: FIX APPLICATO MA NON CONFERMATO — il sintomo originale non
+     e' stato riprodotto, quindi non e' certo che questa sia la causa
+     reale. Da verificare con Carlo sul suo sistema.
+
+  R. FINESTRA QUADRATA GRIGIA ALL'AVVIO (segnalata "da oggi")
+     Nessuna ipotesi solida trovata nel codice toccato in questa
+     sessione (ne' i debounce ne' la cache font ne' il salvataggio
+     ritardato creano finestre Tk all'avvio). Servono piu' dettagli da
+     Carlo: quando compare esattamente, per quanto tempo resta
+     visibile, se capita anche aprendo Naviga/Timeline da soli o solo
+     all'avvio del programma principale.
+     STATO: APERTO, in attesa di dettagli da Carlo.

@@ -1,5 +1,5 @@
 # translations.py — Testi e traduzioni IT/EN
-VERSION = "1.44.0"
+VERSION = "1.45.0"
 #
 # COME AGGIUNGERE UNA NUOVA LINGUA
 # 1. Aggiungi un blocco in LANG:  "xx": { "lang_name": "Nome", "app_name": "Image Sorter", ... }

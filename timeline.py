@@ -1,5 +1,5 @@
 # timeline.py — Timeline, mappa GPS, scansione ricorsiva
-VERSION = "1.44.0"
+VERSION = "1.45.0"
 # Visualizzazione profonda: scansione ricorsiva, timeline per data/luogo, mappa GPS
 # Dipendenze: reverse_geocode, folium (pip install reverse-geocode folium)
 
@@ -1145,11 +1145,24 @@ class DeepBrowser:
                             self._right_paned.sashpos(0, saved_pos)
                         except Exception:
                             pass
-                    # Doppio tentativo: il layout del pannello appena
-                    # aggiunto potrebbe non essersi ancora assestato al
-                    # primo tentativo.
+                    # Piu' tentativi, non solo due ravvicinati: se
+                    # _toggle_preview_pane() viene eseguita presto (l'
+                    # after_idle che la programma puo' venire "svegliato"
+                    # in anticipo da un update_idletasks() successivo in
+                    # __init__, prima che win.geometry()/deiconify()
+                    # abbiano davvero portato la finestra alla sua
+                    # dimensione finale), un vero window manager puo'
+                    # impiegare piu' di 90ms per applicarla — un margine
+                    # che con soli due tentativi ravvicinati (20/90ms) a
+                    # volte non basta, lasciando il divisore fissato su
+                    # una larghezza sbagliata (colonna centrale schiacciata
+                    # dalla destra, segnalato da Carlo). Stessi ritardi
+                    # gia' usati con successo per lo stesso problema in
+                    # Naviga (_set_sash, FolderBrowser in image_sorter.py).
                     self.win.after(20, _restore_sash)
                     self.win.after(90, _restore_sash)
+                    self.win.after(500, _restore_sash)
+                    self.win.after(1000, _restore_sash)
             self.win.after_idle(self._update_preview_pane)
         if cfg is not None:
             cfg["timeline_preview_visible"] = self._preview_visible

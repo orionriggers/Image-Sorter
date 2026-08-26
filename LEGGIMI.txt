@@ -1,8 +1,8 @@
-IMAGE SORTER v1.44
+IMAGE SORTER v1.45
 ==================
 Un programma per gestire, visualizzare e smistare immagini, video e PDF.
 
-Versione        : 1.44
+Versione        : 1.45
 Linguaggio      : Python 3.8+
 Interfaccia     : tkinter + Pillow
 Piattaforma     : Linux (testato su Linux Mint / Ubuntu)
@@ -25,11 +25,11 @@ AVVIO
 
 FILE DEL PROGRAMMA
 ------------------
-  image_sorter.py    programma principale           v1.44.0
-  disk_analyzer.py   analisi utilizzo disco         v1.44.0
-  timeline.py        timeline e mappa GPS           v1.44.0
-  exif_editor.py     editor metadati EXIF           v1.44.0
-  translations.py    stringhe IT/EN                 v1.44.0
+  image_sorter.py    programma principale           v1.45.0
+  disk_analyzer.py   analisi utilizzo disco         v1.45.0
+  timeline.py        timeline e mappa GPS           v1.45.0
+  exif_editor.py     editor metadati EXIF           v1.45.0
+  translations.py    stringhe IT/EN                 v1.45.0
   installa.sh        script di installazione        v1.36.1
 
 TASTI RAPIDI PRINCIPALI
@@ -1053,3 +1053,21 @@ USO DI CPU E RISORSE — DEBUG APPROFONDITO
     l'intero file su disco — ora le modifiche ravvicinate vengono
     raggruppate in un solo salvataggio (comunque mai perso, anche
     chiudendo il programma subito dopo una modifica)
+
+NOVITÀ v1.44 → v1.45
+--------------------
+Correzioni a due regressioni introdotte dalla v1.44 (riga preset
+sempre visibile), segnalate subito da Carlo dopo il primo utilizzo
+reale:
+  - Naviga più lento ad aprire una cartella: i bottoni del preset
+    attivo venivano distrutti e ricreati ad ogni singola cartella
+    aperta, anche restando sullo stesso preset — ora vengono riusati
+    (ricostruiti solo se il preset attivo o le sue destinazioni
+    cambiano davvero)
+  - Timeline con la colonna centrale schiacciata dalla colonna
+    anteprima all'apertura: il ripristino della posizione del divisore
+    (salvata da una sessione precedente) aveva solo due tentativi
+    ravvicinati (20/90ms) per applicarsi dopo che la finestra ha
+    raggiunto la sua dimensione reale — un margine che su un sistema
+    reale può non bastare. Aggiunti due tentativi più tardivi (500ms,
+    1000ms), stesso margine già usato con successo in Naviga

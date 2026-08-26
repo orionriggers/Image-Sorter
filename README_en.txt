@@ -1,8 +1,8 @@
-IMAGE SORTER v1.44
+IMAGE SORTER v1.45
 ==================
 A program to manage, view, and sort images, videos, and PDFs.
 
-Version         : 1.44
+Version         : 1.45
 Language        : Python 3.8+
 Interface       : tkinter + Pillow
 Platform        : Linux (tested on Linux Mint / Ubuntu)
@@ -24,11 +24,11 @@ LAUNCH
 
 PROGRAM FILES
 -------------
-  image_sorter.py    main program                   v1.44.0
-  disk_analyzer.py   disk usage analyzer            v1.44.0
-  timeline.py        timeline and GPS map           v1.44.0
-  exif_editor.py     EXIF metadata editor           v1.44.0
-  translations.py    IT/EN strings                  v1.44.0
+  image_sorter.py    main program                   v1.45.0
+  disk_analyzer.py   disk usage analyzer            v1.45.0
+  timeline.py        timeline and GPS map           v1.45.0
+  exif_editor.py     EXIF metadata editor           v1.45.0
+  translations.py    IT/EN strings                  v1.45.0
   installa.sh        installation script            v1.36.1
 
 MAIN SHORTCUTS
@@ -902,3 +902,18 @@ CPU AND RESOURCE USAGE — THOROUGH DEBUG PASS
   - Rating/colorlabel/tags: every single change rewrote the entire file
     to disk right away - nearby changes are now batched into one save
     (still never lost, even closing the program right after a change)
+
+WHAT'S NEW v1.44 -> v1.45
+--------------------------
+Fixes for two regressions introduced by v1.44 (always-visible preset
+row), reported right away by Carlo after real-world use:
+  - Browser slower to open a folder: the active preset's buttons were
+    destroyed and recreated for every single folder opened, even
+    staying on the same preset - now reused (only rebuilt if the
+    active preset or its destinations actually change)
+  - Timeline opening with the center column squeezed by the preview
+    column: restoring the saved divider position only had two closely
+    spaced attempts (20/90ms) to apply after the window reached its
+    real size - a margin that can fall short on a real system. Added
+    two later attempts (500ms, 1000ms), the same margin already used
+    successfully in the Browser

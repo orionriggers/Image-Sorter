@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.44.0"
+VERSION = "1.45.0"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -8950,14 +8950,31 @@ class FolderBrowser:
                 # SUBITO DOPO, innescando comunque il ricaricamento che
                 # questo intero blocco doveva evitare.
                 self.win.update_idletasks()
-        self._sel_bar_built = False  # forza rebuild al prossimo _update_sel_bar
-        if hasattr(self, '_sel_bar') and self._sel_bar.winfo_exists():
-            for _w in self._sel_bar.winfo_children():
-                _w.destroy()
-        # Ricostruisce subito la riga preset (spenta, nessuna selezione
-        # ancora in questa cartella appena aperta) invece di lasciarla
-        # vuota finche' non si clicca un file — richiesto da Carlo, che
-        # vuole vedere sempre le destinazioni del preset attivo.
+        # Forza la ricostruzione dei bottoni preset SOLO se il preset
+        # attivo e' davvero cambiato da quando sono stati costruiti
+        # l'ultima volta — non ad ogni singola cartella aperta: i
+        # bottoni mostrano le destinazioni del preset attivo, che non
+        # dipendono affatto dalla cartella. Distruggerli e ricrearli a
+        # ogni navigazione (come succedeva subito dopo aver reso questa
+        # riga sempre visibile) rallentava percepibilmente l'apertura
+        # di ogni cartella in Naviga, segnalato da Carlo — senza alcun
+        # bisogno reale, dato che il preset attivo resta quasi sempre
+        # lo stesso da un clic all'altro.
+        _active_preset_now = self.sorter.config.get("active_preset", "")
+        _slots_now = self.sorter.config["presets"].get(_active_preset_now, {})
+        _preset_sig_now = (
+            _active_preset_now,
+            tuple(sorted((k, v.get("path", ""), v.get("label", ""))
+                         for k, v in _slots_now.items())))
+        if getattr(self, "_sel_bar_preset_sig", None) != _preset_sig_now:
+            self._sel_bar_built = False
+            if hasattr(self, '_sel_bar') and self._sel_bar.winfo_exists():
+                for _w in self._sel_bar.winfo_children():
+                    _w.destroy()
+        # Aggiorna comunque la riga (conteggio selezione azzerato, stato
+        # spento/acceso dei bottoni, Converti nascosto): _update_sel_bar
+        # ricostruisce i bottoni SOLO se _sel_bar_built e' stato appena
+        # azzerato qui sopra, altrimenti riusa quelli gia' presenti.
         if hasattr(self, '_sel_bar') and self._sel_bar.winfo_exists():
             self._update_sel_bar()
         for w in self._thumb_inner.winfo_children():
@@ -10332,6 +10349,15 @@ class FolderBrowser:
                       command=self._sel_convert_current)
         self._sel_conv_btn.pack(side="left", padx=2, pady=2, ipady=2)
         self._sel_bar_built = True
+        # Ricordato per _load_thumbnails: ricostruisce i bottoni solo se
+        # il preset attivo (nome O contenuto — un'etichetta/percorso
+        # modificato in Impostazioni con Naviga gia' aperta deve
+        # comunque riflettersi) e' davvero cambiato, non ad ogni
+        # cartella aperta.
+        self._sel_bar_preset_sig = (
+            preset_name,
+            tuple(sorted((k, v.get("path", ""), v.get("label", ""))
+                         for k, v in slots.items())))
         self._refresh_sel_bar_enabled()
 
     def _sel_convert_current(self):
