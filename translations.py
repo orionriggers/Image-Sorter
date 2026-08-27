@@ -1,5 +1,5 @@
 # translations.py — Testi e traduzioni IT/EN
-VERSION = "1.45.0"
+VERSION = "1.45.1"
 #
 # COME AGGIUNGERE UNA NUOVA LINGUA
 # 1. Aggiungi un blocco in LANG:  "xx": { "lang_name": "Nome", "app_name": "Image Sorter", ... }
@@ -1099,6 +1099,44 @@ _IT_EN = {
     "Nome file": "File name",
     "Ignora": "Ignore",
     "Nessun duplicato.": "No duplicates.",
+    # Riepilogo cartelle (doppioni)
+    "Riepilogo cartelle": "Folder summary",
+    "Riepilogo doppioni per cartella": "Duplicate summary by folder",
+    "Spazio recuperabile": "Recoverable space",
+    "Gruppi": "Groups",
+    "Per cartella": "By folder",
+    "Cartelle con contenuto quasi identico": "Folders with nearly identical content",
+    "Cartelle interamente duplicate": "Fully duplicated folders",
+    "Cartelle con lo stesso nome in punti diversi": "Folders with the same name in different places",
+    "Mostra in file manager": "Show in file manager",
+    # "Apri in Image Sorter" già registrata sopra (DiskAnalyzer)
+    "Filtra risultati su questa cartella": "Filter results to this folder",
+    "Mostra tutti": "Show all",
+    "Prossimo": "Next",
+    "Copia tutto": "Copy all",
+    "Copiato": "Copied",
+    "Nessun dato disponibile.": "No data available.",
+    "{n_folders} cartelle coinvolte  —  {n_files} file duplicati recuperabili  —  {size} recuperabili in totale":
+        "{n_folders} folders involved  —  {n_files} recoverable duplicate files  —  {size} recoverable in total",
+    "(gran parte del contenuto di una cartella si ritrova anche nell'altra — la riga in grassetto è la radice del confronto, sotto i singoli file in comune)":
+        "(most of one folder's content is also found in the other — the bold line is the root of the comparison, with the individual shared files below it)",
+    '"{b}"  —  {n} file in comune su {base} ({pct:.0f}%)':
+        '"{b}"  —  {n} shared files out of {base} ({pct:.0f}%)',
+    "(ogni file al loro interno è già copia di un originale altrove: si possono cancellare per intero)":
+        "(every file inside is already a copy of an original elsewhere: safe to delete entirely)",
+    "→ originali in:": "→ originals in:",
+    "(nome identico, contenuto non necessariamente confrontato: un segnale in più da verificare a occhio — clic sul nome per aprire/chiudere l'elenco delle cartelle)":
+        "(identical name, content not necessarily compared: an extra signal worth checking by eye — click the name to open/close the folder list)",
+    '+ "{name}"  —  trovata in {n} punti diversi:': '+ "{name}"  —  found in {n} different places:',
+    'Filtro attivo: "{folder}"': 'Active filter: "{folder}"',
+    "Tieni questa cartella, cestina le altre del gruppo": "Keep this folder, trash the others in the group",
+    "Gruppo di {n} cartelle quasi identiche:": "Group of {n} nearly identical folders:",
+    "Nessuna selezione": "No selection",
+    "Trascina il mouse (o Maiusc+clic) per selezionare una o più righe di cartella, poi riprova.":
+        "Drag the mouse (or Shift+click) to select one or more folder rows, then try again.",
+    "Nessuna cartella": "No folder",
+    "La selezione non contiene righe di cartella cestinabili.":
+        "The selection doesn't contain any folder rows that can be trashed.",
     # Disk analyzer
     "Analizza": "Analyze",
     "Livelli:": "Levels:",

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.45.2"
+VERSION = "1.45.6"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -73,6 +73,7 @@ import time
 import random
 import datetime
 import traceback
+import atexit
 import tkinter as tk
 # simpledialog non serve piu': le cinque richieste di testo che lo usavano
 # (nuova cartella, nuovo preset, copia preset, rinomina preset) passano ora
@@ -83,6 +84,8 @@ import tempfile
 import glob
 import hashlib
 import urllib.parse
+import itertools
+from collections import Counter
 from PIL import Image, ImageTk, ImageDraw, ImageFilter, ImageOps
 try:
     import pillow_avif  # registra supporto AVIF
@@ -263,6 +266,7 @@ except Exception:
 CONFIG_FILE      = os.path.join(SCRIPT_DIR, "image_sorter_config.json")
 HISTORY_FILE     = os.path.join(SCRIPT_DIR, "image_sorter_history.json")
 HISTORY_MAX      = 200
+DUP_CACHE_FILE   = os.path.join(SCRIPT_DIR, "image_sorter_dupscan_cache.json")
 AUTO_BACKUP_DIR       = os.path.join(SCRIPT_DIR, "backup_auto")
 AUTO_BACKUP_KEEP_DAYS = 14
 BACKUP_DIR       = os.path.join(os.path.expanduser("~"), ".local", "share",
@@ -2325,6 +2329,120 @@ def _auto_backup_snapshot():
     except Exception:
         pass
 
+# ── Cache hash "Cerca doppioni" ───────────────────────────────────────────
+# Persiste path -> {size, mtime, hash} tra una scansione e la successiva,
+# cosi' ri-scansionare le stesse cartelle non rilegge/riha i file
+# invariati. Stesso pattern (cache in RAM + scrittura atomica debounced +
+# atexit) gia' maturo in metadata_store.py — deliberatamente qui invece
+# che in un modulo separato, perche' e' una cache "usa e getta" legata
+# solo a DuplicateFinder, non un dato condiviso con deck_daemon.py.
+DUP_CACHE_MAX_AGE_S   = 180 * 86400   # 180 giorni
+DUP_CACHE_MAX_ENTRIES = 100_000
+
+_dup_cache        = None   # dict path -> {"size","mtime","hash","seen"}
+_dup_cache_lock   = threading.Lock()
+_dup_cache_timer  = None
+_dup_cache_dirty  = False
+
+def _dup_cache_load():
+    """Carica la cache in memoria (lazy, una volta sola per sessione)."""
+    global _dup_cache
+    if _dup_cache is not None:
+        return
+    data = {}
+    try:
+        if os.path.isfile(DUP_CACHE_FILE):
+            with open(DUP_CACHE_FILE, encoding="utf-8") as f:
+                raw = json.load(f)
+            if isinstance(raw, dict):
+                data = raw.get("files", {}) or {}
+    except Exception:
+        data = {}
+    _dup_cache = data
+
+def _dup_cache_get(path, size, mtime):
+    """Hash gia' calcolato per path, solo se size/mtime coincidono
+    ESATTAMENTE con l'ultima scansione — altrimenti None (file nuovo o
+    cambiato, va rihashato). Stessa logica di invalidazione delle cache
+    LRU in-memoria gia' presenti nel file per thumbnail/GPS."""
+    _dup_cache_load()
+    path = os.path.abspath(path)
+    entry = _dup_cache.get(path)
+    if not entry or entry.get("size") != size or entry.get("mtime") != mtime:
+        return None
+    return entry.get("hash")
+
+def _dup_cache_put(path, size, mtime, digest):
+    global _dup_cache
+    _dup_cache_load()
+    path = os.path.abspath(path)
+    with _dup_cache_lock:
+        _dup_cache[path] = {"size": size, "mtime": mtime, "hash": digest,
+                            "seen": time.time()}
+    _dup_cache_save()
+
+def _dup_cache_save():
+    """Segna la cache come 'da salvare' e riarma un debounce di 1s invece
+    di riscrivere il JSON ad ogni singolo hash — una scansione con
+    migliaia di file aggiornerebbe altrimenti il file ad ogni file."""
+    global _dup_cache_timer, _dup_cache_dirty
+    _dup_cache_dirty = True
+    if _dup_cache_timer is not None:
+        _dup_cache_timer.cancel()
+    _dup_cache_timer = threading.Timer(1.0, _dup_cache_debounced_flush)
+    _dup_cache_timer.daemon = True
+    _dup_cache_timer.start()
+
+def _dup_cache_debounced_flush():
+    with _dup_cache_lock:
+        _dup_cache_write_now()
+
+def _dup_cache_flush_pending():
+    """Forza subito la scrittura se c'e' un salvataggio in sospeso —
+    usata a uscita programma (atexit), cosi' l'ultimo hash calcolato
+    entro la finestra di debounce non va mai perso."""
+    global _dup_cache_timer
+    if _dup_cache_timer is not None:
+        try:
+            _dup_cache_timer.cancel()
+        except Exception:
+            pass
+        _dup_cache_timer = None
+    with _dup_cache_lock:
+        _dup_cache_write_now()
+
+atexit.register(_dup_cache_flush_pending)
+
+def _dup_cache_write_now():
+    """Scrittura atomica (tmp + os.replace). Applica qui, solo al momento
+    del salvataggio (non ad ogni lookup), scadenza per eta' e un tetto
+    per numero di entry — le entry sono leggere (path+due numeri+hash)
+    ma senza limite crescerebbero per sempre anche per file poi
+    cancellati o spostati."""
+    global _dup_cache_timer, _dup_cache_dirty
+    _dup_cache_timer = None
+    if not _dup_cache_dirty or _dup_cache is None:
+        return
+    tmp_path = DUP_CACHE_FILE + ".tmp"
+    try:
+        now = time.time()
+        files = {p: e for p, e in _dup_cache.items()
+                 if now - e.get("seen", 0) < DUP_CACHE_MAX_AGE_S}
+        if len(files) > DUP_CACHE_MAX_ENTRIES:
+            ordered = sorted(files.items(),
+                             key=lambda kv: kv[1].get("seen", 0), reverse=True)
+            files = dict(ordered[:DUP_CACHE_MAX_ENTRIES])
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump({"version": 1, "files": files}, f)
+        os.replace(tmp_path, DUP_CACHE_FILE)
+        _dup_cache_dirty = False
+    except Exception:
+        try:
+            if os.path.isfile(tmp_path):
+                os.unlink(tmp_path)
+        except Exception:
+            pass
+
 def _delete_history_thumb(entry):
     """Rimuove il file miniatura associato a una entry dello storico, se
     presente. Silenzioso in caso di errore: la miniatura è un dettaglio
@@ -2971,7 +3089,14 @@ def _guess_ext_from_image(img):
 
 
 def _copy_score(file_info):
-    """Punteggio per ordinare i file: 0=originale (prima), 1=probabile copia (dopo)."""
+    """Chiave di ordinamento file duplicati: (copy_flag, mtime).
+    copy_flag: 0=probabile originale (nessun suffisso tipico da copia nel
+    nome), 1=probabile copia — invariato rispetto a prima. mtime: usata
+    SOLO come spareggio quando più file hanno lo stesso copy_flag (es.
+    stesso nome identico in cartelle diverse, nessuno dei due matcha un
+    pattern di copia): il file più vecchio è il candidato più plausibile
+    ad essere l'originale. sorted() confronta le tuple lessicograficamente,
+    quindi il criterio sul nome resta prioritario."""
     import re as _re
     name = os.path.basename(file_info["path"]).lower()
     base = os.path.splitext(name)[0]
@@ -2981,13 +3106,20 @@ def _copy_score(file_info):
         r'\bduplicate\b', r'\bdoppione\b',
         r'\(\d+\)$',          # es. "foto (1)", "foto (2)"
         r'_\d+$',               # es. "foto_1", "foto_2"
+        r'-\d+$',               # es. "foto-1", "documento-1"
         r'-copy$', r'-copia$',
         r' copy$', r' copia$',
     ]
+    copy_flag = 0
     for p in patterns:
         if _re.search(p, base):
-            return 1
-    return 0
+            copy_flag = 1
+            break
+    try:
+        mtime = os.path.getmtime(file_info["path"])
+    except OSError:
+        mtime = float('inf')
+    return (copy_flag, mtime)
 
 
 def browse_file_hud(parent, title="Scegli file", initial_dir=None,
@@ -4504,10 +4636,48 @@ class DuplicateFinder:
 
     # ── Componenti riutilizzabili ─────────────────────────────────────────────
 
-    def _make_folder_list(self, parent, multi=True):
+    def _save_last_folders(self, tab_key, folders):
+        """Ricorda le cartelle usate nell'ultima scansione di questa
+        scheda (tab_key: 'sha'/'quick'), cosi' alla riapertura della
+        finestra sono già lì invece di dover essere reinserite a mano.
+        Non è un vero "resume" della scansione (vedi _dup_cache_* per
+        quello): solo comodità, il vero risparmio di tempo lo dà la
+        cache hash sui file invariati."""
+        last = self.sorter.config.setdefault("dup_finder_last_folders", {})
+        last[tab_key] = [[p, bool(r)] for p, r in folders]
+        save_config(self.sorter.config)
+
+    def _last_folders_for(self, tab_key):
+        """Cartelle dell'ultima scansione salvata per questa scheda, o
+        None se non ce ne sono/il dato è invalido/non si applica — il
+        chiamante ricade allora sul comportamento di sempre (una sola
+        riga con la cartella corrente di Naviga, self._initial_dir).
+
+        La memoria si applica SOLO se self._initial_dir è già tra le
+        cartelle ricordate: "Cerca doppioni" si apre sempre passando la
+        cartella che si sta sfogliando in quel momento (vedi
+        _open_duplicate_finder) — se nel frattempo si è passati a
+        sfogliarne un'altra, mostrare ancora le cartelle di una
+        scansione precedente e scorrelata sorprenderebbe l'utente
+        invece di aiutarlo."""
+        saved = self.sorter.config.get("dup_finder_last_folders", {}).get(tab_key)
+        if not saved:
+            return None
+        try:
+            entries = [(p, bool(r)) for p, r in saved if isinstance(p, str)]
+            if not any(os.path.normpath(p) == os.path.normpath(self._initial_dir)
+                      for p, _ in entries):
+                return None
+            return entries
+        except Exception:
+            return None
+
+    def _make_folder_list(self, parent, multi=True, initial_entries=None):
         """
         Pannello lista cartelle con bottoni Aggiungi/Rimuovi.
         Ritorna (frame, getter) dove getter() → lista di (path, recursive).
+        initial_entries, se non vuoto, precompila una riga per ciascuna
+        coppia (path, recursive) invece della singola riga di default.
         """
         fr = tk.Frame(parent, bg=BG_COLOR)
 
@@ -4518,12 +4688,12 @@ class DuplicateFinder:
 
         entries = []   # lista di (path_var, rec_var, row_frame)
 
-        def _add(path=""):
+        def _add(path="", recursive=True):
             row = tk.Frame(lst_fr, bg=ACCENT_COLOR)
             row.pack(fill="x", padx=4, pady=2)
             row.columnconfigure(1, weight=1)
 
-            rec_var  = tk.BooleanVar(value=True)
+            rec_var  = tk.BooleanVar(value=recursive)
             path_var = tk.StringVar(value=path)
 
             tk.Checkbutton(row, text="Sub",
@@ -4564,7 +4734,11 @@ class DuplicateFinder:
 
             entries.append((path_var, rec_var, row))
 
-        _add(self._initial_dir)
+        if initial_entries:
+            for p, rec in initial_entries:
+                _add(p, rec)
+        else:
+            _add(self._initial_dir)
 
         # Barra aggiungi (solo se multi) — riga condivisa: il bottone sta a
         # sinistra, "add_row" resta disponibile al chiamante per aggiungere
@@ -4598,9 +4772,31 @@ class DuplicateFinder:
         if row_paths is None:
             row_paths = {}
 
+        # Barra "filtro attivo" (da Riepilogo cartelle) — nascosta di
+        # default, mostrata solo quando l'utente filtra esplicitamente per
+        # cartella: cambio raro e deliberato, non automatico/frequente
+        # come gli altri casi del progetto che riservano sempre l'altezza.
+        filter_fr = tk.Frame(fr, bg=PANEL_COLOR)
+        filter_fr.grid(row=1, column=0, sticky="ew")
+        filter_lbl = tk.Label(filter_fr, text="",
+                              font=("TkFixedFont", 8),
+                              bg=PANEL_COLOR, fg=HUD_CYAN, anchor="w")
+        filter_lbl.pack(side="left", padx=10, pady=3)
+        show_all_btn = tk.Button(filter_fr, text="Mostra tutti",
+                                 font=("TkFixedFont", 8), bg=ACCENT_COLOR,
+                                 fg=TEXT_COLOR, relief="flat", padx=8,
+                                 command=lambda: self._dup_filter_show_all(lb, row_paths))
+        show_all_btn.pack(side="left", padx=(0,4), pady=3)
+        next_btn = tk.Button(filter_fr, text="Prossimo",
+                             font=("TkFixedFont", 8), bg=ACCENT_COLOR,
+                             fg=TEXT_COLOR, relief="flat", padx=8,
+                             command=lambda: self._dup_filter_next(lb, row_paths))
+        next_btn.pack(side="left", padx=(0,10), pady=3)
+        filter_fr.grid_remove()
+
         # Progresso
         prog_fr = tk.Frame(fr, bg=BG_COLOR)
-        prog_fr.grid(row=1, column=0, sticky="ew", padx=8, pady=(0,2))
+        prog_fr.grid(row=2, column=0, sticky="ew", padx=8, pady=(0,2))
         prog_fr.columnconfigure(0, weight=1)
 
         status_lbl = tk.Label(prog_fr, text="",
@@ -4693,7 +4889,13 @@ class DuplicateFinder:
             _prev_cells.clear()
             _prev_imgs.clear()
             if not sel: return
-            idx = sel[0]
+            # Con Ctrl+click (un file per gruppo, per scegliere cosa
+            # cestinare) curselection() torna sempre in ordine crescente di
+            # indice: sel[0] resterebbe fisso sul primo gruppo mai
+            # selezionato invece di seguire l'ultima riga cliccata. "active"
+            # segue invece sempre l'ultima interazione, anche in Ctrl+click.
+            active = lb.index("active")
+            idx = active if active in sel else sel[-1]
             sel_path = row_paths.get(idx)  # path selezionato (può essere None)
             group = _find_group(idx)
             if not group: return
@@ -4763,13 +4965,16 @@ class DuplicateFinder:
         lb.bind("<<ListboxSelect>>", _update_preview, add=True)
         lb._refresh_preview = _update_preview  # accessibile da _trash_row
         lb._row_paths_ref  = row_paths          # per aggiornare riga da anteprima
+        lb._filter_fr  = filter_fr    # barra "filtro attivo" (Riepilogo cartelle)
+        lb._filter_lbl = filter_lbl
+        lb._dup_groups = []           # snapshot gruppi completo, per il filtro
 
         # Menu tasto destro sull'anteprima — stesse azioni della listbox
         # (menu tasto destro gestito per-cella in _update_preview)
 
         # Barra azioni in fondo
         bot = tk.Frame(fr, bg=PANEL_COLOR)
-        bot.grid(row=2, column=0, sticky="ew")
+        bot.grid(row=3, column=0, sticky="ew")
 
         result_lbl = tk.Label(bot, text="",
                               font=("TkFixedFont", 9),
@@ -4801,6 +5006,12 @@ class DuplicateFinder:
                               relief="flat", padx=10,
                               state="disabled")
         clean_btn.pack(side="right", padx=6, pady=5, ipady=3)
+
+        report_btn = tk.Button(bot, text="Riepilogo cartelle",
+                               font=("TkFixedFont", 8), bg=ACCENT_COLOR,
+                               fg=TEXT_COLOR, relief="flat", padx=10,
+                               state="disabled")
+        report_btn.pack(side="right", padx=6, pady=5, ipady=3)
 
         # Bottone "Cestina selezionati" — visibile solo con selezione attiva
         sel_btn = tk.Button(bot, text="Cestina selezionati (0)",
@@ -4855,7 +5066,7 @@ class DuplicateFinder:
 
         sel_btn.config(command=_trash_selected)
 
-        return fr, lb, status_lbl, prog_canvas, prog_bar, result_lbl, clean_btn, stop_btn, bot
+        return fr, lb, status_lbl, prog_canvas, prog_bar, result_lbl, clean_btn, stop_btn, bot, report_btn
 
     # ── TAB 1: SHA256 ─────────────────────────────────────────────────────────
 
@@ -4873,12 +5084,13 @@ class DuplicateFinder:
                  font=("TkFixedFont", 8), bg=BG_COLOR,
                  fg=MUTED_COLOR).grid(row=0, column=0, sticky="w", pady=(0,3))
 
-        folder_fr, get_folders, add_row = self._make_folder_list(top, multi=True)
+        folder_fr, get_folders, add_row = self._make_folder_list(
+            top, multi=True, initial_entries=self._last_folders_for("sha"))
         folder_fr.grid(row=1, column=0, sticky="ew", pady=(2,4))
 
         # Area risultati — creata prima così stop_btn è disponibile
         row_paths = {}
-        res_fr, lb, status_lbl, prog_canvas, prog_bar, result_lbl, clean_btn, stop_btn, bot_sha = \
+        res_fr, lb, status_lbl, prog_canvas, prog_bar, result_lbl, clean_btn, stop_btn, bot_sha, report_btn = \
             self._make_results_area(f, row_paths)
         res_fr.grid(row=1, column=0, sticky="nsew", pady=(0,0))
 
@@ -4895,7 +5107,8 @@ class DuplicateFinder:
                                  get_folders, scan_btn,
                                  result_lbl, status_lbl,
                                  prog_canvas, prog_bar,
-                                 lb, clean_btn, row_paths, stop_btn))
+                                 lb, clean_btn, row_paths, stop_btn,
+                                 report_btn=report_btn))
         scan_btn.pack(side="left", padx=(6,4), pady=5, ipady=3)
         result_lbl.pack(side="left", padx=10, pady=5)
 
@@ -4988,12 +5201,15 @@ class DuplicateFinder:
             row_paths[idx] = None; idx += 1
 
     def _run_sha(self, get_folders, scan_btn, result_lbl, status_lbl,
-                 prog_canvas, prog_bar, lb, clean_btn, row_paths, stop_btn=None):
+                 prog_canvas, prog_bar, lb, clean_btn, row_paths, stop_btn=None,
+                 report_btn=None):
         folders = get_folders()
         if not folders:
             self.sorter._hud_alert("Attenzione", "Aggiungi almeno una cartella.",
                             parent=self.win)
             return
+        self._save_last_folders("sha", folders)
+        self._dup_filter_reset_bar(lb)
         lb.delete(0, tk.END)
         row_paths.clear()
         result_lbl.config(text="")
@@ -5005,31 +5221,21 @@ class DuplicateFinder:
         threading.Thread(
             target=self._worker_sha,
             args=(folders, lb, status_lbl, prog_canvas, prog_bar,
-                  result_lbl, clean_btn, scan_btn, row_paths, stop_btn),
+                  result_lbl, clean_btn, scan_btn, row_paths, stop_btn,
+                  report_btn),
             daemon=True).start()
 
     def _worker_sha(self, folders, lb, status_lbl, prog_canvas, prog_bar,
-                    result_lbl, clean_btn, scan_btn, row_paths, stop_btn=None):
-        hashes, duplicates, all_files = {}, {}, []
+                    result_lbl, clean_btn, scan_btn, row_paths, stop_btn=None,
+                    report_btn=None):
+        hashes, duplicates = {}, {}
 
+        media = []
         for folder, recursive in folders:
             self._set_st(status_lbl, f"Raccolta file: {folder}")
-            try:
-                if recursive:
-                    for root, _, files in os.walk(folder):
-                        for f in files:
-                            all_files.append(os.path.join(root, f))
-                else:
-                    all_files += [os.path.join(folder, f)
-                                  for f in os.listdir(folder)
-                                  if os.path.isfile(os.path.join(folder, f))]
-            except OSError:
-                pass
-
-        media = [f for f in all_files
-                 if detect_media_type(f) in MEDIA_EXTENSIONS
-                 or os.path.splitext(f)[1].lower() in MEDIA_EXTENSIONS]
+            media.extend(self._collect_media_stats(folder, recursive))
         total = len(media)
+        folder_totals = Counter(os.path.dirname(info["path"]) for info in media)
 
         def _stopped():
             if not self._stop:
@@ -5040,25 +5246,26 @@ class DuplicateFinder:
             self.win.after(0, _rst)
             return True
 
-        # --- Fase 1: raggruppa per dimensione ESATTA — nessuna lettura di
-        # contenuto, solo os.path.getsize(). Due file di dimensione diversa
-        # non possono mai essere identici: i file con una dimensione unica
-        # nell'insieme analizzato si scartano subito, senza calcolare
-        # nessun hash. Su cartelle con molti file diversi tra loro, questo
-        # da solo elimina la stragrande maggioranza del lavoro.
+        # --- Fase 1: raggruppa per dimensione ESATTA — dimensione e data
+        # arrivano già dalla raccolta file (_collect_media_stats, una sola
+        # stat() per file), qui è puro lavoro in memoria, zero I/O
+        # aggiuntivo. Due file di dimensione diversa non possono mai
+        # essere identici: i file con una dimensione unica nell'insieme
+        # analizzato si scartano subito, senza calcolare nessun hash. Su
+        # cartelle con molti file diversi tra loro, questo da solo elimina
+        # la stragrande maggioranza del lavoro.
         self._set_st(status_lbl, f"Controllo dimensioni: {total} file...")
         sizes = {}
+        mtimes = {}
         by_size = {}
-        for idx, fpath in enumerate(media):
+        for idx, info in enumerate(media):
             if idx % 50 == 0:
                 self._set_prog(prog_canvas, prog_bar, idx+1, total)
-            try:
-                size = os.path.getsize(fpath)
-            except OSError:
-                continue
+            fpath, size = info["path"], info["size"]
             if size == 0:
                 continue
             sizes[fpath] = size
+            mtimes[fpath] = info["mtime"]
             by_size.setdefault(size, []).append(fpath)
         if _stopped():
             return
@@ -5102,8 +5309,12 @@ class DuplicateFinder:
                              tk_safe(f"Verifica {idx+1}/{n_final}  {os.path.basename(fpath)[:50]}"))
                 self._set_prog(prog_canvas, prog_bar, idx+1, n_final)
             try:
-                h = self._hash_file(fpath)
-                info = {"path": fpath, "size": sizes[fpath],
+                size, mtime = sizes[fpath], mtimes[fpath]
+                h = _dup_cache_get(fpath, size, mtime)
+                if h is None:
+                    h = self._hash_file(fpath)
+                    _dup_cache_put(fpath, size, mtime, h)
+                info = {"path": fpath, "size": size,
                         "ext": os.path.splitext(fpath)[1].upper() or "?"}
                 if h in hashes:
                     if h not in duplicates:
@@ -5117,7 +5328,8 @@ class DuplicateFinder:
         self.win.after(0, lambda: self._show_dup_results(
             duplicates, total, lb, status_lbl, prog_canvas, prog_bar,
             result_lbl, clean_btn, scan_btn,
-            row_paths, "Avvia scansione SHA256", stop_btn))
+            row_paths, "Avvia scansione SHA256", stop_btn,
+            report_btn=report_btn, folder_totals=folder_totals))
 
     # ── TAB 2: Rapida ─────────────────────────────────────────────────────────
 
@@ -5134,7 +5346,8 @@ class DuplicateFinder:
                  font=("TkFixedFont", 8), bg=BG_COLOR,
                  fg=MUTED_COLOR).grid(row=0, column=0, sticky="w", pady=(0,3))
 
-        folder_fr, get_folders, _add_row = self._make_folder_list(top, multi=True)
+        folder_fr, get_folders, _add_row = self._make_folder_list(
+            top, multi=True, initial_entries=self._last_folders_for("quick"))
         folder_fr.grid(row=1, column=0, sticky="ew", pady=(2,4))
 
         # Opzioni modalità
@@ -5156,7 +5369,7 @@ class DuplicateFinder:
                            ).pack(side="left", padx=4)
 
         row_paths = {}
-        res_fr, lb, status_lbl, prog_canvas, prog_bar, result_lbl, clean_btn, stop_btn, bot_q = \
+        res_fr, lb, status_lbl, prog_canvas, prog_bar, result_lbl, clean_btn, stop_btn, bot_q, report_btn = \
             self._make_results_area(f, row_paths)
         res_fr.grid(row=1, column=0, sticky="nsew", pady=(0,0))
 
@@ -5173,17 +5386,21 @@ class DuplicateFinder:
                                  get_folders, mode_var.get(), scan_btn,
                                  result_lbl, status_lbl,
                                  prog_canvas, prog_bar,
-                                 lb, clean_btn, row_paths, stop_btn))
+                                 lb, clean_btn, row_paths, stop_btn,
+                                 report_btn=report_btn))
         scan_btn.pack(side="left", padx=(6,4), pady=5, ipady=3)
         result_lbl.pack(side="left", padx=10, pady=5)
 
     def _run_quick(self, get_folders, mode, scan_btn, result_lbl, status_lbl,
-                   prog_canvas, prog_bar, lb, clean_btn, row_paths, stop_btn=None):
+                   prog_canvas, prog_bar, lb, clean_btn, row_paths, stop_btn=None,
+                   report_btn=None):
         folders = get_folders()
         if not folders:
             self.sorter._hud_alert("Attenzione", "Aggiungi almeno una cartella.",
                             parent=self.win)
             return
+        self._save_last_folders("quick", folders)
+        self._dup_filter_reset_bar(lb)
         lb.delete(0, tk.END)
         row_paths.clear()
         result_lbl.config(text="")
@@ -5195,62 +5412,49 @@ class DuplicateFinder:
         threading.Thread(
             target=self._worker_quick,
             args=(folders, mode, lb, status_lbl, prog_canvas, prog_bar,
-                  result_lbl, clean_btn, scan_btn, row_paths, stop_btn),
+                  result_lbl, clean_btn, scan_btn, row_paths, stop_btn,
+                  report_btn),
             daemon=True).start()
 
     def _worker_quick(self, folders, mode, lb, status_lbl, prog_canvas,
-                      prog_bar, result_lbl, clean_btn, scan_btn, row_paths, stop_btn=None):
-        all_files = []
+                      prog_bar, result_lbl, clean_btn, scan_btn, row_paths, stop_btn=None,
+                      report_btn=None):
+        media = []
         for folder, recursive in folders:
             self._set_st(status_lbl, f"Raccolta: {folder}")
-            try:
-                if recursive:
-                    for root, _, files in os.walk(folder):
-                        for fn in files:
-                            all_files.append(os.path.join(root, fn))
-                else:
-                    all_files += [os.path.join(folder, fn)
-                                  for fn in os.listdir(folder)
-                                  if os.path.isfile(os.path.join(folder, fn))]
-            except OSError:
-                pass
-
-        media = [f for f in all_files
-                 if detect_media_type(f) in MEDIA_EXTENSIONS
-                 or os.path.splitext(f)[1].lower() in MEDIA_EXTENSIONS]
+            media.extend(self._collect_media_stats(folder, recursive))
         total = len(media)
+        folder_totals = Counter(os.path.dirname(info["path"]) for info in media)
         self._set_st(status_lbl, f"Indicizzazione {total} file...")
 
         groups = {}
-        for idx, fpath in enumerate(media):
+        for idx, info in enumerate(media):
             if self._stop:
                 def _rst():
                     if scan_btn.winfo_exists(): scan_btn.config(state="normal", text="Avvia scansione rapida")
                     if stop_btn and stop_btn.winfo_exists(): stop_btn.config(state="disabled")
                 self.win.after(0, _rst)
                 return
-            self._set_prog(prog_canvas, prog_bar, idx+1, total)
-            try:
-                size = os.path.getsize(fpath)
-                name = os.path.basename(fpath).lower()
-                if mode == "name_size":
-                    key = (name, size)
-                elif mode == "name":
-                    key = name
-                else:
-                    key = size
-                info = {"path": fpath, "size": size,
+            if idx % 50 == 0:
+                self._set_prog(prog_canvas, prog_bar, idx+1, total)
+            fpath, size = info["path"], info["size"]
+            name = os.path.basename(fpath).lower()
+            if mode == "name_size":
+                key = (name, size)
+            elif mode == "name":
+                key = name
+            else:
+                key = size
+            file_info = {"path": fpath, "size": size,
                         "ext": os.path.splitext(fpath)[1].upper() or "?"}
-                groups.setdefault(key, []).append(info)
-            except Exception:
-                continue
+            groups.setdefault(key, []).append(file_info)
 
         duplicates = {k: v for k, v in groups.items() if len(v) > 1}
         self.win.after(0, lambda: self._show_dup_results(
             duplicates, total, lb, status_lbl, prog_canvas, prog_bar,
             result_lbl, clean_btn, scan_btn,
             row_paths, "Avvia scansione rapida", stop_btn,
-            label_hash=False))
+            label_hash=False, report_btn=report_btn, folder_totals=folder_totals))
 
     # ── TAB 3: A vs B ─────────────────────────────────────────────────────────
 
@@ -5269,13 +5473,35 @@ class DuplicateFinder:
                  font=("TkFixedFont", 8), bg=BG_COLOR,
                  fg=MUTED_COLOR).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0,4))
 
+        # Cartelle A/B dell'ultima scansione (se salvate): comodità di
+        # riapertura, non un vero resume — vedi _save_last_folders().
+        ab_saved = self.sorter.config.get("dup_finder_last_folders", {}).get("ab", {})
+        if not isinstance(ab_saved, dict):
+            ab_saved = {}
+
         self._ab_vars = {}
         for row_i, (lbl, color) in enumerate([("A", HUD_CYAN), ("B", "#ffaa44")]):
+            saved_entry = ab_saved.get(lbl)
+            # "A" deve sempre rispecchiare la cartella corrente di Naviga
+            # (self._initial_dir, passato da _open_duplicate_finder): la
+            # memoria dell'ultima scansione si applica solo se coincide
+            # già con quella corrente, altrimenti mostrerebbe una
+            # cartella diversa da quella che si sta sfogliando — "B" non
+            # ha mai avuto un default legato a Naviga, quindi lì la
+            # memoria si applica sempre.
+            if lbl == "A":
+                same_as_current = (saved_entry
+                                   and os.path.normpath(saved_entry[0]) == os.path.normpath(self._initial_dir))
+                default_path = self._initial_dir
+                default_rec = bool(saved_entry[1]) if same_as_current and len(saved_entry) > 1 else True
+            else:
+                default_path = saved_entry[0] if saved_entry else ""
+                default_rec = bool(saved_entry[1]) if saved_entry and len(saved_entry) > 1 else True
             tk.Label(top, text=_Tf("Cartella {lbl}:", self.sorter.config.get("language","it"), lbl=lbl),
                      font=("TkFixedFont", 9, "bold"),
                      bg=BG_COLOR, fg=color).grid(
                      row=row_i+1, column=0, sticky="w", padx=(0,6), pady=2)
-            pvar = tk.StringVar(value=self._initial_dir if lbl == "A" else "")
+            pvar = tk.StringVar(value=default_path)
             tk.Entry(top, textvariable=pvar,
                      font=("TkFixedFont", 9), bg=ACCENT_COLOR, fg=color,
                      insertbackground=color, relief="flat", bd=3
@@ -5288,7 +5514,7 @@ class DuplicateFinder:
                       font=("TkFixedFont", 8), bg=PANEL_COLOR, fg=TEXT_COLOR,
                       relief="flat", padx=6, command=_browse
                       ).grid(row=row_i+1, column=2, padx=(0,4), pady=2, ipady=3)
-            rec_var = tk.BooleanVar(value=True)
+            rec_var = tk.BooleanVar(value=default_rec)
             tk.Checkbutton(top, text="Sottocartelle", variable=rec_var,
                            font=("TkFixedFont", 8), bg=BG_COLOR, fg=MUTED_COLOR,
                            selectcolor=BG_COLOR, activebackground=BG_COLOR
@@ -5550,9 +5776,30 @@ class DuplicateFinder:
         self._lb_a.bind("<Button-3>", lambda e: _ctx_ab(self._lb_a, self._ab_row_a, e))
         self._lb_b.bind("<Button-3>", lambda e: _ctx_ab(self._lb_b, self._ab_row_b, e))
 
+        # Barra "filtro attivo" (da Riepilogo cartelle) — nascosta di
+        # default, stesso schema di _make_results_area per SHA/Rapida.
+        self._ab_filter_fr = tk.Frame(f, bg=PANEL_COLOR)
+        self._ab_filter_fr.grid(row=2, column=0, sticky="ew")
+        self._ab_filter_lbl = tk.Label(self._ab_filter_fr, text="",
+                                       font=("TkFixedFont", 8),
+                                       bg=PANEL_COLOR, fg=HUD_CYAN, anchor="w")
+        self._ab_filter_lbl.pack(side="left", padx=10, pady=3)
+        tk.Button(self._ab_filter_fr, text="Mostra tutti",
+                 font=("TkFixedFont", 8), bg=ACCENT_COLOR, fg=TEXT_COLOR,
+                 relief="flat", padx=8,
+                 command=self._ab_filter_show_all
+                 ).pack(side="left", padx=(0,4), pady=3)
+        tk.Button(self._ab_filter_fr, text="Prossimo",
+                 font=("TkFixedFont", 8), bg=ACCENT_COLOR, fg=TEXT_COLOR,
+                 relief="flat", padx=8,
+                 command=self._ab_filter_next
+                 ).pack(side="left", padx=(0,10), pady=3)
+        self._ab_filter_fr.grid_remove()
+        self._ab_all_matches = []   # snapshot completo, per il filtro
+
         # ── Barra progresso (sopra barra bottoni) ────────────────────────────
         prog_fr = tk.Frame(f, bg=BG_COLOR)
-        prog_fr.grid(row=2, column=0, sticky="ew", padx=8, pady=(0,2))
+        prog_fr.grid(row=3, column=0, sticky="ew", padx=8, pady=(0,2))
         prog_fr.columnconfigure(0, weight=1)
         self._ab_status_lbl = tk.Label(prog_fr, text="",
                                        font=("TkFixedFont", 8),
@@ -5566,7 +5813,7 @@ class DuplicateFinder:
 
         # ── Barra bottoni in fondo (coerente con SHA/Rapida) ─────────────────
         bot = tk.Frame(f, bg=PANEL_COLOR)
-        bot.grid(row=3, column=0, sticky="ew")
+        bot.grid(row=4, column=0, sticky="ew")
 
         self._ab_result_lbl = tk.Label(bot, text="",
                                        font=("TkFixedFont", 9),
@@ -5610,6 +5857,12 @@ class DuplicateFinder:
                              command=lambda: self._trash_selected_ab(
                                  self._lb_b, self._ab_row_b, "B"))
         self._ab_clean_sel_btn.pack(side="right", padx=6, pady=5, ipady=3)
+
+        self._ab_report_btn = tk.Button(bot, text="Riepilogo cartelle",
+                             font=("TkFixedFont", 8), bg=ACCENT_COLOR,
+                             fg=TEXT_COLOR, relief="flat", padx=10,
+                             state="disabled")
+        self._ab_report_btn.pack(side="right", padx=6, pady=5, ipady=3)
 
         # ── Bottone avvia nella barra in fondo (a sinistra) ─────────────────
         scan_btn = tk.Button(bot, text="Confronta A vs B",
@@ -5723,6 +5976,10 @@ class DuplicateFinder:
             self.sorter._hud_alert("Attenzione",
                 "Specifica due cartelle valide.", parent=self.win)
             return
+        last = self.sorter.config.setdefault("dup_finder_last_folders", {})
+        last["ab"] = {"A": [dir_a, bool(ra.get())], "B": [dir_b, bool(rb.get())]}
+        save_config(self.sorter.config)
+        self._ab_filter_fr.grid_remove()
         self._lb_a.delete(0, tk.END)
         self._lb_b.delete(0, tk.END)
         self._ab_row_a.clear()
@@ -5733,6 +5990,7 @@ class DuplicateFinder:
         self._ab_result_lbl.config(text="")
         self._ab_clean_btn.config(state="disabled")
         self._ab_clean_sel_btn.config(state="disabled")
+        self._ab_report_btn.config(state="disabled")
         scan_btn.config(state="disabled", text="Confronto...")
         stop_btn.config(state="normal")
         self._stop = False
@@ -5747,34 +6005,6 @@ class DuplicateFinder:
                        scan_btn, stop_btn):
         """Thread worker per confronto A vs B con vista a colonne."""
 
-        def collect(folder, recursive):
-            files = []
-            try:
-                if recursive:
-                    for root, _, fns in os.walk(folder):
-                        for fn in fns:
-                            files.append(os.path.join(root, fn))
-                else:
-                    files = [os.path.join(folder, fn)
-                             for fn in os.listdir(folder)
-                             if os.path.isfile(os.path.join(folder, fn))]
-            except OSError:
-                pass
-            return [f for f in files
-                    if detect_media_type(f) in MEDIA_EXTENSIONS
-                    or os.path.splitext(f)[1].lower() in MEDIA_EXTENSIONS]
-
-        def key_of(fpath):
-            try:
-                size = os.path.getsize(fpath)
-                name = os.path.basename(fpath).lower()
-                if mode == "sha":      return self._hash_file(fpath)
-                elif mode == "name_size": return (name, size)
-                elif mode == "size":   return size
-                else:                  return name
-            except Exception:
-                return None
-
         def upd_status(msg):
             self.win.after(0, lambda: self._ab_status_lbl.config(text=msg)
                            if self.win.winfo_exists() else None)
@@ -5782,50 +6012,913 @@ class DuplicateFinder:
             self.win.after(0, lambda: self._set_prog(
                 self._ab_prog_canvas, self._ab_prog_bar, cur, tot)
                 if self.win.winfo_exists() else None)
+        def _reset_buttons():
+            if scan_btn.winfo_exists():
+                scan_btn.config(state="normal", text="Confronta A vs B")
+            if stop_btn and stop_btn.winfo_exists():
+                stop_btn.config(state="disabled")
 
         upd_status("Raccolta file cartella A...")
-        files_a = collect(dir_a, rec_a)
+        files_a = self._collect_media_stats(dir_a, rec_a)
         upd_status("Raccolta file cartella B...")
-        files_b = collect(dir_b, rec_b)
+        files_b = self._collect_media_stats(dir_b, rec_b)
         total = len(files_a) + len(files_b)
+        folder_totals_a = Counter(os.path.dirname(i["path"]) for i in files_a)
+        folder_totals_b = Counter(os.path.dirname(i["path"]) for i in files_b)
 
-        upd_status(f"Indicizzazione {len(files_a)} + {len(files_b)} file...")
+        if mode == "sha":
+            matches = self._ab_match_sha(files_a, files_b, dir_a, dir_b,
+                                          upd_status, upd_prog)
+            if matches is None:   # interrotto dall'utente
+                self.win.after(0, _reset_buttons)
+                return
+        else:
+            def key_of(info):
+                name = os.path.basename(info["path"]).lower()
+                if mode == "name_size": return (name, info["size"])
+                elif mode == "size":    return info["size"]
+                else:                   return name
+            def to_info(info, root_dir):
+                fpath = info["path"]
+                return {"path": fpath, "size": info["size"],
+                        "ext": os.path.splitext(fpath)[1].upper() or "?",
+                        "rel": os.path.relpath(fpath, root_dir)}
 
-        # Indice A: key → lista file
-        index_a = {}
-        for i, fp in enumerate(files_a):
-            if self._stop: break
-            upd_prog(i+1, total)
-            k = key_of(fp)
-            if k is not None:
-                try: size = os.path.getsize(fp)
-                except Exception: size = 0
-                ext  = os.path.splitext(fp)[1].upper() or "?"
-                rel  = os.path.relpath(fp, dir_a)
-                index_a.setdefault(k, []).append(
-                    {"path": fp, "size": size, "ext": ext, "rel": rel})
+            upd_status(f"Indicizzazione {len(files_a)} + {len(files_b)} file...")
 
-        # Scansiona B e trova corrispondenze
-        matches = []  # [(key, file_a, file_b)]
-        for i, fp in enumerate(files_b):
-            if self._stop: break
-            upd_prog(len(files_a)+i+1, total)
-            k = key_of(fp)
-            if k is not None and k in index_a:
-                try: size = os.path.getsize(fp)
-                except Exception: size = 0
-                ext  = os.path.splitext(fp)[1].upper() or "?"
-                rel  = os.path.relpath(fp, dir_b)
-                b_info = {"path": fp, "size": size, "ext": ext, "rel": rel}
-                for a_info in index_a[k]:
-                    matches.append((a_info, b_info))
+            # Indice A: key → lista file
+            index_a = {}
+            for i, info in enumerate(files_a):
+                if self._stop:
+                    self.win.after(0, _reset_buttons)
+                    return
+                if i % 50 == 0:
+                    upd_prog(i+1, total)
+                index_a.setdefault(key_of(info), []).append(to_info(info, dir_a))
+
+            # Scansiona B e trova corrispondenze
+            matches = []  # [(file_a, file_b)]
+            for i, info in enumerate(files_b):
+                if self._stop:
+                    self.win.after(0, _reset_buttons)
+                    return
+                if i % 50 == 0:
+                    upd_prog(len(files_a)+i+1, total)
+                k = key_of(info)
+                if k in index_a:
+                    b_info = to_info(info, dir_b)
+                    for a_info in index_a[k]:
+                        matches.append((a_info, b_info))
 
         self.win.after(0, lambda: self._show_ab_col_results(
-            matches, len(files_a)+len(files_b), dir_a, dir_b,
-            scan_btn, stop_btn))
+            matches, total, dir_a, dir_b, scan_btn, stop_btn,
+            folder_totals_a=folder_totals_a, folder_totals_b=folder_totals_b))
+
+    def _ab_match_sha(self, files_a, files_b, dir_a, dir_b, upd_status, upd_prog):
+        """Confronto A vs B in modalità SHA256: stessa cascata dimensione
+        → hash parziale → hash completo di _worker_sha, ma incrociata tra
+        le due cartelle — un file si scarta appena la sua dimensione (o il
+        suo hash parziale) non ha alcun corrispondente dall'ALTRA parte,
+        più aggressivo del prefiltro "dimensione unica" usato quando si
+        cerca dentro una sola collezione. Usa la stessa cache persistente
+        hash di _worker_sha. Ritorna None se interrotta (self._stop)."""
+        # Fase 1: dimensioni condivise tra A e B — nessuna lettura di
+        # contenuto, la dimensione arriva già da _collect_media_stats.
+        upd_status("Controllo dimensioni...")
+        sizes_a, sizes_b = {}, {}
+        for info in files_a:
+            sizes_a.setdefault(info["size"], []).append(info)
+        for info in files_b:
+            sizes_b.setdefault(info["size"], []).append(info)
+        common_sizes = sizes_a.keys() & sizes_b.keys()
+        cand_a = [info for s in common_sizes for info in sizes_a[s]]
+        cand_b = [info for s in common_sizes for info in sizes_b[s]]
+        if self._stop:
+            return None
+
+        # Fase 2: hash parziale (primi+ultimi 64KB) sui soli candidati con
+        # dimensione condivisa, raggruppati per (size, partial_hash) con
+        # provenienza A/B tenuta separata.
+        n_cand = len(cand_a) + len(cand_b)
+        upd_status(f"Controllo rapido: {n_cand} file simili per dimensione...")
+        partial_a, partial_b = {}, {}
+        for i, info in enumerate(cand_a):
+            if self._stop:
+                return None
+            if i % 20 == 0:
+                upd_prog(i+1, n_cand)
+            try:
+                ph = self._partial_hash_file(info["path"], info["size"])
+                partial_a.setdefault((info["size"], ph), []).append(info)
+            except Exception:
+                continue
+        for i, info in enumerate(cand_b):
+            if self._stop:
+                return None
+            if i % 20 == 0:
+                upd_prog(len(cand_a)+i+1, n_cand)
+            try:
+                ph = self._partial_hash_file(info["path"], info["size"])
+                partial_b.setdefault((info["size"], ph), []).append(info)
+            except Exception:
+                continue
+        common_partial = partial_a.keys() & partial_b.keys()
+        final_a = [info for k in common_partial for info in partial_a[k]]
+        final_b = [info for k in common_partial for info in partial_b[k]]
+
+        # Fase 3: hash completo di conferma (con cache persistente),
+        # raggruppati per hash con provenienza A/B.
+        n_final = len(final_a) + len(final_b)
+        upd_status(f"Verifica completa: {n_final} file...")
+        hash_a, hash_b = {}, {}
+        for i, info in enumerate(final_a):
+            if self._stop:
+                return None
+            if i % 10 == 0:
+                upd_prog(i+1, n_final)
+            try:
+                h = _dup_cache_get(info["path"], info["size"], info["mtime"])
+                if h is None:
+                    h = self._hash_file(info["path"])
+                    _dup_cache_put(info["path"], info["size"], info["mtime"], h)
+                hash_a.setdefault(h, []).append(info)
+            except Exception:
+                continue
+        for i, info in enumerate(final_b):
+            if self._stop:
+                return None
+            if i % 10 == 0:
+                upd_prog(len(final_a)+i+1, n_final)
+            try:
+                h = _dup_cache_get(info["path"], info["size"], info["mtime"])
+                if h is None:
+                    h = self._hash_file(info["path"])
+                    _dup_cache_put(info["path"], info["size"], info["mtime"], h)
+                hash_b.setdefault(h, []).append(info)
+            except Exception:
+                continue
+
+        def to_info(info, root_dir):
+            fpath = info["path"]
+            return {"path": fpath, "size": info["size"],
+                    "ext": os.path.splitext(fpath)[1].upper() or "?",
+                    "rel": os.path.relpath(fpath, root_dir)}
+
+        matches = []
+        for h, a_list in hash_a.items():
+            b_list = hash_b.get(h)
+            if not b_list:
+                continue
+            for a_raw in a_list:
+                a_info = to_info(a_raw, dir_a)
+                for b_raw in b_list:
+                    matches.append((a_info, to_info(b_raw, dir_b)))
+        return matches
+
+    def _aggregate_dup_folders(self, duplicates=None, matches=None,
+                                folder_totals=None, folder_totals_b=None):
+        """Aggrega per cartella lo spazio e il numero di file
+        "recuperabili" (le copie, mai l'originale/A) e individua cartelle
+        con contenuto quasi identico e cartelle interamente duplicate.
+        Passare ESATTAMENTE uno tra duplicates (dict hash/chiave -> lista
+        file_info, come SHA256/Rapida) e matches (lista di tuple
+        (a_info, b_info), come A-vs-B).
+
+        folder_totals: Counter/dict cartella -> file scansionati in
+        totale, serve per le percentuali di "contenuto quasi identico".
+        folder_totals_b: se dato (solo A-vs-B), limita il calcolo di
+        "cartelle interamente duplicate" al lato B — coerente con
+        l'azione esistente "Cestina tutti i duplicati di B (mantieni A)":
+        non ha senso proporre di cancellare interamente una cartella A.
+
+        Ritorna dict con: per_folder (lista ordinata per bytes
+        decrescente), total_files, total_bytes, similar_pairs (lista
+        ordinata per ratio decrescente), fully_redundant (lista ordinata
+        per bytes decrescente), same_name_folders (lista di gruppi
+        {"name","folders"} — cartelle con lo STESSO NOME trovate in punti
+        diversi, indipendentemente dal contenuto: un segnale ulteriore,
+        utile perché una cartella duplicata rinominata identica
+        all'originale ma con contenuto nel frattempo divergente
+        sfuggirebbe al controllo per contenuto), folder_clusters (lista di
+        gruppi {"folders","shared_total"} — componenti connesse di
+        cartelle quasi identiche a coppie, anche 3+ collegate solo
+        transitivamente: usato dall'azione "Tieni questa cartella, cestina
+        le altre del gruppo" nel Riepilogo, ogni elemento di similar_pairs
+        porta anche il suo "cluster_id" per raggrupparli in fase di
+        rendering)."""
+        folder_totals = folder_totals or {}
+        redundant_totals = folder_totals_b if folder_totals_b is not None else folder_totals
+
+        stats = {}        # folder -> {"n_files","bytes","groups":set,"sources":set}
+        pair_shared = {}  # (f1,f2) ordinata alfabeticamente -> {"count","examples":[(pathF1,pathF2),...]}
+        total_files = 0
+        total_bytes = 0
+
+        def _add(folder, size, group_id, source_folder):
+            nonlocal total_files, total_bytes
+            st = stats.setdefault(folder, {"n_files": 0, "bytes": 0,
+                                           "groups": set(), "sources": set()})
+            st["n_files"] += 1
+            st["bytes"]   += size
+            st["groups"].add(group_id)
+            if source_folder and source_folder != folder:
+                st["sources"].add(source_folder)
+            total_files += 1
+            total_bytes += size
+
+        def _add_pair_group(files_in_group):
+            """Registra, per ogni coppia di cartelle DISTINTE rappresentate
+            nel gruppo, sia il conteggio sia un file di esempio per lato
+            (il primo trovato in quella cartella per questo gruppo) — gli
+            esempi alimentano l'elenco dettagliato "file in comune" nel
+            Riepilogo cartelle."""
+            by_folder = {}
+            for fi in files_in_group:
+                folder = os.path.dirname(fi["path"])
+                by_folder.setdefault(folder, fi["path"])
+            for f1, f2 in itertools.combinations(sorted(by_folder), 2):
+                entry = pair_shared.setdefault((f1, f2), {"count": 0, "examples": []})
+                entry["count"] += 1
+                entry["examples"].append((by_folder[f1], by_folder[f2]))
+
+        if duplicates is not None:
+            for gi, (_key, files) in enumerate(duplicates.items()):
+                files_sorted = sorted(files, key=_copy_score)
+                orig_folder = os.path.dirname(files_sorted[0]["path"])
+                for fi in files_sorted[1:]:
+                    folder = os.path.dirname(fi["path"])
+                    _add(folder, fi["size"], gi, orig_folder)
+                _add_pair_group(files_sorted)
+        elif matches is not None:
+            for gi, (a_info, b_info) in enumerate(matches):
+                a_folder = os.path.dirname(a_info["path"])
+                b_folder = os.path.dirname(b_info["path"])
+                _add(b_folder, b_info["size"], gi, a_folder)
+                _add_pair_group([a_info, b_info])
+        else:
+            return {"per_folder": [], "total_files": 0, "total_bytes": 0,
+                    "similar_pairs": [], "fully_redundant": [],
+                    "same_name_folders": [], "folder_clusters": []}
+
+        per_folder = [
+            {"folder": f, "n_files": v["n_files"], "bytes": v["bytes"],
+             "n_groups": len(v["groups"]), "sources": sorted(v["sources"])}
+            for f, v in stats.items()
+        ]
+        per_folder.sort(key=lambda s: -s["bytes"])
+
+        # Cartelle interamente duplicate: ogni file scansionato in quella
+        # cartella è risultato una copia — zero contenuto proprio.
+        fully_redundant = [
+            s for s in per_folder
+            if redundant_totals.get(s["folder"], 0) > 0
+            and s["n_files"] == redundant_totals[s["folder"]]
+        ]
+
+        similar_pairs = []
+        for (f1, f2), entry in pair_shared.items():
+            shared = entry["count"]
+            if shared < 3:
+                continue
+            base = min(folder_totals.get(f1, 0), folder_totals.get(f2, 0))
+            if base <= 0:
+                continue
+            ratio = shared / base
+            if ratio >= 0.6:
+                similar_pairs.append({"a": f1, "b": f2, "shared": shared,
+                                      "base": base, "ratio": ratio,
+                                      "examples": entry["examples"]})
+        similar_pairs.sort(key=lambda p: -p["ratio"])
+
+        # Cluster di cartelle gemelle: componenti connesse sulle coppie
+        # che superano GIÀ la soglia qui sopra (nessuna soglia nuova da
+        # giustificare) — con 3+ cartelle mutuamente simili permette di
+        # trattarle come UN gruppo solo anche se non ogni singola coppia
+        # supera la soglia (basta che siano collegate transitivamente:
+        # A-B e B-C sopra soglia bastano per il cluster {A,B,C} anche se
+        # A-C da sola non ci arriverebbe). Usato dall'azione "Tieni questa
+        # cartella, cestina le altre del gruppo" nel Riepilogo.
+        parent = {}
+        def _find(x):
+            parent.setdefault(x, x)
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+        def _union(x, y):
+            rx, ry = _find(x), _find(y)
+            if rx != ry:
+                parent[rx] = ry
+
+        for p in similar_pairs:
+            _union(p["a"], p["b"])
+
+        clusters_map = {}   # radice union-find -> {"folders": set, "pairs": [...]}
+        for p in similar_pairs:
+            entry = clusters_map.setdefault(_find(p["a"]), {"folders": set(), "pairs": []})
+            entry["folders"].update((p["a"], p["b"]))
+            entry["pairs"].append(p)
+
+        folder_clusters = [
+            {"folders": sorted(data["folders"]),
+             "shared_total": sum(pp["shared"] for pp in data["pairs"]),
+             "_pairs": data["pairs"]}
+            for data in clusters_map.values()
+        ]
+        folder_clusters.sort(key=lambda c: (-len(c["folders"]), -c["shared_total"]))
+        for cluster_id, cl in enumerate(folder_clusters):
+            for p in cl.pop("_pairs"):
+                p["cluster_id"] = cluster_id
+
+        # Cartelle con lo stesso nome in punti diversi: segnale indipendente
+        # dal contenuto, su TUTTE le cartelle toccate dalla scansione
+        # (folder_totals le copre tutte, non solo quelle con doppioni) —
+        # raggruppate per nome (case-insensitive) invece di confrontare
+        # ogni coppia, per restare economico anche con molte cartelle.
+        by_name = {}
+        for folder in folder_totals.keys():
+            name = os.path.basename(folder)
+            if not name:
+                continue
+            by_name.setdefault(name.lower(), []).append(folder)
+        same_name_folders = [
+            {"name": os.path.basename(folders[0]), "folders": sorted(set(folders))}
+            for folders in by_name.values()
+        ]
+        same_name_folders = [g for g in same_name_folders if len(g["folders"]) > 1]
+        same_name_folders.sort(key=lambda g: -len(g["folders"]))
+
+        return {"per_folder": per_folder, "total_files": total_files,
+                "total_bytes": total_bytes, "similar_pairs": similar_pairs,
+                "fully_redundant": fully_redundant,
+                "same_name_folders": same_name_folders,
+                "folder_clusters": folder_clusters}
+
+    def _trash_folder_duplicates(self, folders, duplicates=None, matches=None,
+                                  keep_folder=None):
+        """Cestina (move_to_transit) da OGNI cartella in 'folders' ogni
+        file che risulta duplicato di qualcosa — MAI un file che non
+        compare in nessun gruppo di duplicati, anche se fisicamente nella
+        stessa cartella. Se 'keep_folder' è dato, viene esclusa da
+        'folders' (non si cestina mai la cartella da tenere) — usato da
+        _keep_folder_trash_siblings. Le cartelle che restano
+        completamente vuote dopo lo spostamento vengono rimosse (os.rmdir,
+        sicura: fallisce da sola se resta qualunque cosa dentro, inclusa
+        una sottocartella).
+
+        Passare ESATTAMENTE uno tra duplicates/matches, stessa convenzione
+        di _aggregate_dup_folders — qui serve per sapere esattamente QUALI
+        file, dentro le cartelle bersaglio, sono duplicati da spostare."""
+        targets = [f for f in folders if f != keep_folder] if keep_folder else list(folders)
+        if not targets:
+            return
+
+        files_by_folder = {f: [] for f in targets}
+        if duplicates is not None:
+            for files in duplicates.values():
+                for fi in files:
+                    folder = os.path.dirname(fi["path"])
+                    if folder in files_by_folder:
+                        files_by_folder[folder].append(fi["path"])
+        elif matches is not None:
+            for a_info, b_info in matches:
+                for info in (a_info, b_info):
+                    folder = os.path.dirname(info["path"])
+                    if folder in files_by_folder:
+                        files_by_folder[folder].append(info["path"])
+
+        all_files = [p for lst in files_by_folder.values() for p in lst]
+        if not all_files:
+            self.sorter._hud_alert(
+                "Nessun file",
+                "Nessun file duplicato da cestinare in queste cartelle.",
+                parent=self.win)
+            return
+
+        # Un percorso per riga (non elencati tutti su una riga sola con
+        # virgole): con più di qualche cartella, o percorsi lunghi, una
+        # riga unica diventava illeggibile.
+        folders_txt = "\n".join(f'  "{f}"' for f in targets)
+        keep_txt = f'\nmantenendo intatta "{keep_folder}".' if keep_folder else ""
+        if not self.sorter._hud_yesno(
+                "Cestina cartelle gemelle" if keep_folder else "Cestina duplicati",
+                f"Verranno cestinati {len(all_files)} file duplicati da:\n"
+                f"{folders_txt}\n"
+                f"{keep_txt}\n"
+                f"Le cartelle che restano vuote verranno rimosse.\n\n"
+                f"Procedere?",
+                yes_label="Cestina", no_label="Annulla",
+                parent=self.win):
+            return
+
+        def _do():
+            trashed = 0
+            for folder, paths in files_by_folder.items():
+                for p in paths:
+                    if os.path.isfile(p):
+                        dest = move_to_transit(p, self.sorter.config)
+                        if dest:
+                            append_history({"action": "trashed_transit",
+                                            "files": [p], "dest": dest,
+                                            "note": "doppioni: riepilogo cartelle"})
+                            trashed += 1
+                try:
+                    if os.path.isdir(folder) and not os.listdir(folder):
+                        os.rmdir(folder)
+                except OSError:
+                    pass
+            self.win.after(0, lambda n=trashed: self.sorter._hud_alert(
+                "Fatto",
+                f"{n} file cestinati.\n"
+                f"Rilancia la scansione per aggiornare l'elenco.",
+                parent=self.win))
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _keep_folder_trash_siblings(self, keep_folder, cluster_folders,
+                                     duplicates=None, matches=None):
+        """Tieni 'keep_folder' intatta; da OGNI ALTRA cartella del cluster
+        cestina i file che risultano duplicati di qualcosa — MAI un file
+        di keep_folder stessa (vedi _trash_folder_duplicates)."""
+        self._trash_folder_duplicates(cluster_folders, duplicates=duplicates,
+                                      matches=matches, keep_folder=keep_folder)
+
+    def _show_dup_folder_report(self, agg, filter_cb=None, keep_folder_cb=None,
+                                 delete_folders_cb=None):
+        """Popup 'Riepilogo cartelle': una scheda per sezione (Per
+        cartella, Contenuto quasi identico, Interamente duplicate, Stesso
+        nome) — con centinaia di risultati, prima si doveva scorrere
+        un'unica lista lunghissima. Ogni scheda usa un tk.Text (non una
+        Listbox: serve il grassetto per la riga "radice" del confronto
+        nelle cartelle quasi identiche, che una Listbox non supporta per
+        singola riga — itemconfig lì accetta solo colore, non font) in
+        sola lettura ma interattivo (click destro per aprire la cartella
+        o filtrare, doppio click come scorciatoia per il filtro).
+        'filter_cb(folder, sequence=, index=)', se fornita dal chiamante,
+        applica il filtro sulla scheda da cui è stato aperto il
+        riepilogo; sequence/index permettono al bottone "Prossimo" nella
+        finestra principale di passare alla riga successiva della stessa
+        sezione senza dover riaprire questo popup. 'keep_folder_cb(cluster_folders,
+        keep_folder)', se fornita, aggiunge alla riga di intestazione di
+        ogni cluster di cartelle quasi identiche (tab "Contenuto quasi
+        identico") l'azione "Tieni questa cartella, cestina le altre del
+        gruppo". 'delete_folders_cb(folders)', se fornita, alimenta il
+        bottone "Cestina selezionati" in fondo: cestina i duplicati di
+        tutte le cartelle le cui righe cadono nella selezione di testo
+        (trascinamento/shift-clic) attiva nella scheda corrente."""
+        _lang = self.sorter.config.get("language", "it")
+        win = tk.Toplevel(self.win)
+        win.withdraw()
+        win.title(_Tf("Riepilogo doppioni per cartella", _lang))
+        win.configure(bg=BG_COLOR)
+        win.transient(self.win)
+        hud_apply(win)
+        win.bind("<Escape>", lambda e: win.destroy())
+
+        hdr_fr = tk.Frame(win, bg=BG_COLOR)
+        hdr_fr.pack(fill="x", padx=14, pady=(12,4))
+        tk.Label(hdr_fr, text=_Tf("Riepilogo cartelle", _lang),
+                font=("TkFixedFont", 11, "bold"),
+                bg=BG_COLOR, fg=HUD_CYAN).pack(anchor="w")
+        tk.Frame(win, bg=ACCENT_COLOR, height=1).pack(fill="x", padx=14, pady=(0,6))
+
+        per_folder        = agg.get("per_folder", [])
+        similar_pairs     = agg.get("similar_pairs", [])
+        fully_redundant   = agg.get("fully_redundant", [])
+        same_name_folders = agg.get("same_name_folders", [])
+        total_files = agg.get("total_files", 0)
+        total_bytes = agg.get("total_bytes", 0)
+
+        if not per_folder and not same_name_folders:
+            tk.Label(win, text=_Tf("Nessun dato disponibile.", _lang),
+                    font=("TkFixedFont", 9), bg=BG_COLOR, fg=TEXT_COLOR
+                    ).pack(padx=14, pady=20)
+            win.update_idletasks()
+            pw, ph = 480, 180
+            px = self.win.winfo_x() + (self.win.winfo_width()-pw)//2
+            py = self.win.winfo_y() + (self.win.winfo_height()-ph)//2
+            win.geometry(f"{pw}x{ph}+{max(px,0)}+{max(py,0)}")
+            win.deiconify()
+            return
+
+        if per_folder:
+            tk.Label(win, text=_Tf("{n_folders} cartelle coinvolte  —  {n_files} file "
+                        "duplicati recuperabili  —  {size} recuperabili in totale", _lang,
+                        n_folders=len(per_folder), n_files=total_files,
+                        size=self._fmt(total_bytes)),
+                    font=("TkFixedFont", 9), bg=BG_COLOR, fg=HUD_CYAN, anchor="w"
+                    ).pack(fill="x", padx=14, pady=(0,6))
+
+        # ── Barra tab, una per sezione (solo quelle non vuote) ────────────
+        tabs_bar = tk.Frame(win, bg=PANEL_COLOR)
+        tabs_bar.pack(fill="x", padx=14)
+        content_fr = tk.Frame(win, bg=BG_COLOR)
+        content_fr.pack(fill="both", expand=True, padx=14, pady=(4,0))
+
+        tab_frames = {}
+        tab_buttons = {}
+        tab_contents = {}   # key -> (txt, row_meta), per "Cestina selezionati"
+        active_tab = {"key": None}
+
+        def _switch_tab(key):
+            active_tab["key"] = key
+            for k, fr in tab_frames.items():
+                (fr.pack(fill="both", expand=True) if k == key else fr.pack_forget())
+            for k, btn in tab_buttons.items():
+                sel = (k == key)
+                btn.config(bg=HIGHLIGHT if sel else PANEL_COLOR,
+                          fg="white" if sel else TEXT_COLOR)
+
+        def _make_tab(key, label):
+            btn = tk.Button(tabs_bar, text=label, font=("TkFixedFont", 8),
+                           relief="flat", bd=0, padx=10, pady=4,
+                           bg=PANEL_COLOR, fg=TEXT_COLOR,
+                           activebackground=HIGHLIGHT, activeforeground="white",
+                           command=lambda k=key: _switch_tab(k))
+            btn.pack(side="left", padx=(0,2))
+            tab_buttons[key] = btn
+            fr = tk.Frame(content_fr, bg=BG_COLOR)
+            tab_frames[key] = fr
+            return fr
+
+        def _make_text(parent):
+            box = tk.Frame(parent, bg=BG_COLOR)
+            box.pack(fill="both", expand=True)
+            sb = tk.Scrollbar(box, orient="vertical")
+            # selectbackground ben visibile anche SENZA fuoco tastiera
+            # (inactiveselectbackground): il fuoco passa al bottone "Cestina
+            # selezionati" appena lo si clicca, e di norma Tk mostra la
+            # selezione "inattiva" in un grigio quasi invisibile sullo
+            # sfondo scuro — qui la selezione deve restare leggibile anche
+            # in quel momento, non solo mentre si sta ancora trascinando.
+            txt = tk.Text(box, font=("TkFixedFont", 9), bg=BG_COLOR, fg=TEXT_COLOR,
+                         relief="flat", bd=0, wrap="none", cursor="xterm",
+                         selectbackground=HIGHLIGHT, selectforeground="white",
+                         inactiveselectbackground=HIGHLIGHT,
+                         exportselection=True, yscrollcommand=sb.set)
+            txt.tag_configure("pink", foreground="#ff88cc", background=PANEL_COLOR)
+            txt.tag_configure("muted", foreground=MUTED_COLOR)
+            txt.tag_configure("bold", font=("TkFixedFont", 9, "bold"))
+            sb.config(command=txt.yview)
+            sb.pack(side="right", fill="y")
+            txt.pack(side="left", fill="both", expand=True)
+            return txt
+
+        def _folder_menu_actions(menu, folder, seq, idx, cluster_folders=None):
+            menu.add_command(label=_Tf("Mostra in file manager", _lang),
+                             command=lambda: open_in_filemanager(folder))
+            menu.add_command(label=_Tf("Apri in Image Sorter", _lang),
+                             command=lambda: self.sorter._open_browser_to(folder))
+            if filter_cb:
+                menu.add_separator()
+                menu.add_command(label=_Tf("Filtra risultati su questa cartella", _lang),
+                                 command=lambda: filter_cb(folder, sequence=seq, index=idx))
+            if keep_folder_cb and cluster_folders:
+                menu.add_separator()
+                menu.add_command(
+                    label=_Tf("Tieni questa cartella, cestina le altre del gruppo", _lang),
+                    command=lambda: keep_folder_cb(cluster_folders, folder))
+
+        def _bind_interactions(txt, row_meta, on_toggle=None):
+            """on_toggle(line_no, meta), se fornita, viene invocata quando
+            il doppio click cade su una riga "a comparsa" (tab "Stesso
+            nome"): due click ravvicinati sulla stessa intestazione sono
+            interpretati da Tk come Double-Button-1 invece di due
+            Button-1 separati (verificato: senza questo, il secondo click
+            ravvicinato veniva "risucchiato" dal doppio click e il gruppo
+            non si richiudeva più) — qui il doppio click apre/chiude
+            comunque, invece di essere ignorato in silenzio."""
+            def _row_at(e):
+                idx = txt.index(f"@{e.x},{e.y}")
+                return row_meta.get(int(idx.split(".")[0]))
+
+            def _on_ctx(e):
+                meta = _row_at(e)
+                if not meta or not meta.get("folders"):
+                    return   # riga non azionabile (es. intestazione a comparsa)
+                menu = tk.Menu(win, tearoff=0, bg=PANEL_COLOR, fg=TEXT_COLOR,
+                              activebackground=HIGHLIGHT, activeforeground="white",
+                              relief="flat")
+                folders = meta["folders"]
+                seq, idx = meta.get("section_targets"), meta.get("section_index")
+                cluster_folders = meta.get("cluster_folders")
+                if len(folders) == 1:
+                    _folder_menu_actions(menu, folders[0], seq, idx,
+                                        cluster_folders=cluster_folders)
+                else:
+                    for f in folders:
+                        sub = tk.Menu(menu, tearoff=0, bg=PANEL_COLOR, fg=TEXT_COLOR,
+                                     activebackground=HIGHLIGHT, activeforeground="white",
+                                     relief="flat")
+                        _folder_menu_actions(sub, f, seq, idx,
+                                            cluster_folders=cluster_folders)
+                        menu.add_cascade(label=f'"{f}"', menu=sub)
+                _post_menu(menu, e.x_root, e.y_root, win)
+
+            def _on_double(e):
+                idx = txt.index(f"@{e.x},{e.y}")
+                line_no = int(idx.split(".")[0])
+                meta = row_meta.get(line_no)
+                if meta and meta.get("type") == "same_name_header" and on_toggle:
+                    on_toggle(line_no, meta)
+                    return
+                if not meta or not meta.get("folders") or not filter_cb:
+                    return
+                filter_cb(meta["folders"][0], sequence=meta.get("section_targets"),
+                         index=meta.get("section_index"))
+
+            txt.bind("<Button-3>", _on_ctx)
+            txt.bind("<Double-Button-1>", _on_double)
+
+        def _fill(txt, row_meta, lines):
+            """lines: lista di (testo, tags, meta). 'tags' è una tupla di
+            nomi di tag da applicare alla riga (può essere vuota).
+
+            Il tag copre fino a "{line_no}.end+1c" (include il ritorno a
+            capo), non solo "{line_no}.end": un tag con elide=True che si
+            fermasse PRIMA del \\n lascerebbe comunque visibile una riga
+            vuota per ogni riga nascosta (il testo sparisce ma il ritorno
+            a capo resta) — con la tab "Stesso nome" chiusa di default,
+            l'intero elenco lasciava altrettante righe vuote quanti erano
+            i percorsi nascosti."""
+            for text, tags, meta in lines:
+                line_no = int(txt.index("end-1c").split(".")[0])
+                txt.insert("end", tk_safe(text) + "\n")
+                for tag in tags:
+                    txt.tag_add(tag, f"{line_no}.0", f"{line_no}.end+1c")
+                if meta:
+                    row_meta[line_no] = meta
+            txt.config(state="disabled")
+
+        # Colonne numeriche a larghezza fissa PRIMA, cartella (lunghezza
+        # variabile, spesso un percorso assoluto lungo) DOPO: incolonnare
+        # un percorso a larghezza fissa è fragile (va troncato, e tronca
+        # in modo diverso a seconda di quanto è lungo) — mettendolo per
+        # ultimo, le colonne numeriche restano sempre allineate qualunque
+        # sia la lunghezza del percorso.
+        ROW_FMT = "{:>6}  {:>20}  {:>7}   {}"
+        EXAMPLES_CAP = 300
+
+        if per_folder:
+            fr = _make_tab("per_folder", _Tf("Per cartella", _lang))
+            txt = _make_text(fr)
+            row_meta = {}
+            targets = [s["folder"] for s in per_folder]
+            col_hdr = ROW_FMT.format(
+                _Tf("File", _lang), _Tf("Spazio recuperabile", _lang),
+                _Tf("Gruppi", _lang), _Tf("Cartella", _lang))
+            lines = [(col_hdr, ("muted",), None)]
+            for i, s in enumerate(per_folder):
+                line = ROW_FMT.format(
+                    s["n_files"], self._fmt(s["bytes"]), s["n_groups"], s["folder"])
+                lines.append((line, (), {"type": "folder", "folders": [s["folder"]],
+                                         "section_targets": targets, "section_index": i}))
+            _fill(txt, row_meta, lines)
+            _bind_interactions(txt, row_meta)
+            tab_contents["per_folder"] = (txt, row_meta)
+
+        if similar_pairs:
+            fr = _make_tab("similar", _Tf("Cartelle con contenuto quasi identico", _lang))
+            txt = _make_text(fr)
+            row_meta = {}
+            lines = [(_Tf("(gran parte del contenuto di una cartella si ritrova anche "
+                         "nell'altra — la riga in grassetto è la radice del confronto, "
+                         "sotto i singoli file in comune)", _lang), ("muted",), None)]
+
+            # Raggruppate per cluster (componenti connesse, vedi
+            # _aggregate_dup_folders): con 3+ cartelle mutuamente simili,
+            # una riga di intestazione in più porta l'azione "Tieni questa
+            # cartella, cestina le altre del gruppo" su TUTTO il gruppo,
+            # non solo sulla singola coppia sotto. Per un cluster di sole 2
+            # cartelle l'intestazione extra è superflua: la riga della
+            # coppia stessa porta già la stessa azione.
+            folder_clusters = agg.get("folder_clusters", [])
+            pairs_by_cluster = {}
+            for p in similar_pairs:
+                pairs_by_cluster.setdefault(p.get("cluster_id"), []).append(p)
+            cluster_targets = [cl["folders"][0] for cl in folder_clusters]
+
+            for ci, cl in enumerate(folder_clusters):
+                cl_folders = cl["folders"]
+                cluster_meta = {"type": "cluster", "folders": cl_folders,
+                               "cluster_folders": cl_folders,
+                               "section_targets": cluster_targets, "section_index": ci}
+                if len(cl_folders) > 2:
+                    # Percorsi impilati, uno per riga (invece che tutti
+                    # affiancati sulla stessa riga): con percorsi lunghi
+                    # l'allineamento a fianco costringeva a scorrere in
+                    # orizzontale per confrontarli. Tutte le righe portano
+                    # lo stesso meta, cosi' il click destro funziona su
+                    # qualunque riga del gruppo.
+                    lines.append((_Tf("Gruppo di {n} cartelle quasi identiche:",
+                                     _lang, n=len(cl_folders)), ("bold",), cluster_meta))
+                    for f in cl_folders:
+                        lines.append((f'    "{f}"', ("bold",), cluster_meta))
+                for p in pairs_by_cluster.get(ci, []):
+                    pair_meta = {"type": "pair", "folders": [p["a"], p["b"]],
+                                "cluster_folders": cl_folders,
+                                "section_targets": cluster_targets, "section_index": ci}
+                    # Percorsi impilati (uno sotto l'altro) invece che
+                    # affiancati con "<->": stessa ragione del cluster qui
+                    # sopra — piu' facile confrontarli senza scorrimento
+                    # orizzontale, e la seconda riga porta anche il
+                    # riepilogo (quanti file in comune, su quanti, %). La
+                    # prima riga riceve uno spazio vuoto della stessa
+                    # larghezza di "<-> " cosi' le due virgolette iniziano
+                    # nella STESSA colonna — altrimenti la seconda riga
+                    # (con "<-> " davanti) parte piu' a destra della prima,
+                    # vanificando l'allineamento verticale appena ottenuto.
+                    arrow = "<-> "
+                    lines.append((f'    {" " * len(arrow)}"{p["a"]}"',
+                                 ("bold", "pink"), pair_meta))
+                    suffix = _Tf('"{b}"  —  {n} file in comune su {base} ({pct:.0f}%)',
+                                _lang, b=p["b"], n=p["shared"], base=p["base"],
+                                pct=p["ratio"]*100)
+                    lines.append((f"    {arrow}{suffix}", ("bold", "pink"), pair_meta))
+                    examples = p.get("examples", [])
+                    for fa, fb in examples[:EXAMPLES_CAP]:
+                        lines.append((f"    {os.path.basename(fa)}  <->  {os.path.basename(fb)}",
+                                     (), None))
+                    if len(examples) > EXAMPLES_CAP:
+                        lines.append((_Tf("    ... e altri {n} file in comune non mostrati",
+                                         _lang, n=len(examples)-EXAMPLES_CAP), ("muted",), None))
+            _fill(txt, row_meta, lines)
+            _bind_interactions(txt, row_meta)
+            tab_contents["similar"] = (txt, row_meta)
+
+        if fully_redundant:
+            fr = _make_tab("redundant", _Tf("Cartelle interamente duplicate", _lang))
+            txt = _make_text(fr)
+            row_meta = {}
+            lines = [(_Tf("(ogni file al loro interno è già copia di un originale altrove: "
+                         "si possono cancellare per intero)", _lang), ("muted",), None)]
+            targets = [s["folder"] for s in fully_redundant]
+            for i, s in enumerate(fully_redundant):
+                meta = {"type": "redundant", "folders": [s["folder"]],
+                       "section_targets": targets, "section_index": i}
+                # Cartella e provenienza su righe separate (non piu'
+                # affiancate): un percorso lungo rendeva illeggibile dove
+                # finiva l'uno e cominciava l'altro. Con PIU' di una
+                # cartella sorgente, ciascuna va sulla propria riga,
+                # allineata alla stessa colonna della prima — prima erano
+                # tutte elencate una via l'altra sulla stessa riga,
+                # illeggibile non appena erano più di un paio.
+                line1 = "{:>6}  {:>20}   {}".format(
+                    s["n_files"], self._fmt(s["bytes"]), s["folder"])
+                lines.append((line1, (), meta))
+                prefix = "        " + _Tf("→ originali in:", _lang) + " "
+                sources = s["sources"] or ["?"]
+                lines.append((prefix + f'"{sources[0]}"', (), meta))
+                indent = " " * len(prefix)
+                for src_folder in sources[1:]:
+                    lines.append((indent + f'"{src_folder}"', (), meta))
+            _fill(txt, row_meta, lines)
+            _bind_interactions(txt, row_meta)
+            tab_contents["redundant"] = (txt, row_meta)
+
+        if same_name_folders:
+            fr = _make_tab("same_name", _Tf("Cartelle con lo stesso nome in punti diversi", _lang))
+            txt = _make_text(fr)
+            row_meta = {}
+            lines = [(_Tf("(nome identico, contenuto non necessariamente confrontato: "
+                         "un segnale in più da verificare a occhio — clic sul nome per "
+                         "aprire/chiudere l'elenco delle cartelle)", _lang), ("muted",), None)]
+            targets = [f for grp in same_name_folders for f in grp["folders"]]
+            idx_counter = 0
+            # Ogni gruppo comincia CHIUSO (elenco cartelle nascosto, tag Tk
+            # "elide"): con molti nomi ripetuti l'elenco intero occupava
+            # parecchio spazio verticale — un clic sul nome apre/chiude
+            # solo il proprio gruppo (vedi _on_toggle_same_name sotto).
+            fold_state = {}
+            for gi, grp in enumerate(same_name_folders):
+                detail_tag = f"same_name_detail_{gi}"
+                fold_state[gi] = True
+                hdr_meta = {"type": "same_name_header", "folders": [],
+                           "group_index": gi, "detail_tag": detail_tag}
+                # "+"/"-" invece di frecce Unicode (▸/▾): tk_safe() filtra
+                # i blocchi "geometric shapes" (0x25A0-0x25FF, che includono
+                # proprio quelle frecce) per evitare crash RenderAddGlyphs
+                # di X11 con certi font — qualunque indicatore qui deve
+                # restare ASCII puro.
+                lines.append((_Tf('+ "{name}"  —  trovata in {n} punti diversi:',
+                                 _lang, name=grp["name"], n=len(grp["folders"])),
+                             ("muted",), hdr_meta))
+                for folder in grp["folders"]:
+                    lines.append((f"    {folder}", (detail_tag,),
+                                 {"type": "folder", "folders": [folder],
+                                  "section_targets": targets, "section_index": idx_counter}))
+                    idx_counter += 1
+            _fill(txt, row_meta, lines)
+            for gi in fold_state:
+                txt.tag_configure(f"same_name_detail_{gi}", elide=True)
+
+            def _toggle_group(line_no, meta):
+                gi = meta["group_index"]
+                collapsed = not fold_state[gi]
+                fold_state[gi] = collapsed
+                txt.tag_configure(meta["detail_tag"], elide=collapsed)
+                txt.config(state="normal")
+                txt.delete(f"{line_no}.0", f"{line_no}.1")
+                txt.insert(f"{line_no}.0", "+" if collapsed else "-")
+                txt.tag_add("muted", f"{line_no}.0", f"{line_no}.1")
+                txt.config(state="disabled")
+
+            def _on_toggle_same_name(e):
+                idx = txt.index(f"@{e.x},{e.y}")
+                line_no = int(idx.split(".")[0])
+                meta = row_meta.get(line_no)
+                if not meta or meta.get("type") != "same_name_header":
+                    return
+                _toggle_group(line_no, meta)
+
+            _bind_interactions(txt, row_meta, on_toggle=_toggle_group)
+            txt.bind("<Button-1>", _on_toggle_same_name, add="+")
+            tab_contents["same_name"] = (txt, row_meta)
+
+        _switch_tab(next(iter(tab_frames)))
+
+        bot = tk.Frame(win, bg=PANEL_COLOR)
+        bot.pack(fill="x", pady=(8,0))
+
+        def _copia():
+            def _find_text(w):
+                for c in w.winfo_children():
+                    if isinstance(c, tk.Text):
+                        return c
+                    r = _find_text(c)
+                    if r: return r
+                return None
+            parts = []
+            for fr in tab_frames.values():
+                t = _find_text(fr)
+                if t:
+                    parts.append(t.get("1.0", "end-1c"))
+            testo = "\n\n".join(parts)
+            # Appunti presi dalla finestra ROOT dell'app (self.sorter.root),
+            # mai da questo popup né da self.win: su X11 la clipboard
+            # sparirebbe alla chiusura del Toplevel che l'ha impostata.
+            try:
+                self.sorter.root.clipboard_clear()
+                self.sorter.root.clipboard_append(testo)
+            except Exception:
+                self.sorter.root.clipboard_clear()
+                self.sorter.root.clipboard_append(tk_safe(testo))
+            copy_btn.config(text=_Tf("Copiato", _lang))
+            win.after(1400, lambda: copy_btn.winfo_exists() and
+                     copy_btn.config(text=_Tf("Copia tutto", _lang)))
+
+        def _delete_selected():
+            data = tab_contents.get(active_tab["key"])
+            if not data or not delete_folders_cb:
+                return
+            txt_active, row_meta_active = data
+            ranges = txt_active.tag_ranges("sel")
+            if not ranges:
+                self.sorter._hud_alert(
+                    _Tf("Nessuna selezione", _lang),
+                    _Tf("Trascina il mouse (o Maiusc+clic) per selezionare una o più "
+                       "righe di cartella, poi riprova.", _lang),
+                    parent=win)
+                return
+            start_line = int(str(ranges[0]).split(".")[0])
+            end_line = int(str(ranges[1]).split(".")[0])
+            folders = []
+            for line_no in range(start_line, end_line + 1):
+                meta = row_meta_active.get(line_no)
+                if (meta and meta.get("type") in ("folder", "redundant")
+                        and len(meta.get("folders") or []) == 1):
+                    folders.append(meta["folders"][0])
+            folders = list(dict.fromkeys(folders))   # dedup, ordine mantenuto
+            if not folders:
+                self.sorter._hud_alert(
+                    _Tf("Nessuna cartella", _lang),
+                    _Tf("La selezione non contiene righe di cartella cestinabili.", _lang),
+                    parent=win)
+                return
+            delete_folders_cb(folders)
+
+        tk.Button(bot, text=_Tf("Chiudi", _lang), font=("TkFixedFont", 8),
+                 bg=ACCENT_COLOR, fg=TEXT_COLOR, relief="flat", padx=8,
+                 command=win.destroy).pack(side="right", padx=(0,6), pady=6, ipady=3)
+        copy_btn = tk.Button(bot, text=_Tf("Copia tutto", _lang), font=("TkFixedFont", 8),
+                            bg=ACCENT_COLOR, fg=TEXT_COLOR, relief="flat", padx=8,
+                            command=_copia)
+        copy_btn.pack(side="right", padx=6, pady=6, ipady=3)
+        if delete_folders_cb:
+            tk.Button(bot, text=_Tf("Cestina selezionati", _lang),
+                     font=("TkFixedFont", 8, "bold"), bg="#c0392b", fg="white",
+                     relief="flat", padx=8,
+                     command=_delete_selected).pack(side="right", padx=6, pady=6, ipady=3)
+
+        win.update_idletasks()
+        pw, ph = 960, 600
+        px = self.win.winfo_x() + (self.win.winfo_width() - pw)//2
+        py = self.win.winfo_y() + (self.win.winfo_height() - ph)//2
+        win.geometry(f"{pw}x{ph}+{max(px,0)}+{max(py,0)}")
+        win.deiconify()
 
     def _show_ab_col_results(self, matches, total, dir_a, dir_b,
-                              scan_btn, stop_btn):
+                              scan_btn, stop_btn,
+                              folder_totals_a=None, folder_totals_b=None):
         """Mostra i risultati nella vista a colonne."""
         if not self.win.winfo_exists():
             return
@@ -5833,39 +6926,81 @@ class DuplicateFinder:
         stop_btn.config(state="disabled")
         self._set_prog(self._ab_prog_canvas, self._ab_prog_bar, 1, 1)
 
+        folder_totals = Counter(folder_totals_a or {})
+        folder_totals.update(folder_totals_b or {})
+        # Calcolato SEMPRE, anche a zero doppioni di contenuto: il
+        # controllo "stesso nome in punti diversi" confronta TUTTE le
+        # cartelle scansionate tra loro, indipendente dal trovare o meno
+        # doppioni per contenuto.
+        agg = self._aggregate_dup_folders(matches=matches or [],
+                                          folder_totals=folder_totals,
+                                          folder_totals_b=folder_totals_b)
+
         if not matches:
             self._ab_status_lbl.config(
                 text=_Tf("Nessun duplicato trovato ({total} file scansionati).", self.sorter.config.get("language","it"), total=total))
-            self._ab_result_lbl.config(text="Nessun duplicato.")
+            self._ab_result_lbl.config(
+                text=_Tf("Nessun duplicato trovato ({total} file scansionati).", self.sorter.config.get("language","it"), total=total))
+            if agg["same_name_folders"]:
+                self._ab_report_btn.config(state="normal",
+                    command=lambda: self._show_dup_folder_report(
+                        agg, filter_cb=self._filter_ab_by_folder,
+                        keep_folder_cb=lambda cluster_folders, keep: self._keep_folder_trash_siblings(
+                            keep, cluster_folders, matches=matches),
+                        delete_folders_cb=lambda folders: self._trash_folder_duplicates(
+                            folders, matches=matches)))
+            else:
+                self._ab_report_btn.config(state="disabled")
             play_sound("done")
             return
 
         # Ordina per dimensione decrescente
         matches.sort(key=lambda m: -m[0]["size"])
 
-        self._ab_result_lbl.config(text=_Tf("{n} coppie trovate", self.sorter.config.get("language","it"), n=len(matches)))
+        self._ab_result_lbl.config(text=_Tf("{n} coppie trovate su {total} file scansionati",
+                    self.sorter.config.get("language","it"), n=len(matches), total=total))
         self._ab_status_lbl.config(
             text=_Tf("{n} coppie duplicate su {total} file scansionati.", self.sorter.config.get("language","it"), n=len(matches), total=total))
         self._ab_clean_btn.config(state="normal")
         self._ab_clean_sel_btn.config(state="normal")
+        self._ab_report_btn.config(state="normal",
+            command=lambda: self._show_dup_folder_report(
+                agg, filter_cb=self._filter_ab_by_folder,
+                keep_folder_cb=lambda cluster_folders, keep: self._keep_folder_trash_siblings(
+                    keep, cluster_folders, matches=matches),
+                delete_folders_cb=lambda folders: self._trash_folder_duplicates(
+                    folders, matches=matches)))
         play_sound("done")
 
+        self._ab_all_matches = matches   # snapshot completo, per il filtro
+        self._render_ab_matches(matches)
+
+        # Aggiorna label intestazioni con percorsi
+        # (non possiamo accedere agli header label facilmente, usiamo status)
+        self._ab_status_lbl.config(
+            text=tk_safe(f"A: {dir_a}   |   B: {dir_b}   |   {len(matches)} coppie"))
+
+    def _render_ab_matches(self, matches):
+        """(Ri)disegna le due listbox A/B a partire da una lista di coppie
+        già pronta. Riusata sia dal render iniziale sia dal filtro per
+        cartella (_filter_ab_by_folder/_ab_filter_show_all)."""
+        self._lb_a.delete(0, tk.END)
+        self._lb_b.delete(0, tk.END)
+        self._ab_row_a.clear()
+        self._ab_row_b.clear()
         row = 0
         for a_info, b_info in matches:
-            # Intestazione riga: dimensione + nome file
             size_str = self._fmt(a_info["size"])
             name_a   = os.path.basename(a_info["path"])
             name_b   = os.path.basename(b_info["path"])
             same_name = name_a.lower() == name_b.lower()
 
-            # Colonna A
             line_a = tk_safe(f"  {a_info['ext']:<6} {size_str:>9}  {a_info['rel']}")
             self._lb_a.insert(tk.END, line_a)
             col_a = HUD_CYAN if same_name else "#88ffcc"
             self._lb_a.itemconfig(row, fg=col_a)
             self._ab_row_a[row] = a_info["path"]
 
-            # Colonna B
             size_b_str = self._fmt(b_info["size"])
             line_b = tk_safe(f"  {b_info['ext']:<6} {size_b_str:>9}  {b_info['rel']}")
             self._lb_b.insert(tk.END, line_b)
@@ -5874,119 +7009,43 @@ class DuplicateFinder:
             self._ab_row_b[row] = b_info["path"]
             row += 1
 
-        # Aggiorna label intestazioni con percorsi
-        # (non possiamo accedere agli header label facilmente, usiamo status)
-        self._ab_status_lbl.config(
-            text=tk_safe(f"A: {dir_a}   |   B: {dir_b}   |   {len(matches)} coppie"))
+    def _ab_filter_show_all(self):
+        """Azione del bottone 'Mostra tutti' della barra filtro A-vs-B."""
+        self._render_ab_matches(self._ab_all_matches)
+        self._ab_filter_fr.grid_remove()
+        self._ab_filter_sequence = None
+        self._ab_filter_index = None
 
-    def _run_ab(self, mode, scan_btn, result_lbl, status_lbl,
-                prog_canvas, prog_bar, lb, clean_btn, row_paths, stop_btn=None):
-        pa, ra = self._ab_vars["A"]
-        pb, rb = self._ab_vars["B"]
-        dir_a, dir_b = pa.get().strip(), pb.get().strip()
-        if not os.path.isdir(dir_a) or not os.path.isdir(dir_b):
-            self.sorter._hud_alert("Attenzione",
-                "Specifica due cartelle valide.", parent=self.win)
+    def _filter_ab_by_folder(self, folder, sequence=None, index=None):
+        """Mostra solo le coppie dove A o B cade in 'folder' — richiamata
+        dal popup Riepilogo cartelle. 'sequence'/'index', se forniti,
+        sono l'elenco ordinato delle cartelle della sezione del riepilogo
+        da cui si è filtrato e la posizione di 'folder' al suo interno:
+        permettono al bottone 'Prossimo' di passare alla riga successiva
+        senza dover riaprire il popup."""
+        filtered = [(a, b) for a, b in self._ab_all_matches
+                   if os.path.dirname(a["path"]) == folder
+                   or os.path.dirname(b["path"]) == folder]
+        self._render_ab_matches(filtered)
+        _lang = self.sorter.config.get("language", "it")
+        self._ab_filter_lbl.config(text=tk_safe(
+            _Tf('Filtro attivo: "{folder}"', _lang, folder=folder)))
+        self._ab_filter_fr.grid()
+        self._ab_filter_sequence = sequence
+        self._ab_filter_index = index
+        self.win.lift()
+
+    def _ab_filter_next(self):
+        """Bottone 'Prossimo' della barra filtro A-vs-B: passa alla
+        cartella successiva della stessa sezione del Riepilogo da cui si
+        è filtrato (nessun effetto se non c'è una sequenza nota — es.
+        filtro applicato senza passare dal riepilogo)."""
+        seq = getattr(self, "_ab_filter_sequence", None)
+        idx = getattr(self, "_ab_filter_index", None)
+        if not seq or idx is None:
             return
-        lb.delete(0, tk.END)
-        row_paths.clear()
-        result_lbl.config(text="")
-        clean_btn.config(state="disabled")
-        scan_btn.config(state="disabled", text="Confronto...")
-        if stop_btn and stop_btn.winfo_exists(): stop_btn.config(state="normal")
-        self._stop = False
-
-        threading.Thread(
-            target=self._worker_ab,
-            args=(dir_a, ra.get(), dir_b, rb.get(), mode,
-                  lb, status_lbl, prog_canvas, prog_bar,
-                  result_lbl, clean_btn, scan_btn, row_paths, stop_btn),
-            daemon=True).start()
-
-    def _worker_ab(self, dir_a, rec_a, dir_b, rec_b, mode,
-                   lb, status_lbl, prog_canvas, prog_bar,
-                   result_lbl, clean_btn, scan_btn, row_paths, stop_btn=None):
-
-        def collect(folder, recursive):
-            files = []
-            try:
-                if recursive:
-                    for root, _, fns in os.walk(folder):
-                        for fn in fns:
-                            files.append(os.path.join(root, fn))
-                else:
-                    files = [os.path.join(folder, fn)
-                             for fn in os.listdir(folder)
-                             if os.path.isfile(os.path.join(folder, fn))]
-            except OSError:
-                pass
-            return [f for f in files
-                    if detect_media_type(f) in MEDIA_EXTENSIONS
-                    or os.path.splitext(f)[1].lower() in MEDIA_EXTENSIONS]
-
-        def key_of(fpath, mode):
-            try:
-                size = os.path.getsize(fpath)
-                name = os.path.basename(fpath).lower()
-                if mode == "sha":
-                    return self._hash_file(fpath)
-                elif mode == "name_size":
-                    return (name, size)
-                elif mode == "size":
-                    return size
-                else:
-                    return name
-            except Exception:
-                return None
-
-        self._set_st(status_lbl, "Raccolta file cartella A...")
-        files_a = collect(dir_a, rec_a)
-        self._set_st(status_lbl, "Raccolta file cartella B...")
-        files_b = collect(dir_b, rec_b)
-
-        total = len(files_a) + len(files_b)
-        self._set_st(status_lbl,
-                     f"Indicizzazione {len(files_a)} + {len(files_b)} file...")
-
-        # Indice A
-        index_a = {}
-        for idx, fpath in enumerate(files_a):
-            if self._stop:
-                self.win.after(0, lambda: (scan_btn.config(state="normal", text="Confronta A vs B") if scan_btn.winfo_exists() else None, stop_btn.config(state="disabled") if stop_btn and stop_btn.winfo_exists() else None))
-                return
-            self._set_prog(prog_canvas, prog_bar, idx+1, total)
-            k = key_of(fpath, mode)
-            if k:
-                size = os.path.getsize(fpath)
-                index_a.setdefault(k, []).append(
-                    {"path": fpath, "size": size,
-                     "ext": os.path.splitext(fpath)[1].upper() or "?"})
-
-        # Scansiona B, trova corrispondenze in A
-        duplicates = {}
-        for idx, fpath in enumerate(files_b):
-            if self._stop:
-                self.win.after(0, lambda: (scan_btn.config(state="normal", text="Confronta A vs B") if scan_btn.winfo_exists() else None, stop_btn.config(state="disabled") if stop_btn and stop_btn.winfo_exists() else None))
-                return
-            self._set_prog(prog_canvas, prog_bar,
-                           len(files_a)+idx+1, total)
-            k = key_of(fpath, mode)
-            if k and k in index_a:
-                size = os.path.getsize(fpath)
-                b_info = {"path": fpath, "size": size,
-                          "ext": os.path.splitext(fpath)[1].upper() or "?"}
-                # Gruppo: [file A, file B]
-                group_key = k
-                if group_key not in duplicates:
-                    duplicates[group_key] = list(index_a[k])
-                duplicates[group_key].append(b_info)
-
-        self.win.after(0, lambda: self._show_dup_results(
-            duplicates, total, lb, status_lbl, prog_canvas, prog_bar,
-            result_lbl, clean_btn, scan_btn,
-            row_paths, "Confronta A vs B", stop_btn,
-            label_hash=False,
-            origin_a=dir_a))
+        next_idx = (idx + 1) % len(seq)
+        self._filter_ab_by_folder(seq[next_idx], sequence=seq, index=next_idx)
 
     # ── Visualizzazione risultati ─────────────────────────────────────────────
 
@@ -5994,7 +7053,8 @@ class DuplicateFinder:
                           lb, status_lbl, prog_canvas, prog_bar,
                           result_lbl, clean_btn, scan_btn,
                           row_paths, btn_label, stop_btn=None,
-                          label_hash=True, origin_a=None):
+                          label_hash=True, origin_a=None,
+                          report_btn=None, folder_totals=None):
         if not self.win.winfo_exists():
             return
         def _scan_done():
@@ -6005,10 +7065,32 @@ class DuplicateFinder:
         self.win.after(0, _scan_done)
         self._set_prog(prog_canvas, prog_bar, 1, 1)
 
+        # Calcolato SEMPRE, anche a zero doppioni di contenuto: il
+        # controllo "stesso nome in punti diversi" (agg["same_name_folders"])
+        # confronta TUTTE le cartelle scansionate tra loro, indipendente dal
+        # trovare o meno doppioni — proprio lo scenario in cui è più utile
+        # (nessun doppione per contenuto, ma un segnale residuo sul nome).
+        agg = self._aggregate_dup_folders(duplicates=duplicates or {},
+                                          folder_totals=folder_totals)
+        filter_cb = lambda folder, sequence=None, index=None: self._filter_dup_by_folder(
+            lb, row_paths, folder, sequence=sequence, index=index)
+        keep_folder_cb = lambda cluster_folders, keep: self._keep_folder_trash_siblings(
+            keep, cluster_folders, duplicates=duplicates)
+        delete_folders_cb = lambda folders: self._trash_folder_duplicates(
+            folders, duplicates=duplicates)
+
         if not duplicates:
             self._set_st(status_lbl,
                          f"Nessun duplicato trovato ({total_scanned} file).")
             result_lbl.config(text="")
+            if report_btn:
+                if agg["same_name_folders"]:
+                    report_btn.config(state="normal",
+                        command=lambda: self._show_dup_folder_report(
+                            agg, filter_cb=filter_cb, keep_folder_cb=keep_folder_cb,
+                            delete_folders_cb=delete_folders_cb))
+                else:
+                    report_btn.config(state="disabled")
             play_sound("done")
             return
 
@@ -6020,10 +7102,19 @@ class DuplicateFinder:
                      _lang, n_groups=n_groups, n_dupes=n_dupes, total_scanned=total_scanned))
         self._set_st(status_lbl, "")
         clean_btn.config(state="normal")
+        if report_btn:
+            report_btn.config(state="normal",
+                command=lambda: self._show_dup_folder_report(
+                    agg, filter_cb=filter_cb, keep_folder_cb=keep_folder_cb,
+                    delete_folders_cb=delete_folders_cb))
         play_sound("done")
 
-        # Prepara tutte le righe in anticipo (no rendering)
-        all_rows = []  # lista di (testo, bg, fg, fpath)
+        # Prepara i gruppi in anticipo (no rendering). Ogni gruppo conserva
+        # anche l'insieme delle cartelle coinvolte: serve al filtro per
+        # cartella richiamato dal Riepilogo cartelle
+        # (_filter_dup_by_folder), che deve poter ricostruire la vista
+        # completa o una sua sottoparte senza rifare la scansione.
+        groups_data = []
         for h, files in sorted(duplicates.items(),
                                 key=lambda x: -x[1][0]["size"]):
             files = sorted(files, key=_copy_score)
@@ -6031,7 +7122,8 @@ class DuplicateFinder:
             suffix   = f"hash {str(h)[:10]}" if label_hash else ""
             header   = tk_safe(f"  --- {len(files)} file identici | "
                                f"{self._fmt(total_sz)} | {suffix} ---")
-            all_rows.append((header, PANEL_COLOR, "#ff88cc", None))
+            rows = [(header, PANEL_COLOR, "#ff88cc", None)]
+            folders = set()
             for i, fi in enumerate(files):
                 if origin_a:
                     tag = "  [A]  " if fi["path"].startswith(origin_a) else "  [B]  "
@@ -6040,24 +7132,108 @@ class DuplicateFinder:
                     tag = "  [ORIG]  " if i == 0 else "  [COPIA] "
                     col = TEXT_COLOR if i == 0 else "#ffaa88"
                 line = tk_safe(f"{tag}{fi['ext']:<6} {self._fmt(fi['size']):>10}  {fi['path']}")
-                all_rows.append((line, None, col, fi["path"]))
+                rows.append((line, None, col, fi["path"]))
+                folders.add(os.path.dirname(fi["path"]))
+            groups_data.append({"rows": rows, "folders": folders})
+
+        lb._dup_groups = groups_data   # snapshot completo, per il filtro
+        self._render_dup_groups(lb, row_paths, groups_data)
+
+    def _render_dup_groups(self, lb, row_paths, groups):
+        """(Ri)disegna la listbox risultati a partire da gruppi già pronti
+        (ognuno {"rows": [(testo,bg,fg,fpath),...], "folders": set(...)}),
+        in batch da 50 righe con after() per non bloccare X11. Riusata sia
+        al termine della scansione sia dal filtro per cartella
+        (_filter_dup_by_folder/_dup_filter_show_all) — quindi può essere
+        richiamata di nuovo sulla STESSA lb mentre un batch precedente (es.
+        da una scansione con centinaia di migliaia di righe) sta ancora
+        inserendo in background: senza un modo per riconoscerlo, il vecchio
+        _insert_batch continuava a scrivere su indici ormai fuori range
+        dopo che una chiamata più recente aveva già svuotato/ridotto la
+        stessa listbox ("item number ... out of range"). Un token di
+        generazione incrementato ad ogni chiamata fa sì che un batch
+        superato si fermi da solo al risveglio successivo, invece di
+        proseguire alla cieca."""
+        lb.delete(0, tk.END)
+        row_paths.clear()
+        all_rows = []
+        for g in groups:
+            all_rows.extend(g["rows"])
             all_rows.append(("", None, None, None))
 
-        # Inserisce in batch da 50 righe con after() per non bloccare X11
+        token = getattr(lb, "_insert_token", 0) + 1
+        lb._insert_token = token
+
         BATCH = 50
         def _insert_batch(start_idx):
+            if not lb.winfo_exists() or lb._insert_token != token:
+                return   # superata da una _render_dup_groups più recente
             end_idx = min(start_idx + BATCH, len(all_rows))
             for i in range(start_idx, end_idx):
                 text, bg, fg, fpath = all_rows[i]
-                row_idx = i
                 lb.insert(tk.END, text)
-                if bg: lb.itemconfig(row_idx, bg=bg)
-                if fg: lb.itemconfig(row_idx, fg=fg)
-                row_paths[row_idx] = fpath
+                if bg: lb.itemconfig(i, bg=bg)
+                if fg: lb.itemconfig(i, fg=fg)
+                row_paths[i] = fpath
             if end_idx < len(all_rows):
                 self.win.after(10, lambda: _insert_batch(end_idx))
 
         _insert_batch(0)
+
+    def _dup_filter_reset_bar(self, lb):
+        """Nasconde la barra 'Filtro attivo' senza toccare la listbox —
+        usata a inizio di una nuova scansione (la listbox viene comunque
+        ricostruita da zero subito dopo, con un _dup_groups nuovo)."""
+        filter_fr = getattr(lb, "_filter_fr", None)
+        if filter_fr is not None:
+            filter_fr.grid_remove()
+
+    def _dup_filter_show_all(self, lb, row_paths):
+        """Azione del bottone 'Mostra tutti': torna alla vista completa
+        (snapshot _dup_groups) e nasconde la barra filtro."""
+        groups = getattr(lb, "_dup_groups", None)
+        if groups:
+            self._render_dup_groups(lb, row_paths, groups)
+        self._dup_filter_reset_bar(lb)
+        lb._filter_sequence = None
+        lb._filter_index = None
+
+    def _filter_dup_by_folder(self, lb, row_paths, folder, sequence=None, index=None):
+        """Mostra solo i gruppi che coinvolgono 'folder' (interi, non solo
+        le righe di quella cartella: serve vedere anche dove sta
+        l'originale/le altre copie per capire il quadro completo) —
+        richiamata dal popup Riepilogo cartelle. 'sequence'/'index', se
+        forniti, sono l'elenco ordinato delle cartelle della sezione del
+        riepilogo da cui si è filtrato e la posizione di 'folder' al suo
+        interno: permettono al bottone 'Prossimo' di passare alla riga
+        successiva senza dover riaprire il popup."""
+        groups = getattr(lb, "_dup_groups", None)
+        if not groups:
+            return
+        filtered = [g for g in groups if folder in g["folders"]]
+        self._render_dup_groups(lb, row_paths, filtered)
+        filter_fr  = getattr(lb, "_filter_fr", None)
+        filter_lbl = getattr(lb, "_filter_lbl", None)
+        if filter_fr is not None and filter_lbl is not None:
+            _lang = self.sorter.config.get("language", "it")
+            filter_lbl.config(text=tk_safe(
+                _Tf('Filtro attivo: "{folder}"', _lang, folder=folder)))
+            filter_fr.grid()
+        lb._filter_sequence = sequence
+        lb._filter_index = index
+        self.win.lift()
+
+    def _dup_filter_next(self, lb, row_paths):
+        """Bottone 'Prossimo' della barra filtro: passa alla cartella
+        successiva della stessa sezione del Riepilogo da cui si è
+        filtrato (nessun effetto se non c'è una sequenza nota)."""
+        seq = getattr(lb, "_filter_sequence", None)
+        idx = getattr(lb, "_filter_index", None)
+        if not seq or idx is None:
+            return
+        next_idx = (idx + 1) % len(seq)
+        self._filter_dup_by_folder(lb, row_paths, seq[next_idx],
+                                   sequence=seq, index=next_idx)
 
     # ── Azioni lista ──────────────────────────────────────────────────────────
 
@@ -6249,6 +7425,45 @@ class DuplicateFinder:
         _thr.Thread(target=_do, daemon=True).start()
 
     # ── Utility ──────────────────────────────────────────────────────────────
+
+    def _collect_media_stats(self, folder, recursive):
+        """Raccoglie i file multimediali di una cartella con una sola
+        stat() per file (os.scandir), invece di os.walk() seguito da
+        os.path.getsize()/getmtime() separati in una seconda passata —
+        dimezza le syscall su cartelle con molti file. Ritorna lista di
+        dict {'path','size','mtime'}."""
+        out = []
+        def _scan_dir(path):
+            try:
+                with os.scandir(path) as it:
+                    entries = list(it)
+            except OSError:
+                # Sottocartella non leggibile: va solo saltata, non deve
+                # abortire la raccolta dell'intera cartella radice — stesso
+                # comportamento di os.walk() di default (onerror=None).
+                return
+            for entry in entries:
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        if recursive:
+                            _scan_dir(entry.path)
+                        continue
+                    if not entry.is_file():
+                        continue
+                    fpath = entry.path
+                    if not (detect_media_type(fpath) in MEDIA_EXTENSIONS
+                            or os.path.splitext(fpath)[1].lower() in MEDIA_EXTENSIONS):
+                        continue
+                    st = entry.stat()
+                    out.append({"path": fpath, "size": st.st_size,
+                               "mtime": st.st_mtime})
+                except OSError:
+                    continue
+        try:
+            _scan_dir(folder)
+        except OSError:
+            pass
+        return out
 
     def _hash_file(self, path):
         h = hashlib.sha256()
