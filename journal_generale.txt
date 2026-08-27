@@ -1734,6 +1734,75 @@ senza lasciare che il toggle apri/chiudi nativo di ttk avvenga ANCHE
 (soppresso con "return break") — da confermare a schermo da Carlo.
 
 ===========================================================================
+v1.45.8 — RIPENSATA v1.45.7: BLOCCHI RICORSIVI, NIENTE PIU' TREEVIEW/COLORI
+===========================================================================
+Carlo ha testato la v1.45.7 (Treeview colorato) e bocciata: "temo che il
+miglioramento sia minimo... il testo dei percorsi è meno leggibile in mezzo
+a tutti i colori... un arcobaleno di colori che non aiuta a distinguere le
+cartelle analoghe" — e ha chiarito cosa serve davvero: rilevare quando
+un'INTERA sottostruttura (cartella + sue sottocartelle, ricorsivamente)
+risulta duplicata altrove e segnalarla come UN blocco solo, con "risposte
+più ragionate" (frasi, non tabella) invece di una riga per ogni
+sottocartella. LEZIONE: il miglioramento visivo (colore/albero) non
+sostituisce un miglioramento nei DATI (capire la gerarchia) — Carlo lo ha
+fatto notare subito, non è bastato aspettare un ciclo di test più lungo.
+
+COSA E' CAMBIATO: rimosso interamente il ttk.Treeview/sfondo graduato
+introdotto in v1.45.7 (helper _make_tree/_bind_tree_interactions
+cancellati). _aggregate_dup_folders ora calcola folder_blocks: risale la
+gerarchia da similar_pairs (coppie di cartelle FOGLIA) fondendo in un nodo
+solo le catene cartella-padre/cartella-figlia che corrispondono anche loro
+— iterativamente, quindi un blocco può inglobare più livelli in una volta
+sola (verificato nel test: "Foto/2019"+"Foto/2020" e "Video/2019"+
+"Video/2020" fondono prima nei blocchi "Foto"/"Video", poi — condividendo
+lo stesso genitore — si fondono ANCORA in un blocco radice unico "A" con 4
+sottocartelle assorbite). folder_clusters ora fa union-find sulle RADICI
+dei blocchi (non più sulle coppie grezze), per il caso di 3+ radici
+mutuamente simili. La scheda "Contenuto quasi identico" torna a un
+tk.Text, una frase per blocco ("Foto (+8 sottocartelle) è quasi identica a
+Backup/Foto — 94% di somiglianza media, 2.1 GB recuperabili"), ordinate
+per spazio recuperabile, con dettaglio piegabile per blocco — RIUSA
+esattamente il meccanismo "+"/"-" a tag elide già in produzione nel tab
+"Stesso nome" invece di inventarne uno nuovo.
+
+BUG REALE TROVATO DAL TEST FUNZIONALE (non solo teoria — un test
+"sembra corretto a occhio" non lo avrebbe mai scovato): _toggle_block
+(nuovo, per i blocchi) e _toggle_group (già esistente, per "Stesso nome")
+chiudevano sul 'txt' della funzione ESTERNA _show_dup_folder_report — che
+riusa lo STESSO nome 'txt' in OGNI sezione (per_folder/similar/redundant/
+same_name, tutte nello stesso corpo di funzione: Python non ha scope a
+blocco, un "if" non crea un nuovo namespace). Al momento del click,
+DOPO che la funzione ha finito di costruire TUTTE le schede, 'txt' vale
+qualunque cosa l'ULTIMA sezione (same_name) gli abbia assegnato — quindi
+_toggle_block finiva per riconfigurare il tag "block_detail_N" sul
+tk.Text SBAGLIATO (quello di "Stesso nome"), lasciando il vero dettaglio
+del blocco piegato per sempre. Il bug esisteva ANCHE nella v1.45.6/pre-
+v1.45.7 (_toggle_group ha sempre avuto lo stesso problema) ma non si era
+mai manifestato per puro caso: "Stesso nome" è SEMPRE l'ultima sezione
+costruita, quindi il suo _toggle_group vedeva per fortuna il 'txt'
+giusto. Introducendo una nuova sezione (blocchi) PRIMA di quella,
+il bug è diventato visibile. PRINCIPIO GENERALIZZABILE: mai lasciare che
+una callback invocata più tardi (bottone, binding) chiuda su una
+variabile locale il cui nome è riassegnato più volte nella stessa
+funzione, anche in rami "if" diversi — passare il valore giusto come
+PARAMETRO esplicito alla callback (qui: on_toggle(txt, line_no, meta)
+invece di on_toggle(line_no, meta)), mai fidarsi che "tanto è l'ultima
+sezione" resti vero per sempre. Trovato SOLO grazie al test funzionale che
+verificava lo stato del tag PRIMA e DOPO un click simulato — un controllo
+"a occhio" sul codice non lo avrebbe notato.
+
+VERIFICA: stessa infrastruttura di v1.45.7 (copia isolata, xvfb-run,
+`duplicates` sintetico senza file reali). Tre scenari: fusione a 2 livelli
+(2 sottocartelle -> 1 blocco), fusione a 3 livelli (Foto+Video, ciascuna
+con 2 sottocartelle, fondono fino alla radice comune -> 1 blocco con 4
+sottocartelle), coppia isolata (nessuna fusione, resta singola). Tutti i
+controlli dati passano. A livello UI: nessun ttk.Treeview nel popup, testo
+del blocco corretto, fold/unfold via click simulato (dopo il fix del bug
+sopra), menu tasto destro con le due azioni "Tieni un lato, cestina
+l'altro" verificate end-to-end (invocazione + argomenti ricevuti), le
+altre 3 schede (invariate) continuano a funzionare.
+
+===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
 ===========================================================================
 Allegare:

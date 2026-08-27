@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.45.7"
+VERSION = "1.45.8"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -6192,24 +6192,35 @@ class DuplicateFinder:
         non ha senso proporre di cancellare interamente una cartella A.
 
         Ritorna dict con: per_folder (lista ordinata per bytes
-        decrescente), total_files, total_bytes, similar_pairs (lista
-        ordinata per ratio decrescente), fully_redundant (lista ordinata
-        per bytes decrescente), same_name_folders (lista di gruppi
-        {"name","folders"} — cartelle con lo STESSO NOME trovate in punti
-        diversi, indipendentemente dal contenuto: un segnale ulteriore,
-        utile perché una cartella duplicata rinominata identica
-        all'originale ma con contenuto nel frattempo divergente
-        sfuggirebbe al controllo per contenuto), folder_clusters (lista di
-        gruppi {"folders","shared_total","avg_ratio","min_ratio",
-        "recoverable_bytes","recoverable_files"} — componenti connesse di
-        cartelle quasi identiche a coppie, anche 3+ collegate solo
-        transitivamente: usato dall'azione "Tieni questa cartella, cestina
-        le altre del gruppo" nel Riepilogo, ogni elemento di similar_pairs
-        porta anche il suo "cluster_id" per raggrupparli in fase di
-        rendering. avg_ratio/min_ratio sono la media/minimo dei "ratio"
-        delle coppie interne al cluster; recoverable_bytes/recoverable_files
-        stimano lo spazio/file recuperabili se si tiene solo la cartella più
-        pesante del gruppo — usati dalla vista ad albero del Riepilogo)."""
+        decrescente), total_files, total_bytes, similar_pairs (coppie di
+        cartelle FOGLIA con file in comune, lista ordinata per ratio
+        decrescente — dato grezzo, usato solo per costruire folder_blocks
+        qui sotto), fully_redundant (lista ordinata per bytes decrescente),
+        same_name_folders (lista di gruppi {"name","folders"} — cartelle
+        con lo STESSO NOME trovate in punti diversi, indipendentemente dal
+        contenuto: un segnale ulteriore, utile perché una cartella
+        duplicata rinominata identica all'originale ma con contenuto nel
+        frattempo divergente sfuggirebbe al controllo per contenuto).
+
+        folder_blocks (lista di {"root_a","root_b","member_a","member_b",
+        "n_pairs","avg_ratio","shared_total","recoverable_bytes",
+        "leaf_pairs","cluster_id"}, ordinata per recoverable_bytes
+        decrescente): risale la gerarchia a partire da similar_pairs e
+        collassa catene cartella-padre/cartella-figlia che corrispondono
+        ricorsivamente (es. "Foto/2019" e "Foto/2020" entrambe duplicate
+        nella cartella gemella corrispondente) in UN blocco solo — root_a/
+        root_b sono le cartelle più in alto per cui vale la
+        corrispondenza, member_a/member_b l'insieme di TUTTE le cartelle
+        foglia assorbite su ciascun lato, n_pairs quante coppie di
+        sottocartelle sono state assorbite (1 = nessuna fusione, coppia
+        isolata). folder_clusters (lista di gruppi {"folders" (radici dei
+        blocchi del cluster),"blocks","shared_total","avg_ratio",
+        "min_ratio","recoverable_bytes","recoverable_files"}): componenti
+        connesse via union-find sopra le RADICI dei blocchi (non più sopra
+        le coppie grezze) — gestisce il caso di 3+ radici mutuamente
+        simili (es. tre copie di backup diverse dello stesso archivio),
+        ogni blocco riceve il suo "cluster_id" per raggrupparli in fase di
+        rendering."""
         folder_totals = folder_totals or {}
         redundant_totals = folder_totals_b if folder_totals_b is not None else folder_totals
 
@@ -6262,7 +6273,8 @@ class DuplicateFinder:
         else:
             return {"per_folder": [], "total_files": 0, "total_bytes": 0,
                     "similar_pairs": [], "fully_redundant": [],
-                    "same_name_folders": [], "folder_clusters": []}
+                    "same_name_folders": [], "folder_blocks": [],
+                    "folder_clusters": []}
 
         per_folder = [
             {"folder": f, "n_files": v["n_files"], "bytes": v["bytes"],
@@ -6294,14 +6306,85 @@ class DuplicateFinder:
                                       "examples": entry["examples"]})
         similar_pairs.sort(key=lambda p: -p["ratio"])
 
-        # Cluster di cartelle gemelle: componenti connesse sulle coppie
-        # che superano GIÀ la soglia qui sopra (nessuna soglia nuova da
-        # giustificare) — con 3+ cartelle mutuamente simili permette di
-        # trattarle come UN gruppo solo anche se non ogni singola coppia
-        # supera la soglia (basta che siano collegate transitivamente:
-        # A-B e B-C sopra soglia bastano per il cluster {A,B,C} anche se
-        # A-C da sola non ci arriverebbe). Usato dall'azione "Tieni questa
-        # cartella, cestina le altre del gruppo" nel Riepilogo.
+        # Blocchi: risale la gerarchia da similar_pairs (coppie di
+        # cartelle FOGLIA) e collassa catene cartella-padre/cartella-figlia
+        # che corrispondono ricorsivamente in UN blocco solo — es. "Foto/
+        # 2019" e "Foto/2020" duplicate ciascuna nella propria gemella
+        # sotto "Backup/Foto" diventano un unico blocco "Foto" <->
+        # "Backup/Foto" con 2 sottocartelle assorbite, invece di due righe
+        # separate indistinguibili da due doppioni scollegati. Ogni
+        # iterazione raggruppa i nodi correnti per la coppia di cartelle
+        # PADRE (dirname su entrambi i lati): se almeno 2 nodi diversi
+        # condividono la stessa coppia di padri, oppure quella stessa
+        # coppia di padri è GIÀ una corrispondenza diretta in
+        # similar_pairs (evidenza indipendente dai figli), si fondono in
+        # un nodo genitore — il ciclo si ferma da solo quando non ci sono
+        # più fusioni possibili, nessuna soglia nuova oltre a quelle già
+        # in uso per similar_pairs.
+        pair_index = {(p["a"], p["b"]): p for p in similar_pairs}
+
+        nodes = [
+            {"root_a": p["a"], "root_b": p["b"],
+             "member_a": {p["a"]}, "member_b": {p["b"]},
+             "shared_total": p["shared"], "ratio_sum": p["ratio"], "n_pairs": 1,
+             "leaf_pairs": [p]}
+            for p in similar_pairs
+        ]
+
+        for _ in range(20):   # limite di sicurezza: il ciclo termina comunque da solo
+            groups = {}
+            for n in nodes:
+                pa = os.path.dirname(n["root_a"])
+                pb = os.path.dirname(n["root_b"])
+                if not pa or not pb or pa == n["root_a"] or pb == n["root_b"]:
+                    continue   # radice del filesystem, non si sale oltre
+                groups.setdefault((pa, pb), []).append(n)
+
+            merged_any = False
+            consumed = set()
+            new_nodes = []
+            for (pa, pb), members in groups.items():
+                direct = pair_index.get((pa, pb)) or pair_index.get((pb, pa))
+                if len(members) < 2 and not direct:
+                    continue   # un solo figlio e nessuna evidenza diretta sul padre: non basta
+                merged_any = True
+                member_a, member_b, leaf_pairs = set(), set(), []
+                shared_total, ratio_sum, n_pairs = 0, 0.0, 0
+                for m in members:
+                    member_a |= m["member_a"]; member_b |= m["member_b"]
+                    shared_total += m["shared_total"]; ratio_sum += m["ratio_sum"]
+                    n_pairs += m["n_pairs"]; leaf_pairs += m["leaf_pairs"]
+                    consumed.add(id(m))
+                if direct:
+                    member_a.add(pa); member_b.add(pb)
+                new_nodes.append({"root_a": pa, "root_b": pb,
+                                  "member_a": member_a, "member_b": member_b,
+                                  "shared_total": shared_total, "ratio_sum": ratio_sum,
+                                  "n_pairs": n_pairs, "leaf_pairs": leaf_pairs})
+            nodes = new_nodes + [n for n in nodes if id(n) not in consumed]
+            if not merged_any:
+                break
+
+        folder_blocks = []
+        for n in nodes:
+            n["avg_ratio"] = n["ratio_sum"] / n["n_pairs"] if n["n_pairs"] else 0.0
+            del n["ratio_sum"]
+            # Recuperabile: si presume si tenga il lato più pesante e si
+            # cestini l'altro per intero — il lato più leggero è la stima
+            # realistica di cosa verrebbe effettivamente cestinato.
+            a_bytes = sum(stats.get(f, {}).get("bytes", 0) for f in n["member_a"])
+            b_bytes = sum(stats.get(f, {}).get("bytes", 0) for f in n["member_b"])
+            n["recoverable_bytes"] = min(a_bytes, b_bytes)
+            n["member_a"] = sorted(n["member_a"])
+            n["member_b"] = sorted(n["member_b"])
+            folder_blocks.append(n)
+        folder_blocks.sort(key=lambda b: -b["recoverable_bytes"])
+
+        # Cluster: componenti connesse via union-find sopra le RADICI dei
+        # blocchi (non più sopra le coppie grezze) — gestisce il caso di
+        # 3+ radici mutuamente simili (es. tre copie di backup diverse
+        # dello stesso archivio), che ora è a livello di blocchi già
+        # collassati invece che di singole cartelle foglia.
         parent = {}
         def _find(x):
             parent.setdefault(x, x)
@@ -6314,43 +6397,39 @@ class DuplicateFinder:
             if rx != ry:
                 parent[rx] = ry
 
-        for p in similar_pairs:
-            _union(p["a"], p["b"])
+        for blk in folder_blocks:
+            _union(blk["root_a"], blk["root_b"])
 
-        clusters_map = {}   # radice union-find -> {"folders": set, "pairs": [...]}
-        for p in similar_pairs:
-            entry = clusters_map.setdefault(_find(p["a"]), {"folders": set(), "pairs": []})
-            entry["folders"].update((p["a"], p["b"]))
-            entry["pairs"].append(p)
+        clusters_map = {}   # radice union-find -> {"roots": set, "blocks": [...]}
+        for blk in folder_blocks:
+            entry = clusters_map.setdefault(_find(blk["root_a"]), {"roots": set(), "blocks": []})
+            entry["roots"].update((blk["root_a"], blk["root_b"]))
+            entry["blocks"].append(blk)
 
         folder_clusters = [
-            {"folders": sorted(data["folders"]),
-             "shared_total": sum(pp["shared"] for pp in data["pairs"]),
-             "_pairs": data["pairs"]}
+            {"folders": sorted(data["roots"]),
+             "shared_total": sum(b["shared_total"] for b in data["blocks"]),
+             "blocks": data["blocks"]}
             for data in clusters_map.values()
         ]
         folder_clusters.sort(key=lambda c: (-len(c["folders"]), -c["shared_total"]))
         for cluster_id, cl in enumerate(folder_clusters):
-            pairs = cl.pop("_pairs")
-            ratios = [p["ratio"] for p in pairs]
+            blocks = cl["blocks"]
+            ratios = [b["avg_ratio"] for b in blocks]
             cl["avg_ratio"] = sum(ratios) / len(ratios) if ratios else 0.0
             cl["min_ratio"] = min(ratios) if ratios else 0.0
-            # "Recuperabile" per cluster: si presume che l'utente tenga la
-            # cartella più pesante del gruppo e cestini le sorelle (stessa
-            # logica di _keep_folder_trash_siblings) — somma dei bytes
-            # "copia" già attribuiti a ciascuna cartella del cluster in
-            # 'stats', meno la più pesante. .get(f, {}) difensivo: una
-            # cartella può comparire in similar_pairs (via _add_pair_group,
-            # chiamata su TUTTI i file del gruppo) senza mai comparire in
-            # 'stats' (popolata solo da _add su files_sorted[1:], le copie)
-            # se è sempre risultata l'originale in ogni gruppo condiviso —
-            # in quel caso contribuisce 0 bytes/0 file, correttamente.
-            folder_bytes = sorted((stats.get(f, {}).get("bytes", 0) for f in cl["folders"]), reverse=True)
-            folder_files = sorted((stats.get(f, {}).get("n_files", 0) for f in cl["folders"]), reverse=True)
+            # Stesso principio di prima (tieni la cartella più pesante,
+            # cestina le altre) ma sull'insieme DEDUPLICATO delle cartelle
+            # di tutti i blocchi del cluster — sommare i recoverable_bytes
+            # dei singoli blocchi rischierebbe di contare due volte una
+            # cartella che compare in più blocchi dello stesso cluster.
+            all_folders = sorted({f for b in blocks for f in b["member_a"] + b["member_b"]})
+            folder_bytes = sorted((stats.get(f, {}).get("bytes", 0) for f in all_folders), reverse=True)
+            folder_files = sorted((stats.get(f, {}).get("n_files", 0) for f in all_folders), reverse=True)
             cl["recoverable_bytes"] = sum(folder_bytes[1:])
             cl["recoverable_files"] = sum(folder_files[1:])
-            for p in pairs:
-                p["cluster_id"] = cluster_id
+            for b in blocks:
+                b["cluster_id"] = cluster_id
 
         # Cartelle con lo stesso nome in punti diversi: segnale indipendente
         # dal contenuto, su TUTTE le cartelle toccate dalla scansione
@@ -6374,24 +6453,30 @@ class DuplicateFinder:
                 "total_bytes": total_bytes, "similar_pairs": similar_pairs,
                 "fully_redundant": fully_redundant,
                 "same_name_folders": same_name_folders,
+                "folder_blocks": folder_blocks,
                 "folder_clusters": folder_clusters}
 
     def _trash_folder_duplicates(self, folders, duplicates=None, matches=None,
-                                  keep_folder=None):
+                                  keep_folders=None):
         """Cestina (move_to_transit) da OGNI cartella in 'folders' ogni
         file che risulta duplicato di qualcosa — MAI un file che non
         compare in nessun gruppo di duplicati, anche se fisicamente nella
-        stessa cartella. Se 'keep_folder' è dato, viene esclusa da
-        'folders' (non si cestina mai la cartella da tenere) — usato da
-        _keep_folder_trash_siblings. Le cartelle che restano
-        completamente vuote dopo lo spostamento vengono rimosse (os.rmdir,
-        sicura: fallisce da sola se resta qualunque cosa dentro, inclusa
-        una sottocartella).
+        stessa cartella. Se 'keep_folders' è dato (iterable di percorsi),
+        quelle cartelle vengono escluse da 'folders' (non si cestina mai
+        una cartella da tenere) — usato da _keep_folder_trash_siblings.
+        Plurale (non 'keep_folder' singolo) perché un blocco di cartelle
+        quasi identiche (Riepilogo, tab "Cartelle con contenuto quasi
+        identico") può richiedere di tenere un intero LATO — la cartella
+        radice più tutte le sue sottocartelle assorbite — non una singola
+        cartella. Le cartelle che restano completamente vuote dopo lo
+        spostamento vengono rimosse (os.rmdir, sicura: fallisce da sola se
+        resta qualunque cosa dentro, inclusa una sottocartella).
 
         Passare ESATTAMENTE uno tra duplicates/matches, stessa convenzione
         di _aggregate_dup_folders — qui serve per sapere esattamente QUALI
         file, dentro le cartelle bersaglio, sono duplicati da spostare."""
-        targets = [f for f in folders if f != keep_folder] if keep_folder else list(folders)
+        keep_set = set(keep_folders) if keep_folders else set()
+        targets = [f for f in folders if f not in keep_set]
         if not targets:
             return
 
@@ -6421,9 +6506,13 @@ class DuplicateFinder:
         # virgole): con più di qualche cartella, o percorsi lunghi, una
         # riga unica diventava illeggibile.
         folders_txt = "\n".join(f'  "{f}"' for f in targets)
-        keep_txt = f'\nmantenendo intatta "{keep_folder}".' if keep_folder else ""
+        if keep_set:
+            kept_txt = "\n".join(f'  "{f}"' for f in sorted(keep_set))
+            keep_txt = f'\nmantenendo intatte:\n{kept_txt}'
+        else:
+            keep_txt = ""
         if not self.sorter._hud_yesno(
-                "Cestina cartelle gemelle" if keep_folder else "Cestina duplicati",
+                "Cestina cartelle gemelle" if keep_set else "Cestina duplicati",
                 f"Verranno cestinati {len(all_files)} file duplicati da:\n"
                 f"{folders_txt}\n"
                 f"{keep_txt}\n"
@@ -6456,42 +6545,47 @@ class DuplicateFinder:
                 parent=self.win))
         threading.Thread(target=_do, daemon=True).start()
 
-    def _keep_folder_trash_siblings(self, keep_folder, cluster_folders,
+    def _keep_folder_trash_siblings(self, keep_folders, cluster_folders,
                                      duplicates=None, matches=None):
-        """Tieni 'keep_folder' intatta; da OGNI ALTRA cartella del cluster
-        cestina i file che risultano duplicati di qualcosa — MAI un file
-        di keep_folder stessa (vedi _trash_folder_duplicates)."""
+        """Tieni intatte 'keep_folders' (iterable, di solito un intero lato
+        di un blocco — radice + sottocartelle assorbite); da OGNI ALTRA
+        cartella del cluster cestina i file che risultano duplicati di
+        qualcosa — MAI un file di 'keep_folders' stesse (vedi
+        _trash_folder_duplicates)."""
         self._trash_folder_duplicates(cluster_folders, duplicates=duplicates,
-                                      matches=matches, keep_folder=keep_folder)
+                                      matches=matches, keep_folders=keep_folders)
 
     def _show_dup_folder_report(self, agg, filter_cb=None, keep_folder_cb=None,
                                  delete_folders_cb=None):
         """Popup 'Riepilogo cartelle': una scheda per sezione (Per
         cartella, Contenuto quasi identico, Interamente duplicate, Stesso
         nome) — con centinaia di risultati, prima si doveva scorrere
-        un'unica lista lunghissima. La scheda "Contenuto quasi identico" è
-        un ttk.Treeview (cluster → cartella → cartelle gemelle → file in
-        comune, gli ultimi due livelli caricati solo all'apertura del nodo)
-        con sfondo a intensità graduata per la % di somiglianza di ogni
-        cartella — la vista "a colpo d'occhio" dei cluster. Le altre 3
-        schede usano un tk.Text (serve il grassetto per singola riga, che
-        una Listbox non supporta — itemconfig lì accetta solo colore, non
-        font) in sola lettura ma interattivo. Entrambi i widget sono
-        interattivi (click destro per aprire la cartella o filtrare,
-        doppio click come scorciatoia per il filtro). 'filter_cb(folder,
-        sequence=, index=)', se fornita dal chiamante, applica il filtro
-        sulla scheda da cui è stato aperto il riepilogo; sequence/index
-        permettono al bottone "Prossimo" nella finestra principale di
-        passare alla riga successiva della stessa sezione senza dover
-        riaprire questo popup. 'keep_folder_cb(cluster_folders,
-        keep_folder)', se fornita, aggiunge alla radice di ogni cluster di
-        cartelle quasi identiche l'azione "Tieni questa cartella, cestina
-        le altre del gruppo". 'delete_folders_cb(folders)', se fornita,
-        alimenta il bottone "Cestina selezionati" in fondo: nella scheda ad
-        albero cestina i duplicati delle cartelle (nodi di Livello 1)
-        selezionate per riga; nelle altre schede, delle cartelle le cui
-        righe cadono nella selezione di testo (trascinamento/shift-clic)
-        attiva nella scheda corrente."""
+        un'unica lista lunghissima. Ogni scheda usa un tk.Text (non una
+        Listbox: serve il grassetto per singola riga, che una Listbox non
+        supporta — itemconfig lì accetta solo colore, non font) in sola
+        lettura ma interattivo (click destro per aprire la cartella o
+        filtrare, doppio click come scorciatoia per il filtro). La scheda
+        "Contenuto quasi identico" mostra i BLOCCHI di
+        agg["folder_blocks"] (cartelle — con le loro sottocartelle —
+        risalite ricorsivamente dalla gerarchia, non singole coppie
+        isolate) come frasi riassuntive ordinate per spazio recuperabile,
+        con dettaglio piegabile per blocco (stesso meccanismo "+"/"-" a
+        tag elide del tab "Stesso nome"). 'filter_cb(folder, sequence=,
+        index=)', se fornita dal chiamante, applica il filtro sulla scheda
+        da cui è stato aperto il riepilogo; sequence/index permettono al
+        bottone "Prossimo" nella finestra principale di passare alla riga
+        successiva della stessa sezione senza dover riaprire questo popup
+        (i blocchi non alimentano una sequenza "Prossimo": filtrano subito,
+        senza sequence/index). 'keep_folder_cb(cluster_folders,
+        keep_folders)', se fornita: per una singola cartella (le altre 3
+        schede) aggiunge "Tieni questa cartella, cestina le altre del
+        gruppo" con keep_folders=[folder]; per un blocco aggiunge due voci
+        "Tieni un lato, cestina l'altro (con le sue sottocartelle)" con
+        keep_folders=member_a/member_b (un intero lato, non una singola
+        cartella). 'delete_folders_cb(folders)', se fornita, alimenta il
+        bottone "Cestina selezionati" in fondo: cestina i duplicati di
+        tutte le cartelle le cui righe cadono nella selezione di testo
+        (trascinamento/shift-clic) attiva nella scheda corrente."""
         _lang = self.sorter.config.get("language", "it")
         win = tk.Toplevel(self.win)
         win.withdraw()
@@ -6509,12 +6603,11 @@ class DuplicateFinder:
         tk.Frame(win, bg=ACCENT_COLOR, height=1).pack(fill="x", padx=14, pady=(0,6))
 
         per_folder        = agg.get("per_folder", [])
-        similar_pairs     = agg.get("similar_pairs", [])
+        folder_blocks     = agg.get("folder_blocks", [])
         fully_redundant   = agg.get("fully_redundant", [])
         same_name_folders = agg.get("same_name_folders", [])
         total_files = agg.get("total_files", 0)
         total_bytes = agg.get("total_bytes", 0)
-        per_folder_map = {s["folder"]: s for s in per_folder}
 
         if not per_folder and not same_name_folders:
             tk.Label(win, text=_Tf("Nessun dato disponibile.", _lang),
@@ -6544,11 +6637,7 @@ class DuplicateFinder:
 
         tab_frames = {}
         tab_buttons = {}
-        # key -> (widget, row_meta, "text"|"tree"), per "Cestina selezionati"
-        tab_contents = {}
-        # key -> corpus testuale già pronto per "Copia tutto" (solo per le
-        # sezioni che non usano più un tk.Text, es. "similar")
-        tab_copy_text = {}
+        tab_contents = {}   # key -> (txt, row_meta), per "Cestina selezionati"
         active_tab = {"key": None}
 
         def _switch_tab(key):
@@ -6595,32 +6684,6 @@ class DuplicateFinder:
             txt.pack(side="left", fill="both", expand=True)
             return txt
 
-        def _make_tree(parent):
-            """Albero per la sezione "Cartelle con contenuto quasi
-            identico": stesso schema box+Scrollbar di _make_text, ma
-            ttk.Treeview invece di tk.Text — qui la gerarchia (cluster →
-            cartella → partner → esempi) è reale, non solo indentazione
-            testuale, quindi si presta a essere espansa/richiusa nodo per
-            nodo invece di scorrere un lungo elenco piatto."""
-            box = tk.Frame(parent, bg=BG_COLOR)
-            box.pack(fill="both", expand=True)
-            sb = tk.Scrollbar(box, orient="vertical")
-            tv = ttk.Treeview(box, columns=("n_files", "bytes", "ratio"),
-                              show="tree headings", selectmode="extended",
-                              style="DupClusters.Treeview", yscrollcommand=sb.set)
-            tv.heading("#0", text=_Tf("Cluster / cartella", _lang), anchor="w")
-            tv.heading("n_files", text=_Tf("File", _lang), anchor="e")
-            tv.heading("bytes", text=_Tf("Spazio", _lang), anchor="e")
-            tv.heading("ratio", text="%", anchor="e")
-            tv.column("#0", width=420, stretch=True, minwidth=200)
-            tv.column("n_files", width=60, stretch=False, minwidth=45, anchor="e")
-            tv.column("bytes", width=80, stretch=False, minwidth=60, anchor="e")
-            tv.column("ratio", width=55, stretch=False, minwidth=45, anchor="e")
-            sb.config(command=tv.yview)
-            sb.pack(side="right", fill="y")
-            tv.pack(side="left", fill="both", expand=True)
-            return tv
-
         def _folder_menu_actions(menu, folder, seq, idx, cluster_folders=None):
             menu.add_command(label=_Tf("Mostra in file manager", _lang),
                              command=lambda: open_in_filemanager(folder))
@@ -6634,28 +6697,94 @@ class DuplicateFinder:
                 menu.add_separator()
                 menu.add_command(
                     label=_Tf("Tieni questa cartella, cestina le altre del gruppo", _lang),
-                    command=lambda: keep_folder_cb(cluster_folders, folder))
+                    command=lambda: keep_folder_cb(cluster_folders, [folder]))
 
-        def _bind_interactions(txt, row_meta, on_toggle=None):
-            """on_toggle(line_no, meta), se fornita, viene invocata quando
-            il doppio click cade su una riga "a comparsa" (tab "Stesso
-            nome"): due click ravvicinati sulla stessa intestazione sono
+        def _block_menu_actions(menu, meta):
+            """Menu per la riga di INTESTAZIONE di un blocco (tab "Contenuto
+            quasi identico"): un blocco rappresenta DUE lati (root_a/root_b,
+            ciascuno con le proprie sottocartelle assorbite in member_a/
+            member_b), non una singola cartella — _folder_menu_actions non
+            si adatta (il suo "tieni questa, cestina le altre" esclude solo
+            UN percorso, non un intero lato con sottocartelle). Usato da
+            _bind_interactions via menu_builder — ritorna False per righe
+            non di intestazione (es. i dettagli piegati sotto, type
+            "folder"), così _bind_interactions cade nel menu generico
+            per-cartella per quelle."""
+            if meta.get("type") != "block_header":
+                return False
+            root_a, root_b = meta["root_a"], meta["root_b"]
+            member_a, member_b = meta["member_a"], meta["member_b"]
+            for root in (root_a, root_b):
+                menu.add_command(label=_Tf('Mostra "{f}" in file manager', _lang, f=root),
+                                 command=lambda f=root: open_in_filemanager(f))
+            menu.add_separator()
+            for root in (root_a, root_b):
+                menu.add_command(label=_Tf('Apri "{f}" in Image Sorter', _lang, f=root),
+                                 command=lambda f=root: self.sorter._open_browser_to(f))
+            if filter_cb:
+                menu.add_separator()
+                for root in (root_a, root_b):
+                    menu.add_command(label=_Tf('Filtra risultati su "{f}"', _lang, f=root),
+                                     command=lambda f=root: filter_cb(f))
+            if keep_folder_cb:
+                menu.add_separator()
+                all_members = sorted(set(member_a) | set(member_b))
+                n_sub = meta.get("n_pairs", 1)
+                menu.add_command(
+                    label=_Tf('Tieni "{a}" (+{n} sottocartelle), cestina "{b}" e le sue',
+                             _lang, a=root_a, n=n_sub, b=root_b),
+                    command=lambda: keep_folder_cb(all_members, member_a))
+                menu.add_command(
+                    label=_Tf('Tieni "{b}" (+{n} sottocartelle), cestina "{a}" e le sue',
+                             _lang, a=root_a, n=n_sub, b=root_b),
+                    command=lambda: keep_folder_cb(all_members, member_b))
+            return True
+
+        def _bind_interactions(txt, row_meta, on_toggle=None,
+                               header_type="same_name_header", menu_builder=None):
+            """on_toggle(txt, line_no, meta), se fornita, viene invocata
+            quando il click (singolo O doppio, vedi sotto) cade su una riga
+            "a comparsa" (type == header_type — "same_name_header" per il
+            tab "Stesso nome", "block_header" per "Contenuto quasi
+            identico"). Il widget 'txt' viene passato esplicitamente (non
+            lasciato al closure di chi definisce on_toggle) perché
+            _show_dup_folder_report riusa lo stesso nome di variabile 'txt'
+            in più sezioni sullo stesso livello di funzione (nessuno scope
+            a blocco in Python): una on_toggle definita fuori da qui e
+            richiamata più tardi (dopo che 'txt' nella funzione chiamante è
+            stato riassegnato da una sezione successiva) vedrebbe altrimenti
+            il widget SBAGLIATO — bug reale scovato con un test funzionale
+            (il tag veniva configurato sul tk.Text di un'altra scheda).
+            Due click ravvicinati sulla stessa intestazione sono
             interpretati da Tk come Double-Button-1 invece di due
             Button-1 separati (verificato: senza questo, il secondo click
             ravvicinato veniva "risucchiato" dal doppio click e il gruppo
             non si richiudeva più) — qui il doppio click apre/chiude
-            comunque, invece di essere ignorato in silenzio."""
+            comunque, invece di essere ignorato in silenzio. menu_builder(menu,
+            meta), se fornita, ha precedenza sul menu generico per-cartella:
+            se ritorna True (riga d'intestazione con la sua logica dedicata,
+            es. un blocco rappresenta DUE lati) il menu costruito da lei
+            viene mostrato così com'è, altrimenti si cade nel comportamento
+            di sempre (voci per singola cartella in meta["folders"]) — sta
+            a menu_builder stesso decidere, guardando meta["type"], quali
+            righe gli competono e quali no (ritornando False/None per
+            quelle non sue)."""
             def _row_at(e):
                 idx = txt.index(f"@{e.x},{e.y}")
                 return row_meta.get(int(idx.split(".")[0]))
 
             def _on_ctx(e):
                 meta = _row_at(e)
-                if not meta or not meta.get("folders"):
-                    return   # riga non azionabile (es. intestazione a comparsa)
+                if not meta:
+                    return
                 menu = tk.Menu(win, tearoff=0, bg=PANEL_COLOR, fg=TEXT_COLOR,
                               activebackground=HIGHLIGHT, activeforeground="white",
                               relief="flat")
+                if menu_builder and menu_builder(menu, meta):
+                    _post_menu(menu, e.x_root, e.y_root, win)
+                    return
+                if not meta.get("folders"):
+                    return   # riga non azionabile (es. intestazione a comparsa)
                 folders = meta["folders"]
                 seq, idx = meta.get("section_targets"), meta.get("section_index")
                 cluster_folders = meta.get("cluster_folders")
@@ -6672,12 +6801,20 @@ class DuplicateFinder:
                         menu.add_cascade(label=f'"{f}"', menu=sub)
                 _post_menu(menu, e.x_root, e.y_root, win)
 
+            def _on_click_header(e):
+                idx = txt.index(f"@{e.x},{e.y}")
+                line_no = int(idx.split(".")[0])
+                meta = row_meta.get(line_no)
+                if not meta or meta.get("type") != header_type:
+                    return
+                on_toggle(txt, line_no, meta)
+
             def _on_double(e):
                 idx = txt.index(f"@{e.x},{e.y}")
                 line_no = int(idx.split(".")[0])
                 meta = row_meta.get(line_no)
-                if meta and meta.get("type") == "same_name_header" and on_toggle:
-                    on_toggle(line_no, meta)
+                if meta and meta.get("type") == header_type and on_toggle:
+                    on_toggle(txt, line_no, meta)
                     return
                 if not meta or not meta.get("folders") or not filter_cb:
                     return
@@ -6686,51 +6823,8 @@ class DuplicateFinder:
 
             txt.bind("<Button-3>", _on_ctx)
             txt.bind("<Double-Button-1>", _on_double)
-
-        def _bind_tree_interactions(tv, row_meta_tv):
-            """Equivalente di _bind_interactions ma per ttk.Treeview: stessa
-            logica di business (_folder_menu_actions, filter_cb) invariata,
-            cambia solo come si risale dalla riga cliccata al suo meta
-            (tv.identify_row invece di txt.index)."""
-            def _on_ctx(e):
-                iid = tv.identify_row(e.y)
-                meta = row_meta_tv.get(iid)
-                if not meta or not meta.get("folders"):
-                    return
-                menu = tk.Menu(win, tearoff=0, bg=PANEL_COLOR, fg=TEXT_COLOR,
-                              activebackground=HIGHLIGHT, activeforeground="white",
-                              relief="flat")
-                folders = meta["folders"]
-                seq, idx = meta.get("section_targets"), meta.get("section_index")
-                cluster_folders = meta.get("cluster_folders")
-                if len(folders) == 1:
-                    _folder_menu_actions(menu, folders[0], seq, idx,
-                                        cluster_folders=cluster_folders)
-                else:
-                    for f in folders:
-                        sub = tk.Menu(menu, tearoff=0, bg=PANEL_COLOR, fg=TEXT_COLOR,
-                                     activebackground=HIGHLIGHT, activeforeground="white",
-                                     relief="flat")
-                        _folder_menu_actions(sub, f, seq, idx,
-                                            cluster_folders=cluster_folders)
-                        menu.add_cascade(label=f'"{f}"', menu=sub)
-                _post_menu(menu, e.x_root, e.y_root, win)
-
-            def _on_double(e):
-                iid = tv.identify_row(e.y)
-                meta = row_meta_tv.get(iid)
-                if not meta or not meta.get("folders") or not filter_cb:
-                    return
-                filter_cb(meta["folders"][0], sequence=meta.get("section_targets"),
-                         index=meta.get("section_index"))
-                # Sopprime il toggle apri/chiudi predefinito di ttk: qui il
-                # doppio click è un'azione di "filtro", coerente col
-                # comportamento sul tk.Text delle altre sezioni — l'apertura
-                # resta affidata al click sulla freccina nativa +/-.
-                return "break"
-
-            tv.bind("<Button-3>", _on_ctx)
-            tv.bind("<Double-Button-1>", _on_double)
+            if on_toggle:
+                txt.bind("<Button-1>", _on_click_header, add="+")
 
         def _fill(txt, row_meta, lines):
             """lines: lista di (testo, tags, meta). 'tags' è una tupla di
@@ -6759,7 +6853,6 @@ class DuplicateFinder:
         # ultimo, le colonne numeriche restano sempre allineate qualunque
         # sia la lunghezza del percorso.
         ROW_FMT = "{:>6}  {:>20}  {:>7}   {}"
-        EXAMPLES_CAP = 300
 
         if per_folder:
             fr = _make_tab("per_folder", _Tf("Per cartella", _lang))
@@ -6777,172 +6870,91 @@ class DuplicateFinder:
                                          "section_targets": targets, "section_index": i}))
             _fill(txt, row_meta, lines)
             _bind_interactions(txt, row_meta)
-            tab_contents["per_folder"] = (txt, row_meta, "text")
+            tab_contents["per_folder"] = (txt, row_meta)
 
-        if similar_pairs:
+        if folder_blocks:
             fr = _make_tab("similar", _Tf("Cartelle con contenuto quasi identico", _lang))
+            txt = _make_text(fr)
+            row_meta = {}
+            lines = [(_Tf("(blocchi di cartelle — con le loro sottocartelle, quando "
+                         "corrispondono anch'esse — il cui contenuto si ritrova quasi "
+                         "identico altrove, in ordine di spazio recuperabile; clic su "
+                         "un titolo per vedere il dettaglio delle sottocartelle "
+                         "coinvolte)", _lang), ("muted",), None)]
 
-            # Raggruppate per cluster (componenti connesse, vedi
-            # _aggregate_dup_folders): con 3+ cartelle mutuamente simili, il
-            # nodo radice del cluster porta l'azione "Tieni questa cartella,
-            # cestina le altre del gruppo" su TUTTO il gruppo, non solo sulla
-            # singola coppia sotto.
             folder_clusters = agg.get("folder_clusters", [])
-            pairs_by_cluster = {}
-            for p in similar_pairs:
-                pairs_by_cluster.setdefault(p.get("cluster_id"), []).append(p)
-            cluster_targets = [cl["folders"][0] for cl in folder_clusters]
+            cluster_by_id = {ci: cl for ci, cl in enumerate(folder_clusters)}
+            rendered_clusters = set()
+            fold_state = {}
 
-            # Corpus testuale per "Copia tutto" — stesso contenuto/ordine di
-            # quando questa sezione era un tk.Text, prodotto qui invece che
-            # da _fill perché il rendering vero e proprio ora è un albero.
-            copy_lines = [_Tf("(gran parte del contenuto di una cartella si ritrova "
-                              "anche nell'altra — per ogni cartella sono indicate le "
-                              "cartelle gemelle e i file in comune)", _lang)]
-            for ci, cl in enumerate(folder_clusters):
-                cl_folders = cl["folders"]
-                if len(cl_folders) > 2:
-                    copy_lines.append(_Tf("Gruppo di {n} cartelle quasi identiche:",
-                                         _lang, n=len(cl_folders)))
-                    for f in cl_folders:
-                        copy_lines.append(f'    "{f}"')
-                for p in pairs_by_cluster.get(ci, []):
-                    copy_lines.append(f'    "{p["a"]}"')
-                    suffix = _Tf('"{b}"  —  {n} file in comune su {base} ({pct:.0f}%)',
-                                _lang, b=p["b"], n=p["shared"], base=p["base"],
-                                pct=p["ratio"]*100)
-                    copy_lines.append(f"    <-> {suffix}")
-                    examples = p.get("examples", [])
-                    for fa, fb in examples[:EXAMPLES_CAP]:
-                        copy_lines.append(f"    {os.path.basename(fa)}  <->  {os.path.basename(fb)}")
-                    if len(examples) > EXAMPLES_CAP:
-                        copy_lines.append(_Tf("    ... e altri {n} file in comune non mostrati",
-                                             _lang, n=len(examples)-EXAMPLES_CAP))
-            tab_copy_text["similar"] = "\n".join(copy_lines)
+            for gi, blk in enumerate(folder_blocks):   # già ordinati per recuperabile decrescente
+                ci = blk.get("cluster_id")
+                cl = cluster_by_id.get(ci)
+                # Intestazione di gruppo, una sola volta per cluster, solo
+                # se il cluster ha più di un blocco (3+ radici mutuamente
+                # simili, es. tre copie di backup diverse dello stesso
+                # archivio) — per il caso comune (un blocco = due sole
+                # radici) è superflua, il blocco stesso porta già tutta
+                # l'informazione utile.
+                if cl and len(cl["blocks"]) > 1 and ci not in rendered_clusters:
+                    rendered_clusters.add(ci)
+                    lines.append((_Tf("Gruppo di {n} cartelle quasi identiche tra loro:",
+                                     _lang, n=len(cl["folders"])), ("bold",), None))
 
-            # ── Albero: cluster → cartella → partner (lazy) → esempi (lazy) ──
-            sty = ttk.Style(win)
-            sty.configure("DupClusters.Treeview", background=BG_COLOR, foreground=TEXT_COLOR,
-                          fieldbackground=BG_COLOR, rowheight=20, font=("TkFixedFont", 9))
-            sty.configure("DupClusters.Treeview.Heading", background=ACCENT_COLOR,
-                          foreground=HUD_CYAN, font=("TkFixedFont", 9, "bold"), relief="flat")
-            sty.map("DupClusters.Treeview", background=[("selected", HIGHLIGHT)],
-                    foreground=[("selected", "white")])
+                detail_tag = f"block_detail_{gi}"
+                n_sub = blk["n_pairs"]
+                fold_state[gi] = True   # chiuso di default, come "Stesso nome"
+                header_meta = {"type": "block_header", "block_index": gi,
+                               "detail_tag": detail_tag,
+                               "root_a": blk["root_a"], "root_b": blk["root_b"],
+                               "member_a": blk["member_a"], "member_b": blk["member_b"],
+                               "n_pairs": n_sub, "folders": [blk["root_a"], blk["root_b"]]}
+                if n_sub > 1:
+                    header_txt = _Tf('+ "{a}" (+{n} sottocartelle)  è quasi identica a  "{b}"',
+                                     _lang, a=blk["root_a"], n=n_sub, b=blk["root_b"])
+                else:
+                    header_txt = _Tf('  "{a}"  è quasi identica a  "{b}"',
+                                     _lang, a=blk["root_a"], b=blk["root_b"])
+                lines.append((header_txt, ("bold",), header_meta))
+                lines.append((_Tf("    {n} sottocartelle corrispondenti (~{pct:.0f}% di "
+                                  "somiglianza media) — circa {size} recuperabili", _lang,
+                                  n=n_sub, pct=blk["avg_ratio"] * 100,
+                                  size=self._fmt(blk["recoverable_bytes"])),
+                             ("muted",), None))
 
-            tv = _make_tree(fr)
-            row_meta_tv = {}
-            lazy_data = {}   # iid -> dati per popolamento lazy dei livelli 2-3 (partner/esempi)
+                if n_sub > 1:
+                    # Dettaglio piegato di default (tag elide, come "Stesso
+                    # nome"): una riga per ogni coppia di sottocartelle
+                    # assorbite nel blocco.
+                    all_members = sorted(set(blk["member_a"]) | set(blk["member_b"]))
+                    for p in blk["leaf_pairs"]:
+                        pair_meta = {"type": "folder", "folders": [p["a"], p["b"]],
+                                    "cluster_folders": all_members}
+                        suffix = _Tf('"{a}"  <->  "{b}"  —  {n} file in comune su '
+                                    '{base} ({pct:.0f}%)', _lang, a=p["a"], b=p["b"],
+                                    n=p["shared"], base=p["base"], pct=p["ratio"] * 100)
+                        lines.append((f"        {suffix}", (detail_tag,), pair_meta))
 
-            # Colore testo stabile per cluster (identifica il gruppo, non
-            # la % di somiglianza — quella è sullo sfondo delle righe sotto).
-            for i, hexcol in enumerate(KEY_COLORS):
-                tv.tag_configure(f"clr_{i}", foreground=hexcol)
-            # Sfondo a intensità graduata per la % di somiglianza di ogni
-            # cartella (range utile [0.6,1.0]: similar_pairs è già filtrato
-            # a monte da ratio>=0.6). Niente barra grafica per riga:
-            # ttk.Treeview non incorpora widget per cella (nessun precedente
-            # nel progetto) e una barra testuale a blocchi userebbe
-            # caratteri che tk_safe() filtra apposta per un crash X11 già
-            # affrontato in passato (righe 1044-1082, stesso motivo per cui
-            # altrove in questo popup si usa "+"/"-" invece di "▸/▾").
-            N_SIM_BUCKETS = 6
-            for i in range(N_SIM_BUCKETS):
-                q = 0.75 - i * (0.70 / (N_SIM_BUCKETS - 1))
-                tv.tag_configure(f"sim_{i}", background=dim_color(HUD_CYAN, quota=q),
-                                 foreground=TEXT_COLOR)
+            _fill(txt, row_meta, lines)
+            for gi in fold_state:
+                txt.tag_configure(f"block_detail_{gi}", elide=True)
 
-            # Aperti di default solo se pochi cluster: con report grossi
-            # restano chiusi, per restare "a colpo d'occhio" invece che
-            # riproporre un muro di righe.
-            open_all = len(folder_clusters) <= 5
-            for ci, cl in enumerate(folder_clusters):
-                cl_folders = cl["folders"]
-                cluster_meta = {"type": "cluster", "folders": cl_folders,
-                               "cluster_folders": cl_folders,
-                               "section_targets": cluster_targets, "section_index": ci}
-                cluster_iid = f"cluster::{ci}"
-                header = _Tf("Gruppo di {n} cartelle · {pct:.0f}% simili · {size} recuperabili",
-                             _lang, n=len(cl_folders), pct=cl.get("avg_ratio", 0.0) * 100,
-                             size=self._fmt(cl.get("recoverable_bytes", 0)))
-                tv.insert("", "end", iid=cluster_iid, text=tk_safe(header),
-                          values=("", "", ""), tags=(f"clr_{ci % len(KEY_COLORS)}",),
-                          open=open_all)
-                row_meta_tv[cluster_iid] = cluster_meta
+            def _toggle_block(txt, line_no, meta):
+                if meta.get("n_pairs", 1) <= 1:
+                    return   # coppia isolata, niente dettaglio da piegare
+                gi = meta["block_index"]
+                collapsed = not fold_state[gi]
+                fold_state[gi] = collapsed
+                txt.tag_configure(meta["detail_tag"], elide=collapsed)
+                txt.config(state="normal")
+                txt.delete(f"{line_no}.0", f"{line_no}.1")
+                txt.insert(f"{line_no}.0", "+" if collapsed else "-")
+                txt.tag_add("bold", f"{line_no}.0", f"{line_no}.1")
+                txt.config(state="disabled")
 
-                cluster_pairs = pairs_by_cluster.get(ci, [])
-                for f in cl_folders:
-                    pairs_here = [p for p in cluster_pairs if p["a"] == f or p["b"] == f]
-                    ratio = (sum(p["ratio"] for p in pairs_here) / len(pairs_here)
-                             if pairs_here else 0.0)
-                    bucket = max(0, min(N_SIM_BUCKETS - 1,
-                                        int((ratio - 0.6) / 0.4 * N_SIM_BUCKETS)))
-                    info = per_folder_map.get(f, {"n_files": 0, "bytes": 0})
-                    tv.insert(cluster_iid, "end", iid=f, text=tk_safe(f'"{f}"'),
-                              values=(info["n_files"], self._fmt(info["bytes"]),
-                                      f"{ratio*100:.0f}%"),
-                              tags=(f"sim_{bucket}",))
-                    row_meta_tv[f] = {"type": "cluster_folder", "folders": [f],
-                                      "cluster_folders": cl_folders,
-                                      "section_targets": cluster_targets, "section_index": ci}
-                    if pairs_here:
-                        ph = f + "::ph"
-                        tv.insert(f, "end", iid=ph, text="…", values=("", "", ""))
-                        lazy_data[f] = {"kind": "folder", "folder": f, "pairs": pairs_here,
-                                       "cluster_folders": cl_folders,
-                                       "cluster_targets": cluster_targets, "cluster_index": ci}
-
-            def _tv_lazy_expand(e=None):
-                iid = tv.focus()
-                if not iid:
-                    return
-                for ch in tv.get_children(iid):
-                    if ch.endswith("::ph"):
-                        tv.delete(ch)
-                data = lazy_data.pop(iid, None)
-                if not data:
-                    return
-                if data["kind"] == "folder":
-                    f = data["folder"]
-                    cl_folders = data["cluster_folders"]
-                    cluster_targets_ = data["cluster_targets"]
-                    ci = data["cluster_index"]
-                    for p in data["pairs"]:
-                        other = p["b"] if p["a"] == f else p["a"]
-                        partner_iid = f"{iid}::partner::{other}"
-                        if tv.exists(partner_iid):
-                            continue
-                        text = _Tf("↔ {other} — {n} file in comune su {base} ({pct:.0f}%)",
-                                   _lang, other=other, n=p["shared"], base=p["base"],
-                                   pct=p["ratio"] * 100)
-                        tv.insert(iid, "end", iid=partner_iid, text=tk_safe(text),
-                                  values=("", "", f"{p['ratio']*100:.0f}%"))
-                        row_meta_tv[partner_iid] = {"type": "pair", "folders": [p["a"], p["b"]],
-                                                    "cluster_folders": cl_folders,
-                                                    "section_targets": cluster_targets_,
-                                                    "section_index": ci}
-                        examples = p.get("examples", [])
-                        if examples:
-                            eph = partner_iid + "::ph"
-                            tv.insert(partner_iid, "end", iid=eph, text="…", values=("", "", ""))
-                            lazy_data[partner_iid] = {"kind": "examples", "examples": examples}
-                elif data["kind"] == "examples":
-                    examples = data["examples"]
-                    for i, (fa, fb) in enumerate(examples[:EXAMPLES_CAP]):
-                        ex_iid = f"{iid}::ex::{i}"
-                        if tv.exists(ex_iid):
-                            continue
-                        tv.insert(iid, "end", iid=ex_iid,
-                                  text=tk_safe(f"{os.path.basename(fa)}  <->  {os.path.basename(fb)}"),
-                                  values=("", "", ""))
-                    if len(examples) > EXAMPLES_CAP:
-                        tv.insert(iid, "end",
-                                  text=tk_safe(_Tf("... e altri {n} file in comune non mostrati",
-                                                   _lang, n=len(examples) - EXAMPLES_CAP)),
-                                  values=("", "", ""))
-
-            tv.bind("<<TreeviewOpen>>", _tv_lazy_expand)
-            _bind_tree_interactions(tv, row_meta_tv)
-            tab_contents["similar"] = (tv, row_meta_tv, "tree")
+            _bind_interactions(txt, row_meta, on_toggle=_toggle_block,
+                              header_type="block_header", menu_builder=_block_menu_actions)
+            tab_contents["similar"] = (txt, row_meta)
 
         if fully_redundant:
             fr = _make_tab("redundant", _Tf("Cartelle interamente duplicate", _lang))
@@ -6972,7 +6984,7 @@ class DuplicateFinder:
                     lines.append((indent + f'"{src_folder}"', (), meta))
             _fill(txt, row_meta, lines)
             _bind_interactions(txt, row_meta)
-            tab_contents["redundant"] = (txt, row_meta, "text")
+            tab_contents["redundant"] = (txt, row_meta)
 
         if same_name_folders:
             fr = _make_tab("same_name", _Tf("Cartelle con lo stesso nome in punti diversi", _lang))
@@ -7010,7 +7022,7 @@ class DuplicateFinder:
             for gi in fold_state:
                 txt.tag_configure(f"same_name_detail_{gi}", elide=True)
 
-            def _toggle_group(line_no, meta):
+            def _toggle_group(txt, line_no, meta):
                 gi = meta["group_index"]
                 collapsed = not fold_state[gi]
                 fold_state[gi] = collapsed
@@ -7021,17 +7033,8 @@ class DuplicateFinder:
                 txt.tag_add("muted", f"{line_no}.0", f"{line_no}.1")
                 txt.config(state="disabled")
 
-            def _on_toggle_same_name(e):
-                idx = txt.index(f"@{e.x},{e.y}")
-                line_no = int(idx.split(".")[0])
-                meta = row_meta.get(line_no)
-                if not meta or meta.get("type") != "same_name_header":
-                    return
-                _toggle_group(line_no, meta)
-
             _bind_interactions(txt, row_meta, on_toggle=_toggle_group)
-            txt.bind("<Button-1>", _on_toggle_same_name, add="+")
-            tab_contents["same_name"] = (txt, row_meta, "text")
+            tab_contents["same_name"] = (txt, row_meta)
 
         _switch_tab(next(iter(tab_frames)))
 
@@ -7047,10 +7050,7 @@ class DuplicateFinder:
                     if r: return r
                 return None
             parts = []
-            for key, fr in tab_frames.items():
-                if key in tab_copy_text:
-                    parts.append(tab_copy_text[key])
-                    continue
+            for fr in tab_frames.values():
                 t = _find_text(fr)
                 if t:
                     parts.append(t.get("1.0", "end-1c"))
@@ -7072,35 +7072,8 @@ class DuplicateFinder:
             data = tab_contents.get(active_tab["key"])
             if not data or not delete_folders_cb:
                 return
-            widget_active, row_meta_active, kind = data
-            if kind == "tree":
-                # Selezione per riga (multi-select nativo di ttk.Treeview),
-                # non selezione di testo trascinata: solo i nodi di
-                # Livello 1 ("cluster_folder", una cartella sola) sono
-                # cestinabili — le radici-cluster (più cartelle) e i nodi
-                # partner/esempio restano esclusi, stessa filosofia del
-                # filtro sotto per il ramo testuale.
-                sel_iids = widget_active.selection()
-                if not sel_iids:
-                    self.sorter._hud_alert(
-                        _Tf("Nessuna selezione", _lang),
-                        _Tf("Seleziona una o più righe di cartella (clic, Maiusc+clic o "
-                           "Ctrl+clic), poi riprova.", _lang),
-                        parent=win)
-                    return
-                folders = list(dict.fromkeys(
-                    row_meta_active[iid]["folders"][0] for iid in sel_iids
-                    if row_meta_active.get(iid, {}).get("type") == "cluster_folder"
-                    and len(row_meta_active[iid].get("folders") or []) == 1))
-                if not folders:
-                    self.sorter._hud_alert(
-                        _Tf("Nessuna cartella", _lang),
-                        _Tf("La selezione non contiene righe di cartella cestinabili.", _lang),
-                        parent=win)
-                    return
-                delete_folders_cb(folders)
-                return
-            ranges = widget_active.tag_ranges("sel")
+            txt_active, row_meta_active = data
+            ranges = txt_active.tag_ranges("sel")
             if not ranges:
                 self.sorter._hud_alert(
                     _Tf("Nessuna selezione", _lang),
