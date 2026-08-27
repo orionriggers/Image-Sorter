@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.45.8"
+VERSION = "1.45.9"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -6904,36 +6904,57 @@ class DuplicateFinder:
                 detail_tag = f"block_detail_{gi}"
                 n_sub = blk["n_pairs"]
                 fold_state[gi] = True   # chiuso di default, come "Stesso nome"
+                # Percorsi impilati (uno sotto l'altro, quote allineate)
+                # invece che affiancati sulla stessa riga: due percorsi
+                # assoluti spesso lunghi affiancati costringevano a
+                # scorrere in orizzontale per confrontarli — impilati si
+                # leggono e confrontano a colpo d'occhio. header_line
+                # registra la riga ESATTA del prefisso "+"/"-" (sempre la
+                # prima delle due): il meta è condiviso da entrambe le
+                # righe (clic/tasto destro funzionano su ciascuna), ma il
+                # fold/unfold deve toccare sempre quella riga lì, non
+                # quella su cui è caduto il clic.
+                header_line = len(lines) + 1
                 header_meta = {"type": "block_header", "block_index": gi,
-                               "detail_tag": detail_tag,
+                               "detail_tag": detail_tag, "header_line": header_line,
                                "root_a": blk["root_a"], "root_b": blk["root_b"],
                                "member_a": blk["member_a"], "member_b": blk["member_b"],
                                "n_pairs": n_sub, "folders": [blk["root_a"], blk["root_b"]]}
                 if n_sub > 1:
-                    header_txt = _Tf('+ "{a}" (+{n} sottocartelle)  è quasi identica a  "{b}"',
-                                     _lang, a=blk["root_a"], n=n_sub, b=blk["root_b"])
+                    line1 = _Tf('+   "{a}"  (+{n} sottocartelle)', _lang,
+                               a=blk["root_a"], n=n_sub)
                 else:
-                    header_txt = _Tf('  "{a}"  è quasi identica a  "{b}"',
-                                     _lang, a=blk["root_a"], b=blk["root_b"])
-                lines.append((header_txt, ("bold",), header_meta))
-                lines.append((_Tf("    {n} sottocartelle corrispondenti (~{pct:.0f}% di "
-                                  "somiglianza media) — circa {size} recuperabili", _lang,
-                                  n=n_sub, pct=blk["avg_ratio"] * 100,
-                                  size=self._fmt(blk["recoverable_bytes"])),
-                             ("muted",), None))
+                    line1 = f'    "{blk["root_a"]}"'
+                lines.append((line1, ("bold",), header_meta))
+                lines.append((f'<-> "{blk["root_b"]}"', ("bold",), header_meta))
+                if n_sub > 1:
+                    stat_line = _Tf("    {n} sottocartelle corrispondenti (~{pct:.0f}% di "
+                                    "somiglianza media) — circa {size} recuperabili", _lang,
+                                    n=n_sub, pct=blk["avg_ratio"] * 100,
+                                    size=self._fmt(blk["recoverable_bytes"]))
+                else:
+                    p0 = blk["leaf_pairs"][0]
+                    stat_line = _Tf("    {n} file in comune su {base} ({pct:.0f}%) — circa "
+                                    "{size} recuperabili", _lang, n=p0["shared"], base=p0["base"],
+                                    pct=p0["ratio"] * 100, size=self._fmt(blk["recoverable_bytes"]))
+                lines.append((stat_line, ("muted",), None))
 
                 if n_sub > 1:
                     # Dettaglio piegato di default (tag elide, come "Stesso
                     # nome"): una riga per ogni coppia di sottocartelle
-                    # assorbite nel blocco.
+                    # assorbite nel blocco, percorsi impilati come sopra.
                     all_members = sorted(set(blk["member_a"]) | set(blk["member_b"]))
+                    arrow = "<-> "
                     for p in blk["leaf_pairs"]:
                         pair_meta = {"type": "folder", "folders": [p["a"], p["b"]],
                                     "cluster_folders": all_members}
-                        suffix = _Tf('"{a}"  <->  "{b}"  —  {n} file in comune su '
-                                    '{base} ({pct:.0f}%)', _lang, a=p["a"], b=p["b"],
-                                    n=p["shared"], base=p["base"], pct=p["ratio"] * 100)
-                        lines.append((f"        {suffix}", (detail_tag,), pair_meta))
+                        lines.append((f'        {" " * len(arrow)}"{p["a"]}"',
+                                     ("bold", "pink", detail_tag), pair_meta))
+                        suffix = _Tf('"{b}"  —  {n} file in comune su {base} ({pct:.0f}%)',
+                                    _lang, b=p["b"], n=p["shared"], base=p["base"],
+                                    pct=p["ratio"] * 100)
+                        lines.append((f"        {arrow}{suffix}",
+                                     ("bold", "pink", detail_tag), pair_meta))
 
             _fill(txt, row_meta, lines)
             for gi in fold_state:
@@ -6946,10 +6967,11 @@ class DuplicateFinder:
                 collapsed = not fold_state[gi]
                 fold_state[gi] = collapsed
                 txt.tag_configure(meta["detail_tag"], elide=collapsed)
+                hl = meta["header_line"]
                 txt.config(state="normal")
-                txt.delete(f"{line_no}.0", f"{line_no}.1")
-                txt.insert(f"{line_no}.0", "+" if collapsed else "-")
-                txt.tag_add("bold", f"{line_no}.0", f"{line_no}.1")
+                txt.delete(f"{hl}.0", f"{hl}.1")
+                txt.insert(f"{hl}.0", "+" if collapsed else "-")
+                txt.tag_add("bold", f"{hl}.0", f"{hl}.1")
                 txt.config(state="disabled")
 
             _bind_interactions(txt, row_meta, on_toggle=_toggle_block,
