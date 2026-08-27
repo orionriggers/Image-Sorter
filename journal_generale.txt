@@ -1668,6 +1668,72 @@ CAUSA 3: FINESTRA GRIGIA ALL'AVVIO — TROVATA E RISOLTA (v1.45.1)
   STATO: RISOLTO.
 
 ===========================================================================
+v1.45.7 — RIEPILOGO DOPPIONI: VISTA AD ALBERO PER I CLUSTER DI CARTELLE
+===========================================================================
+Richiesta di Carlo: il "Riepilogo cartelle" (v1.45.6) elenca già i gruppi
+di cartelle quasi identiche, ma come testo scorrevole in un tk.Text — bene
+per leggere in sequenza, male per farsi un'idea "a colpo d'occhio" nel suo
+caso d'uso tipico (confrontare dischi con tante cartelle di backup manuali
+fatte in tempi diversi). I dati (folder_clusters, componenti connesse via
+union-find) esistevano già per intero in _aggregate_dup_folders — mancava
+solo la resa visiva.
+
+COSA E' CAMBIATO: la scheda "Contenuto quasi identico" di
+_show_dup_folder_report è ora un ttk.Treeview (non più tk.Text) a 4 livelli:
+cluster → cartella → cartella gemella (partner) → file in comune, gli
+ultimi due caricati solo all'apertura del nodo (stesso pattern lazy
+placeholder+<<TreeviewOpen>> già in uso in disk_analyzer.py::_poptv/
+_tv_expand, qui riapplicato a una gerarchia che non è un filesystem ma
+dati derivati). _aggregate_dup_folders guadagna per ogni cluster
+avg_ratio/min_ratio/recoverable_bytes/recoverable_files (calcolati PRIMA
+dello scarto di "_pairs" che già avveniva a fine funzione — è l'unico
+punto dove il dettaglio per-coppia esiste ancora). Le altre 3 schede
+(Per cartella, Interamente duplicate, Stesso nome) restano tk.Text
+invariate, non richiesto e non avrebbero dati aggiuntivi da mostrare.
+
+PRINCIPIO GENERALIZZABILE: NIENTE BARRA GRAFICA PER RIGA IN UN TREEVIEW —
+SFONDO A INTENSITA' GRADUATA AL SUO POSTO
+  Prima scelta di Carlo per mostrare la % di somiglianza per riga: una
+  mini-barra a caratteri Unicode (es. "████░░░░ 72%"). Scartata dopo
+  verifica: tk_safe() (righe ~1044-1082) filtra ESPLICITAMENTE i blocchi
+  Unicode "Box Drawing/Block Elements" (0x2500-0x259F) per un crash X11
+  già affrontato in passato — motivo per cui altrove nello stesso popup
+  si usa "+"/"-" invece di "▸/▾". Scartata anche l'alternativa di un vero
+  Canvas incorporato per riga (nessun precedente nel progetto: ttk.Treeview
+  non ha un modo nativo per ospitare un widget per cella — fattibile solo
+  con .place() sopra tv.bbox(), da riposizionare a mano ad ogni scroll/
+  resize/espansione, sproporzionato al beneficio). SOLUZIONE ADOTTATA:
+  colonna percentuale numerica + sfondo dell'intera riga a intensità
+  graduata, riusando dim_color(hex_color, verso=BG_COLOR, quota) già
+  esistente (quota=0 colore pieno, quota=1 colore sullo sfondo) — 6
+  sfumature costruite a build-time del popup invece di 2-3 tag fissi,
+  per un effetto "termometro" continuo. Riusabile ovunque nel progetto
+  serva comunicare un valore continuo per riga in un Treeview senza
+  rischiare il crash X11 né la complessità di widget incorporati.
+
+VERIFICA: script funzionale sotto xvfb-run da una copia isolata (mai il
+progetto reale — vedi principio in CLAUDE.md), con due scenari sintetici
+costruiti direttamente come dict "duplicates" (nessun file reale su
+disco necessario: _aggregate_dup_folders lavora solo su stringhe di
+percorso, _copy_score tollera percorsi inesistenti via fallback
+mtime=inf su OSError) — una coppia di cartelle e un cluster di 3 cartelle
+collegate solo transitivamente (a-b e b-c sopra soglia, a-c sotto, per
+verificare che l'union-find le unisca comunque in un unico cluster).
+Verificati: struttura dati (avg_ratio/min_ratio/recoverable_* coerenti),
+struttura dell'albero (radici, figli, popolamento lazy via
+tv.focus()+event_generate("<<TreeviewOpen>>")), tag di sfondo per bucket,
+"Cestina selezionati" sulla selezione per riga del Treeview (nuova
+capacità: prima, con la sezione a tk.Text, quella scheda non supportava
+affatto la cancellazione da selezione — solo "folder"/"redundant" vi
+davano diritto), "Copia tutto" (corpus testuale prodotto a parte in
+tab_copy_text, non più letto da un tk.Text che non esiste più per questa
+scheda). Non verificabile in automatico (limite noto di event_generate:
+"Double, Triple, or Quadruple modifier not allowed" per sintetizzare
+<Double-Button-1>): il doppio click reale su una riga — deve filtrare
+senza lasciare che il toggle apri/chiudi nativo di ttk avvenga ANCHE
+(soppresso con "return break") — da confermare a schermo da Carlo.
+
+===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
 ===========================================================================
 Allegare:
