@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.45.9"
+VERSION = "1.45.10"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -18393,21 +18393,72 @@ class SettingsDialog:
         """Tab impostazioni Stream Deck: modello, luminosità, pagine idle."""
         f = self._content
         f.columnconfigure(0, weight=1)
-        f.rowconfigure(1, weight=1)
+        f.rowconfigure(2, weight=1)
 
         sdk = getattr(self.sorter, '_stream_deck', None)
         connected = sdk and sdk.is_active()
         n_keys = sdk._deck_info.get("key_count", 15) if connected else 15
         cols   = sdk._deck_info.get("cols", 5)        if connected else 5
 
+        # ── Abilitazione Stream Deck ──────────────────────────────────────────
+        enable_row = tk.Frame(f, bg=ACCENT_COLOR)
+        enable_row.grid(row=0, column=0, sticky="ew", padx=20, pady=(20,8))
+        enable_row.columnconfigure(2, weight=1)
+
+        deck_enabled_var = tk.BooleanVar(value=self.config.get("deck_enabled", True))
+        btn_frame = tk.Frame(enable_row, bg=ACCENT_COLOR)
+        btn_frame.grid(row=0, column=0, rowspan=2, padx=(10,8), pady=8)
+
+        on_btn  = [None]
+        off_btn = [None]
+
+        def _refresh_enable_btns():
+            v = deck_enabled_var.get()
+            on_btn[0].config(bg=SUCCESS if v else ACCENT_COLOR,
+                              fg="white" if v else MUTED_COLOR)
+            off_btn[0].config(bg="#c0392b" if not v else ACCENT_COLOR,
+                               fg="white" if not v else MUTED_COLOR)
+
+        def _toggle_enable(new_val):
+            deck_enabled_var.set(new_val)
+            _refresh_enable_btns()
+            self._apply_deck_enabled(new_val)
+
+        on_btn[0] = tk.Button(btn_frame, text=" ON  ",
+                               font=("TkFixedFont", 8, "bold"),
+                               relief="flat", bd=0, padx=4, pady=2,
+                               command=lambda: _toggle_enable(True))
+        on_btn[0].pack(side="left")
+        off_btn[0] = tk.Button(btn_frame, text=" OFF ",
+                                font=("TkFixedFont", 8, "bold"),
+                                relief="flat", bd=0, padx=4, pady=2,
+                                command=lambda: _toggle_enable(False))
+        off_btn[0].pack(side="left")
+        _refresh_enable_btns()
+
+        tk.Label(enable_row, text="Stream Deck abilitato",
+                 font=("TkFixedFont", 10, "bold"),
+                 bg=ACCENT_COLOR, fg=TEXT_COLOR,
+                 anchor="w").grid(row=0, column=2, sticky="w")
+        tk.Label(enable_row,
+                 text="Se disattivato, il programma (e il demone in autostart) non "
+                      "toccano mai il device fisico: utile per usare un altro "
+                      "software con lo stesso Stream Deck.",
+                 font=("TkFixedFont", 8), bg=ACCENT_COLOR, fg=MUTED_COLOR,
+                 anchor="w", justify="left", wraplength=420
+                 ).grid(row=1, column=2, sticky="w", padx=(0,10), pady=(0,8))
+
         # ── Barra superiore: stato + luminosità ──────────────────────────────
         top = tk.Frame(f, bg=PANEL_COLOR)
-        top.grid(row=0, column=0, sticky="ew")
+        top.grid(row=1, column=0, sticky="ew")
         top.columnconfigure(2, weight=1)
 
-        status_text = (f"Connesso: {sdk._deck_info.get('type','?')}  "
-                       f"({n_keys} tasti)"
-                       if connected else "Stream Deck non connesso")
+        if not self.config.get("deck_enabled", True):
+            status_text = "Stream Deck disattivato"
+        elif connected:
+            status_text = f"Connesso: {sdk._deck_info.get('type','?')}  ({n_keys} tasti)"
+        else:
+            status_text = "Stream Deck non connesso"
         tk.Label(top, text=status_text,
                  font=("TkFixedFont", 9, "bold"),
                  bg=PANEL_COLOR,
@@ -18427,10 +18478,11 @@ class SettingsDialog:
         top.columnconfigure(3, weight=1)
 
         f.rowconfigure(0, weight=0)
-        f.rowconfigure(1, weight=1)
+        f.rowconfigure(1, weight=0)
+        f.rowconfigure(2, weight=1)
         # ── Area principale: griglia + editor ────────────────────────────────
         main = tk.Frame(f, bg=BG_COLOR)
-        main.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)
+        main.grid(row=2, column=0, sticky="nsew", padx=0, pady=0)
         main.columnconfigure(0, weight=1)
         main.rowconfigure(0, weight=0)   # tab pagine
         main.rowconfigure(1, weight=0)   # griglia tasti
@@ -19244,6 +19296,28 @@ class SettingsDialog:
         if sdk and sdk.is_active():
             try: sdk.deck.set_brightness(val)
             except Exception: pass
+
+    def _apply_deck_enabled(self, enabled):
+        """Applica a caldo l'abilitazione/disabilitazione dello Stream
+        Deck fisico: rilascia subito il device se lo si sta spegnendo,
+        rilancia la connessione se lo si sta riaccendendo."""
+        self.config["deck_enabled"] = enabled
+        save_config(self.config)
+        sorter = self.sorter
+        if not enabled:
+            if getattr(sorter, "_owns_deck", False):
+                sdk = getattr(sorter, "_stream_deck", None)
+                if sdk:
+                    try: sdk.release_hardware()
+                    except Exception: pass
+                sorter._owns_deck = False
+                if _DECK_CORE_AVAILABLE:
+                    deck_core.release_lock_if_mine()
+            sorter._stream_deck = None
+            sorter._update_sdeck_btn()
+        else:
+            threading.Thread(target=sorter._init_stream_deck, daemon=True).start()
+        self._build_deck_tab()
 
     def _edit_idle_key(self, page_idx, key_idx):
         """Apre il popup di configurazione per un tasto idle."""
@@ -25445,7 +25519,9 @@ class ImageSorter:
         if not ref:
             return
         sdk = getattr(self, "_stream_deck", None)
-        if not sdk or not sdk.is_active():
+        if not self.config.get("deck_enabled", True):
+            bg, fg = PANEL_COLOR, MUTED_COLOR
+        elif not sdk or not sdk.is_active():
             bg, fg = ACCENT_COLOR, TEXT_COLOR
         elif getattr(sdk, "_mode", "idle") == "preset":
             bg, fg = SUCCESS, "white"
@@ -25987,7 +26063,11 @@ class ImageSorter:
         """Attiva/disattiva modalità preset sul deck fisico senza aprire il softdeck."""
         sdk = getattr(self, '_stream_deck', None)
         if not sdk or not sdk.is_active():
-            self._show_toast("Stream Deck non connesso", color="#e74c3c", duration=1500)
+            if not self.config.get("deck_enabled", True):
+                self._show_toast("Stream Deck disattivato nelle Impostazioni",
+                                  color=MUTED_COLOR, duration=1500)
+            else:
+                self._show_toast("Stream Deck non connesso", color="#e74c3c", duration=1500)
             return
         if sdk._mode == "preset":
             sdk.set_mode("idle")
@@ -26239,6 +26319,14 @@ class ImageSorter:
         sempre prima di un processo silenzioso."""
         self._owns_deck = False
 
+        if not self.config.get("deck_enabled", True):
+            # Disattivato dall'utente (Impostazioni > Deck): zero
+            # interazione col device o col file di lock, per non entrare
+            # in conflitto con un altro software che gestisce lo stesso
+            # Stream Deck fisico.
+            self.root.after(0, self._update_sdeck_btn)
+            return
+
         # Piccolo ritardo casuale prima di guardare il lock: se piu'
         # istanze partono quasi insieme (per esempio aprendo diversi
         # file con un doppio clic in rapida successione), questo le
@@ -26300,6 +26388,10 @@ class ImageSorter:
             # l'aveva fatta, fino a dichiararsi sconfitta con "non
             # disponibile" anche se il deck era ed e' perfettamente
             # raggiungibile, solo posseduto da una sorella.
+            if not self.config.get("deck_enabled", True):
+                # Disattivato mentre un tentativo era gia' in corso.
+                self.root.after(0, self._update_sdeck_btn)
+                return
             if attempt > 0 and _DECK_CORE_AVAILABLE:
                 ancora = deck_core.read_lock()
                 if ancora and ancora.get("kind") == "gui":
@@ -26351,7 +26443,8 @@ class ImageSorter:
         # campo di testo...), non solo per la finestra intera: si scrive
         # il file di focus solo quando e' davvero root a guadagnarlo,
         # altrimenti ogni clic dentro il programma lo riscriverebbe.
-        if event.widget is self.root and _DECK_CORE_AVAILABLE:
+        if event.widget is self.root and _DECK_CORE_AVAILABLE \
+                and self.config.get("deck_enabled", True):
             deck_core.announce_focus()
 
     def _run_deck_inbox_poll(self):
@@ -26362,7 +26455,7 @@ class ImageSorter:
         alcun deck collegato puo' comunque essere quella con il fuoco,
         e deve poter ricevere ed eseguire il comando lo stesso.
         """
-        if _DECK_CORE_AVAILABLE:
+        if _DECK_CORE_AVAILABLE and self.config.get("deck_enabled", True):
             try:
                 azione = deck_core.poll_inbox()
                 if azione:
@@ -26386,6 +26479,8 @@ class ImageSorter:
         (bus USB in uno stato strano) non si porterebbe dietro
         l'interfaccia.
         """
+        if not self.config.get("deck_enabled", True):
+            return
         sdk = getattr(self, "_stream_deck", None)
         if not sdk or not sdk.is_active():
             return   # niente da controllare: non ci si riprogramma piu'
@@ -26448,6 +26543,9 @@ class ImageSorter:
         eventuale chiusura di StreamController, apertura del device) —
         e va rifatta una volta sola al ritrovamento, non ad ogni giro.
         """
+        if not self.config.get("deck_enabled", True):
+            self._deck_watching = False
+            return
         if getattr(self, "_stream_deck", None):
             self._deck_watching = False
             return   # ripreso nel frattempo da qualcos'altro

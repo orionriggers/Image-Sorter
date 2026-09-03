@@ -167,7 +167,31 @@ def main():
     _log("avviato, in attesa del deck fisico")
 
     while True:
+        # Reload incondizionato ad ogni giro, indipendentemente dal
+        # possesso del device: se il reload avvenisse solo nel ramo "il
+        # deck e' nostro" (come prima), un demone in attesa perche'
+        # disabilitato non si accorgerebbe mai di una riattivazione.
+        if time.time() - ultimo_reload_config > CONFIG_RELOAD_INTERVAL_S:
+            sorter.config = _load_config()
+            ultimo_reload_config = time.time()
+
+        deck_enabled = sorter.config.get("deck_enabled", True)
+
+        if sd is not None and not deck_enabled:
+            _log("deck_enabled disattivato dall'app, rilascio il deck")
+            try:
+                sd.release_hardware()
+            except Exception:
+                pass
+            deck_core.release_lock_if_mine()
+            sd = None
+
         if sd is None:
+            if not deck_enabled:
+                # Disattivato: non tentare mai di agganciare il device,
+                # per non entrare in conflitto con un altro software.
+                time.sleep(RECLAIM_INTERVAL_S)
+                continue
             sd = _try_claim(sorter)
             if sd is None:
                 time.sleep(RECLAIM_INTERVAL_S)
@@ -220,10 +244,6 @@ def main():
             deck_core.release_lock_if_mine()
             sd = None
             continue
-
-        if time.time() - ultimo_reload_config > CONFIG_RELOAD_INTERVAL_S:
-            sorter.config = _load_config()
-            ultimo_reload_config = time.time()
 
 
 if __name__ == "__main__":

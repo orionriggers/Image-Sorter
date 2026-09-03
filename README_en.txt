@@ -24,12 +24,12 @@ LAUNCH
 
 PROGRAM FILES
 -------------
-  image_sorter.py    main program                   v1.45.1
+  image_sorter.py    main program                   v1.45.10
   disk_analyzer.py   disk usage analyzer            v1.45.0
   timeline.py        timeline and GPS map           v1.45.0
   exif_editor.py     EXIF metadata editor           v1.45.0
   translations.py    IT/EN strings                  v1.45.0
-  installa.sh        installation script            v1.36.2
+  installa.sh        installation script            v1.36.3
 
 MAIN SHORTCUTS
 --------------

@@ -11,7 +11,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$HOME/.local/share/applications"
 ICON_DIR="$HOME/.local/share/icons/hicolor"
-VERSION="1.36.2"
+VERSION="1.36.3"
 MIN_PYTHON_MINOR=8
 
 # ── Language detection / Rilevamento lingua ───────────────────────────────────
@@ -35,6 +35,9 @@ t() {
             step_sysdeps)     echo "Dipendenze di sistema" ;;
             step_pydeps)      echo "Dipendenze Python" ;;
             step_deck)        echo "Stream Deck" ;;
+            deck_choice_prompt) echo "Vuoi attivare il supporto Stream Deck fisico? (puoi cambiarlo in qualsiasi momento da Impostazioni > Deck) [S/n] " ;;
+            deck_choice_kept)   echo "Stream Deck: preferenza gia' impostata, invariata" ;;
+            deck_choice_saved) echo "Preferenza Stream Deck salvata" ;;
             step_icon)        echo "Icona" ;;
             step_desktop)     echo "File .desktop e MIME" ;;
             step_fm)          echo "Script file manager" ;;
@@ -120,6 +123,9 @@ t() {
             step_sysdeps)     echo "System dependencies" ;;
             step_pydeps)      echo "Python dependencies" ;;
             step_deck)        echo "Stream Deck" ;;
+            deck_choice_prompt) echo "Enable physical Stream Deck support? (changeable anytime in Settings > Deck) [Y/n] " ;;
+            deck_choice_kept)   echo "Stream Deck: preference already set, unchanged" ;;
+            deck_choice_saved) echo "Stream Deck preference saved" ;;
             step_icon)        echo "Icon" ;;
             step_desktop)     echo ".desktop file and MIME" ;;
             step_fm)          echo "File manager scripts" ;;
@@ -466,6 +472,54 @@ pip_install "pillow-heif"      "pillow_heif"      "true"  "$(t dep_desc_heif)"
 # 4. STREAM DECK
 # =============================================================================
 step "$(t step_deck)"
+
+# Chiede se attivare lo Stream Deck fisico di default, per chi preferisce
+# usare un altro software con lo stesso device (es. l'app ufficiale Elgato
+# o StreamController): riusa load_config()/save_config() di image_sorter.py
+# invece di scrivere il JSON a mano, perche' load_config() tratta un file
+# senza la chiave "presets" come vecchio formato piatto da migrare (vedi
+# righe 2185-2189 del programma) -- un JSON minimo scritto qui verrebbe
+# frainteso e produrrebbe preset spazzatura al primo avvio.
+DECK_ENABLED_ALREADY_SET=$("$PYTHON_CMD" - "$SCRIPT_DIR" << 'PYEOF' 2>/dev/null
+import sys, os
+sys.path.insert(0, sys.argv[1])
+os.chdir(sys.argv[1])
+import image_sorter
+print("1" if "deck_enabled" in image_sorter.load_config() else "0")
+PYEOF
+) || DECK_ENABLED_ALREADY_SET=""
+if [ "$DECK_ENABLED_ALREADY_SET" = "1" ]; then
+    ok "$(t deck_choice_kept)"
+elif [ "$DECK_ENABLED_ALREADY_SET" = "0" ]; then
+    if [ -t 0 ]; then
+        read -r -p "$(t deck_choice_prompt)" DECK_ANSWER
+    else
+        DECK_ANSWER=""
+    fi
+    case "$DECK_ANSWER" in
+        [nN]*) DECK_ENABLED_CHOICE="false" ;;
+        *)     DECK_ENABLED_CHOICE="true" ;;
+    esac
+    if "$PYTHON_CMD" - "$SCRIPT_DIR" "$DECK_ENABLED_CHOICE" << 'PYEOF' 2>/dev/null
+import sys, os
+sys.path.insert(0, sys.argv[1])
+os.chdir(sys.argv[1])
+import image_sorter
+cfg = image_sorter.load_config()
+cfg["deck_enabled"] = (sys.argv[2] == "true")
+image_sorter.save_config(cfg)
+PYEOF
+    then
+        ok "$(t deck_choice_saved): deck_enabled=$DECK_ENABLED_CHOICE"
+    else
+        warn "$(t deck_choice_saved) -- non riuscito, verra' chiesto di nuovo al prossimo avvio del programma"
+    fi
+else
+    # Import fallito (ambiente Python non ancora pronto): non blocca
+    # l'installazione, il primo avvio dell'app creera' la config di
+    # default (Stream Deck abilitato, comportamento invariato).
+    warn "Impossibile verificare/impostare la preferenza Stream Deck ora -- resta il comportamento di default"
+fi
 
 UDEV_FILE="/etc/udev/rules.d/70-streamdeck.rules"
 if [ ! -f "$UDEV_FILE" ]; then

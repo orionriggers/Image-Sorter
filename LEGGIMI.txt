@@ -25,12 +25,12 @@ AVVIO
 
 FILE DEL PROGRAMMA
 ------------------
-  image_sorter.py    programma principale           v1.45.1
+  image_sorter.py    programma principale           v1.45.10
   disk_analyzer.py   analisi utilizzo disco         v1.45.0
   timeline.py        timeline e mappa GPS           v1.45.0
   exif_editor.py     editor metadati EXIF           v1.45.0
   translations.py    stringhe IT/EN                 v1.45.0
-  installa.sh        script di installazione        v1.36.2
+  installa.sh        script di installazione        v1.36.3
 
 TASTI RAPIDI PRINCIPALI
 -----------------------
