@@ -11,7 +11,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$HOME/.local/share/applications"
 ICON_DIR="$HOME/.local/share/icons/hicolor"
-VERSION="1.36.1"
+VERSION="1.36.2"
 MIN_PYTHON_MINOR=8
 
 # ── Language detection / Rilevamento lingua ───────────────────────────────────
@@ -67,6 +67,7 @@ t() {
             pkg_installing)   echo "Installazione" ;;
             pkg_installed)    echo "installato" ;;
             pkg_failed)       echo "non installabile -- continuo" ;;
+            pip_missing)      echo "pip non disponibile -- impossibile installare le dipendenze Python (verifica rete/repo)" ;;
             dep_mandatory)    echo "Dipendenze obbligatorie:" ;;
             dep_optional)     echo "Dipendenze opzionali:" ;;
             dep_desc_pillow)  echo "visualizzazione immagini" ;;
@@ -151,6 +152,7 @@ t() {
             pkg_installing)   echo "Installing" ;;
             pkg_installed)    echo "installed" ;;
             pkg_failed)       echo "could not install -- continuing" ;;
+            pip_missing)      echo "pip not available -- cannot install Python dependencies (check network/repos)" ;;
             dep_mandatory)    echo "Mandatory dependencies:" ;;
             dep_optional)     echo "Optional dependencies:" ;;
             dep_desc_pillow)  echo "image display" ;;
@@ -283,6 +285,7 @@ pkg_name() {
                 poppler)     echo "poppler-utils" ;;
                 hidapi)      echo "libhidapi-hidraw0" ;;
                 python3-tk)  echo "python3-tk" ;;
+                python3-imagetk) echo "python3-pil.imagetk" ;;
                 python3-pip) echo "python3-pip" ;;
                 x11-utils)   echo "x11-utils" ;;
                 xdotool)     echo "xdotool" ;;
@@ -360,6 +363,14 @@ if [ -n "$PKG_MANAGER" ]; then
         sudo apt-get update -qq 2>/dev/null || true
     }
     install_pkg python3-tk
+    # python3-imagetk: solo apt separa il sottopacchetto ImageTk da
+    # python3-pil (Debian/Ubuntu/Mint) -- dnf/pacman/zypper non hanno
+    # un pacchetto equivalente con nome prevedibile, quindi qui ci si
+    # affida al wheel pip di Pillow (che include ImageTk compilato,
+    # verificato dal controllo "import PIL.ImageTk" in pip_install
+    # poco piu' sotto) invece di inseguire il nome esatto per ogni
+    # distro/versione.
+    [ "$PKG_MANAGER" = "apt" ] && install_pkg python3-imagetk
     install_pkg python3-pip
     install_pkg ffmpeg
     install_pkg poppler
@@ -382,6 +393,18 @@ fi
 # =============================================================================
 step "$(t step_pydeps)"
 
+# Verifica che il modulo pip sia effettivamente disponibile (puo' mancare
+# se l'installazione di python3-pip via apt/dnf/... e' fallita sopra, es.
+# per assenza di rete o repo irraggiungibili): senza questo controllo ogni
+# pip_install fallirebbe singolarmente con un errore poco chiaro invece di
+# un unico messaggio comprensibile.
+if "$PYTHON_CMD" -m pip --version &>/dev/null 2>&1; then
+    PIP_AVAILABLE=true
+else
+    PIP_AVAILABLE=false
+    warn "$(t pip_missing)"
+fi
+
 pip_install() {
     local pkg="$1"
     local import_name="${2:-$1}"
@@ -391,13 +414,30 @@ pip_install() {
     if "$PYTHON_CMD" -c "import $import_name" &>/dev/null 2>&1; then
         ok "$pkg $(t pkg_already)${desc:+ ($desc)}"; return
     fi
+    if [ "$PIP_AVAILABLE" != "true" ]; then
+        if [ "$optional" = "true" ]; then
+            warn "$pkg $(t dep_failed_opt)"
+        else
+            err "$pkg $(t dep_failed_req)"
+        fi
+        return
+    fi
     info "$(t pkg_installing) $pkg${desc:+ -- $desc}..."
-    if "$PYTHON_CMD" -m pip install "$pkg" --user -q 2>/dev/null; then
-        "$PYTHON_CMD" -c "import $import_name" &>/dev/null 2>&1 \
-            && ok "$pkg $(t dep_installed)" \
-            || warn "$pkg $(t dep_failed_opt)"
-    elif "$PYTHON_CMD" -m pip install "$pkg" --break-system-packages -q 2>/dev/null; then
-        ok "$pkg $(t dep_installed)"
+    # Prima --user semplice; se il sistema e' "externally-managed" (PEP 668,
+    # Debian 12+/Ubuntu 23.10+) questo fallisce sempre, quindi si ritenta
+    # con --user --break-system-packages insieme. Il --user resta
+    # necessario anche nel secondo tentativo: senza, pip proverebbe a
+    # scrivere nel site-packages di sistema e fallirebbe silenziosamente
+    # per permessi negati (l'utente non e' root).
+    if "$PYTHON_CMD" -m pip install "$pkg" --user -q 2>/dev/null \
+       || "$PYTHON_CMD" -m pip install "$pkg" --user --break-system-packages -q 2>/dev/null; then
+        if "$PYTHON_CMD" -c "import $import_name" &>/dev/null 2>&1; then
+            ok "$pkg $(t dep_installed)"
+        elif [ "$optional" = "true" ]; then
+            warn "$pkg $(t dep_failed_opt)"
+        else
+            err "$pkg $(t dep_failed_req)"
+        fi
     else
         if [ "$optional" = "true" ]; then
             warn "$pkg $(t dep_failed_opt)"
@@ -409,7 +449,7 @@ pip_install() {
 
 echo ""
 echo "  $(t dep_mandatory)"
-pip_install "Pillow"           "PIL"              "false" "$(t dep_desc_pillow)"
+pip_install "Pillow"           "PIL.ImageTk"      "false" "$(t dep_desc_pillow)"
 
 echo ""
 echo "  $(t dep_optional)"
@@ -751,7 +791,20 @@ fi
 # =============================================================================
 step "$(t step_shortcut)"
 
-for DDIR in "$HOME/Desktop" "$HOME/Scrivania"; do
+# La cartella Desktop non si chiama "Desktop" in tutte le lingue (Bureau,
+# Schreibtisch, Escritorio, ...): xdg-user-dir (pacchetto xdg-user-dirs,
+# quasi sempre presente) restituisce il percorso corretto a prescindere
+# dalla lingua di sistema. Se il comando manca o l'utente non ha una
+# cartella Desktop configurata, si ripiega sui nomi hardcoded IT/EN gia'
+# usati in precedenza.
+DESKTOP_CANDIDATES=()
+if command -v xdg-user-dir &>/dev/null; then
+    XDG_DESKTOP="$(xdg-user-dir DESKTOP 2>/dev/null || true)"
+    [ -n "$XDG_DESKTOP" ] && DESKTOP_CANDIDATES+=("$XDG_DESKTOP")
+fi
+DESKTOP_CANDIDATES+=("$HOME/Desktop" "$HOME/Scrivania")
+
+for DDIR in "${DESKTOP_CANDIDATES[@]}"; do
     if [ -d "$DDIR" ]; then
         cp "$INSTALL_DIR/image_sorter.desktop" "$DDIR/image_sorter.desktop"
         chmod +x "$DDIR/image_sorter.desktop"

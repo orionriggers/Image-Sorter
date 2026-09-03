@@ -29,7 +29,7 @@ PROGRAM FILES
   timeline.py        timeline and GPS map           v1.45.0
   exif_editor.py     EXIF metadata editor           v1.45.0
   translations.py    IT/EN strings                  v1.45.0
-  installa.sh        installation script            v1.36.1
+  installa.sh        installation script            v1.36.2
 
 MAIN SHORTCUTS
 --------------

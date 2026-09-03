@@ -30,7 +30,7 @@ FILE DEL PROGRAMMA
   timeline.py        timeline e mappa GPS           v1.45.0
   exif_editor.py     editor metadati EXIF           v1.45.0
   translations.py    stringhe IT/EN                 v1.45.0
-  installa.sh        script di installazione        v1.36.1
+  installa.sh        script di installazione        v1.36.2
 
 TASTI RAPIDI PRINCIPALI
 -----------------------
