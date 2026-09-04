@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.45.11"
+VERSION = "1.45.12"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -27146,6 +27146,27 @@ class ImageSorter:
         scelta dello schermo intero."""
         self._compare_mode = not self._compare_mode
         if self._compare_mode:
+            # Mentre Confronta era spento, _update_compare_panels() non
+            # girava piu' (vedi sopra) - se nel frattempo si e' navigato
+            # altrove, _cmp_left/right_fp/_pil sono rimasti quelli di
+            # PRIMA dello spegnimento: senza questo controllo, il
+            # ri-aggancio dei canvas qui sotto li ripresenta per un
+            # istante (finche' il nuovo decode non finisce), mostrando
+            # l'anteprima di una foto ormai estranea. Si svuotano SOLO se
+            # il vicino corretto e' davvero cambiato: se non e' cambiato
+            # (spegni/riaccendi senza navigare) il contenuto e' gia'
+            # quello giusto e resta a video invariato, istantaneo.
+            idx = self.current_index
+            correct_prev = (self.images[idx-1]
+                            if 0 <= idx-1 < len(self.images) else None)
+            correct_next = (self.images[idx+1]
+                            if 0 <= idx+1 < len(self.images) else None)
+            if getattr(self, "_cmp_left_fp", None) != correct_prev:
+                self._cmp_left_pil = None
+                self._cmp_left_canvas.delete("all")
+            if getattr(self, "_cmp_right_fp", None) != correct_next:
+                self._cmp_right_pil = None
+                self._cmp_right_canvas.delete("all")
             self._cmp_left_canvas.grid()
             self._cmp_right_canvas.grid()
             # I laterali "leggermente piu' piccoli" del principale:
