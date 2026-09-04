@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.45.14"
+VERSION = "1.45.16"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -16910,10 +16910,19 @@ class SettingsDialog:
         if hasattr(self, '_bot_left'):
             for child in self._bot_left.winfo_children():
                 child.destroy()
-        # Resetta weight righe per evitare layout residui dai tab precedenti
+        # Resetta weight righe E colonne per evitare layout residui dai tab
+        # precedenti — es. il tab Tag imposta columnconfigure(1, weight=1)
+        # per il suo layout a due colonne; senza reset, quel peso restava
+        # attivo passando a un tab a una sola colonna (Tasti/Info) e ne
+        # dimezzava lo spazio disponibile, staccando la scrollbar dal
+        # bordo destro (segnalato da Carlo, si presentava solo dopo aver
+        # visitato il tab Tag). La colonna 0 resta sempre weight=1 (impostata
+        # una sola volta in _build, mai in ogni singolo tab).
         for i in range(10):
             self._content.rowconfigure(i, weight=0)
         self._content.rowconfigure(0, weight=0)
+        for i in range(1, 10):
+            self._content.columnconfigure(i, weight=0)
         if key == "preset":
             self._build_preset_tab()
         elif key == "dest":
@@ -18401,13 +18410,16 @@ class SettingsDialog:
         cols   = sdk._deck_info.get("cols", 5)        if connected else 5
 
         # ── Abilitazione Stream Deck ──────────────────────────────────────────
+        # Una sola riga (prima ne occupava due, con un titolo grassetto e una
+        # descrizione a capo su piu' righe: troppo ingombrante — richiesto da
+        # Carlo di comprimerla mantenendo solo l'essenziale).
         enable_row = tk.Frame(f, bg=ACCENT_COLOR)
         enable_row.grid(row=0, column=0, sticky="ew", padx=20, pady=(20,8))
-        enable_row.columnconfigure(2, weight=1)
+        enable_row.columnconfigure(1, weight=1)
 
         deck_enabled_var = tk.BooleanVar(value=self.config.get("deck_enabled", True))
         btn_frame = tk.Frame(enable_row, bg=ACCENT_COLOR)
-        btn_frame.grid(row=0, column=0, rowspan=2, padx=(10,8), pady=8)
+        btn_frame.grid(row=0, column=0, padx=(10,8), pady=8)
 
         on_btn  = [None]
         off_btn = [None]
@@ -18436,17 +18448,10 @@ class SettingsDialog:
         off_btn[0].pack(side="left")
         _refresh_enable_btns()
 
-        tk.Label(enable_row, text="Stream Deck abilitato",
-                 font=("TkFixedFont", 10, "bold"),
-                 bg=ACCENT_COLOR, fg=TEXT_COLOR,
-                 anchor="w").grid(row=0, column=2, sticky="w")
         tk.Label(enable_row,
-                 text="Se disattivato, il programma (e il demone in autostart) non "
-                      "toccano mai il device fisico: utile per usare un altro "
-                      "software con lo stesso Stream Deck.",
+                 text="Stream Deck gestito da Image Sorter e dal demone di autostart.",
                  font=("TkFixedFont", 8), bg=ACCENT_COLOR, fg=MUTED_COLOR,
-                 anchor="w", justify="left", wraplength=420
-                 ).grid(row=1, column=2, sticky="w", padx=(0,10), pady=(0,8))
+                 anchor="w").grid(row=0, column=1, sticky="w", padx=(0,10))
 
         # ── Barra superiore: stato + luminosità ──────────────────────────────
         top = tk.Frame(f, bg=PANEL_COLOR)
@@ -19491,7 +19496,12 @@ class SettingsDialog:
         outer.rowconfigure(0, weight=1)
 
         canvas = tk.Canvas(outer, bg=BG_COLOR, highlightthickness=0)
-        vsb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        # tk.Scrollbar, non ttk.Scrollbar: quest'ultimo porta con se' il
+        # padding del tema, che lascia uno spazio vuoto tra la barra e il
+        # vero bordo della finestra (segnalato da Carlo) — stesso widget
+        # gia' usato per lo scroll del tab Destinazioni, dove il problema
+        # non c'e'.
+        vsb = tk.Scrollbar(outer, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=vsb.set)
         canvas.grid(row=0, column=0, sticky="nsew")
         vsb.grid(row=0, column=1, sticky="ns")
@@ -20492,7 +20502,9 @@ class SettingsDialog:
         outer.rowconfigure(0, weight=1)
 
         canvas = tk.Canvas(outer, bg=BG_COLOR, highlightthickness=0)
-        vsb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        # tk.Scrollbar, non ttk.Scrollbar: vedi commento in _build_keys_tab
+        # (stesso bug, stessa correzione).
+        vsb = tk.Scrollbar(outer, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=vsb.set)
         canvas.grid(row=0, column=0, sticky="nsew")
         vsb.grid(row=0, column=1, sticky="ns")
