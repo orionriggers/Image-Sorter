@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.45.10"
+VERSION = "1.45.11"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -27197,11 +27197,19 @@ class ImageSorter:
         if filepath == getattr(self, fp_attr, None):
             return   # gia' quello mostrato, niente da rifare
         setattr(self, fp_attr, filepath)
-        setattr(self, f"_cmp_{side}_pil", None)
         canvas = self._cmp_left_canvas if side == "left" else self._cmp_right_canvas
-        canvas.delete("all")
         if not filepath or not os.path.isfile(filepath):
+            setattr(self, f"_cmp_{side}_pil", None)
+            canvas.delete("all")
             return
+        # NON si cancella il canvas ne' si azzera il pil qui: l'anteprima
+        # precedente resta a video finche' quella nuova non e' pronta
+        # (stesso principio del pannello centrale in _show_image, "mantieni
+        # l'immagine corrente finche' la nuova e' pronta") — altrimenti il
+        # pannello spariva a vuoto per la durata della decodifica,
+        # producendo un salto piu' vistoso di quello (gia' risolto) fra
+        # laterale e centro. Sostituita in blocco da _finish_compare_side ->
+        # _draw_compare_side quando arriva.
 
         def _worker(fp=filepath, gen=generation):
             try:
