@@ -1,5 +1,5 @@
 # timeline.py — Timeline, mappa GPS, scansione ricorsiva
-VERSION = "1.45.0"
+VERSION = "1.45.1"
 # Visualizzazione profonda: scansione ricorsiva, timeline per data/luogo, mappa GPS
 # Dipendenze: reverse_geocode, folium (pip install reverse-geocode folium)
 
@@ -1093,6 +1093,12 @@ class DeepBrowser:
             self._preview_rating_row = tk.Frame(self._preview_pane, bg=PANEL_COLOR)
             self._preview_rating_row.grid(row=1, column=0, sticky="ew",
                                           padx=6, pady=(4, 4))
+            # Nome del file fra stelle e pallini colore: stessa idea di
+            # Naviga (FolderBrowser._preview_name in image_sorter.py).
+            self._preview_name = tk.Label(self._preview_rating_row, text="",
+                                          font=("TkFixedFont", 9),
+                                          bg=PANEL_COLOR, fg=TEXT_COLOR,
+                                          wraplength=1, justify="center")
             _prf_stars = tk.Frame(self._preview_rating_row, bg=PANEL_COLOR)
             _prf_stars.pack(side="left", padx=(0, 10))
             self._preview_stars = []
@@ -1108,6 +1114,9 @@ class DeepBrowser:
             _prf_dots.pack(side="right", padx=(10, 0))
             self._preview_color_dots = draw_colorlabel_dots(
                 _prf_dots, "", lambda cid: self._click_preview_colorlabel(cid))
+            # Impacchettato per ultimo cosi' prende lo spazio centrale
+            # rimasto fra stelle e pallino, invece di spingerli via.
+            self._preview_name.pack(side="left", fill="x", expand=True)
         self._preview_pane.bind("<Configure>", self._on_preview_pane_configure)
         if self.sorter and self.sorter.config.get("timeline_preview_visible", False):
             self.win.after_idle(self._toggle_preview_pane)
@@ -1202,6 +1211,7 @@ class DeepBrowser:
             self._preview_label.config(image="", text="")
             self._preview_photo = None
             self._preview_current_path = None
+            self._set_preview_name(None)
             self._refresh_preview_rating()
             return
         if not force and path == self._preview_current_path:
@@ -1250,6 +1260,7 @@ class DeepBrowser:
         if img is None:
             self._preview_label.config(image="", text="")
             self._preview_photo = None
+            self._set_preview_name(None)
             self._refresh_preview_rating()
             return
         try:
@@ -1257,7 +1268,24 @@ class DeepBrowser:
             self._preview_photo = photo   # riferimento vivo
             self._preview_label.config(image=photo, text="")
             self._preview_current_path = path
+            self._set_preview_name(path)
             self._refresh_preview_rating()
+        except Exception:
+            pass
+
+    def _set_preview_name(self, path):
+        """Scrive sotto l'anteprima il nome del file (a capo se serve) —
+        stessa idea di Naviga (FolderBrowser._set_preview_name in
+        image_sorter.py)."""
+        try:
+            if not hasattr(self, "_preview_name"):
+                return
+            if not path:
+                self._preview_name.config(text="")
+            else:
+                w = max(120, self._preview_pane.winfo_width() - 16)
+                self._preview_name.config(text=tk_safe(os.path.basename(path)),
+                                          wraplength=w)
         except Exception:
             pass
 
