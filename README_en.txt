@@ -9,6 +9,13 @@ Platform        : Linux (tested on Linux Mint / Ubuntu)
 
 QUICK INSTALL
 -------------
+  If downloaded as a ZIP from GitHub (Code > Download ZIP) instead of
+  cloned with Git, the file extracts into a folder named
+  "Image-Sorter-main" (the branch name GitHub appends, different from the
+  repository's own name). To open a terminal already inside that folder
+  without typing cd: right-click an empty spot in the folder in your file
+  manager -> "Open Terminal Here" (wording varies by file manager).
+
   bash installa.sh
 
   or manually:
@@ -17,10 +24,21 @@ QUICK INSTALL
     pip install pillow-avif-plugin --user   (for .avif files)
     pip install pillow-heif --user          (for .heic files)
 
+  All except Pillow are optional: if missing, only the related feature is
+  disabled, the rest of the program keeps working.
+    send2trash       system trash
+    pymupdf          PDF support
+    streamdeck       physical Elgato Stream Deck
+    piexif           EXIF editor
+    reverse-geocode  offline GPS geocoding (Timeline)
+    folium           interactive GPS map (Timeline)
+    tkinterdnd2      drag & drop of folders onto the keypad/Deck
+
 LAUNCH
 ------
   python3 image_sorter.py
   python3 image_sorter.py /path/to/image.jpg   (opens the folder)
+  python3 image_sorter.py --browser /path/to/  (opens the folder browser)
 
 PROGRAM FILES
 -------------

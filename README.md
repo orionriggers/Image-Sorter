@@ -51,12 +51,25 @@ Image Sorter nasce per una necessità concreta: scorrere in fretta grandi quanti
 ### Metodo rapido (consigliato)
 
 ```bash
-git clone https://github.com/orionriggers/image-sorter.git
-cd image-sorter
+git clone https://github.com/orionriggers/Image-Sorter.git
+cd Image-Sorter
 bash installa.sh
 ```
 
 Lo script rileva automaticamente il package manager (`apt`, `dnf`, `pacman`, `zypper`, `xbps`) e installa tutte le dipendenze.
+
+**Senza Git**: dalla pagina del repository, **Code → Download ZIP**. Il file
+scaricato è `Image-Sorter-main.zip`: va estratto (tasto destro → "Estrai
+qui" nella maggior parte dei file manager), creando una cartella chiamata
+`Image-Sorter-main` — nome diverso dal repository perché GitHub aggiunge il
+nome del ramo (`main`) agli archivi scaricati così, a differenza di un
+clone Git. Per aprire un terminale già dentro quella cartella senza
+scrivere `cd`, tasto destro nell'area vuota della cartella nel file manager
+→ "Apri terminale qui" (o simile), poi:
+
+```bash
+bash installa.sh
+```
 
 ### Dipendenze manuali
 
@@ -110,6 +123,8 @@ python3 image_sorter.py
 # oppure con un file/cartella specifica:
 python3 image_sorter.py /percorso/cartella
 python3 image_sorter.py /percorso/immagine.jpg
+# per aprire direttamente il Browser cartelle (Naviga) su una cartella:
+python3 image_sorter.py --browser /percorso/cartella
 ```
 
 L'app è pensata anche per l'avvio con doppio clic (non solo da terminale) una volta installate le dipendenze.
@@ -266,12 +281,25 @@ Image Sorter was built around a concrete need: quickly browsing large batches of
 ### Quick method (recommended)
 
 ```bash
-git clone https://github.com/orionriggers/image-sorter.git
-cd image-sorter
+git clone https://github.com/orionriggers/Image-Sorter.git
+cd Image-Sorter
 bash installa.sh
 ```
 
 The script auto-detects your package manager (`apt`, `dnf`, `pacman`, `zypper`, `xbps`) and installs all dependencies.
+
+**Without Git**: from the repository page, **Code → Download ZIP**. The
+downloaded file is `Image-Sorter-main.zip`: extract it (right-click →
+"Extract Here" in most file managers), which creates a folder named
+`Image-Sorter-main` — a different name from the repository itself, because
+GitHub appends the branch name (`main`) to archives downloaded this way,
+unlike a Git clone. To open a terminal already inside that folder without
+typing `cd`, right-click an empty spot in the folder in your file manager
+→ "Open Terminal Here" (wording varies), then:
+
+```bash
+bash installa.sh
+```
 
 ### Manual dependencies
 
@@ -312,8 +340,6 @@ Optional (extra image format support):
 ```bash
 pip install pillow-heif pillow-avif-plugin --user
 ```
-pip install pillow-heif pillow-avif-plugin --user
-```
 
 Optional (physical Stream Deck only):
 ```bash
@@ -327,6 +353,8 @@ python3 image_sorter.py
 # or with a specific file/folder:
 python3 image_sorter.py /path/to/folder
 python3 image_sorter.py /path/to/image.jpg
+# to open the folder browser (Naviga) directly on a folder:
+python3 image_sorter.py --browser /path/to/folder
 ```
 
 The app is also designed for double-click launch (not just from a terminal) once dependencies are installed.

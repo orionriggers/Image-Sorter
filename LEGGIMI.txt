@@ -9,6 +9,13 @@ Piattaforma     : Linux (testato su Linux Mint / Ubuntu)
 
 INSTALLAZIONE RAPIDA
 --------------------
+  Se scaricato come ZIP da GitHub (Code > Download ZIP) invece che clonato
+  con Git, il file si estrae in una cartella chiamata "Image-Sorter-main"
+  (nome del ramo aggiunto da GitHub, diverso dal nome del repository). Per
+  aprire un terminale già dentro quella cartella senza scrivere cd: tasto
+  destro nell'area vuota della cartella nel file manager -> "Apri
+  terminale qui" (o voce simile, cambia da file manager a file manager).
+
   bash installa.sh
 
   oppure manualmente:
@@ -16,6 +23,16 @@ INSTALLAZIONE RAPIDA
     pip install piexif reverse-geocode folium tkinterdnd2 --user
     pip install pillow-avif-plugin --user   (per file .avif)
     pip install pillow-heif --user          (per file .heic/.heif)
+
+  Tutte tranne Pillow sono facoltative: se mancano resta disattivata solo
+  la funzione collegata, il resto del programma continua a funzionare.
+    send2trash       cestino di sistema
+    pymupdf          supporto PDF
+    streamdeck       Stream Deck Elgato fisico
+    piexif           editor EXIF
+    reverse-geocode  geocoding GPS offline (Timeline)
+    folium           mappa GPS interattiva (Timeline)
+    tkinterdnd2      drag & drop di cartelle sul tastierino/Deck
 
 AVVIO
 -----
