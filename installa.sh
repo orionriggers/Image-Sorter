@@ -11,7 +11,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$HOME/.local/share/applications"
 ICON_DIR="$HOME/.local/share/icons/hicolor"
-VERSION="1.36.3"
+VERSION="1.36.4"
 MIN_PYTHON_MINOR=8
 
 # ── Language detection / Rilevamento lingua ───────────────────────────────────
@@ -71,6 +71,7 @@ t() {
             pkg_installed)    echo "installato" ;;
             pkg_failed)       echo "non installabile -- continuo" ;;
             pip_missing)      echo "pip non disponibile -- impossibile installare le dipendenze Python (verifica rete/repo)" ;;
+            imagetk_verify_failed) echo "PIL.ImageTk non importabile dopo l'installazione -- prova 'sudo apt install --reinstall python3-pil.imagetk'" ;;
             dep_mandatory)    echo "Dipendenze obbligatorie:" ;;
             dep_optional)     echo "Dipendenze opzionali:" ;;
             dep_desc_pillow)  echo "visualizzazione immagini" ;;
@@ -159,6 +160,7 @@ t() {
             pkg_installed)    echo "installed" ;;
             pkg_failed)       echo "could not install -- continuing" ;;
             pip_missing)      echo "pip not available -- cannot install Python dependencies (check network/repos)" ;;
+            imagetk_verify_failed) echo "PIL.ImageTk not importable after install -- try 'sudo apt install --reinstall python3-pil.imagetk'" ;;
             dep_mandatory)    echo "Mandatory dependencies:" ;;
             dep_optional)     echo "Optional dependencies:" ;;
             dep_desc_pillow)  echo "image display" ;;
@@ -337,7 +339,11 @@ pkg_name() {
 pkg_installed() {
     local pkg="$1"
     case "$PKG_MANAGER" in
-        apt)    dpkg -l "$pkg" &>/dev/null 2>&1 ;;
+        # dpkg -l ritorna sempre exit 0 se il pacchetto ha una voce nel
+        # database, anche in stato "rc" (rimosso, config rimasta) o "a
+        # meta'" (iU/iF, installazione precedente interrotta) -- serve lo
+        # stato reale via dpkg-query, non solo il codice di uscita.
+        apt)    [ "$(dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null)" = "install ok installed" ] ;;
         dnf)    rpm -q "$pkg" &>/dev/null 2>&1 ;;
         pacman) pacman -Q "$pkg" &>/dev/null 2>&1 ;;
         zypper) rpm -q "$pkg" &>/dev/null 2>&1 ;;
@@ -376,7 +382,15 @@ if [ -n "$PKG_MANAGER" ]; then
     # verificato dal controllo "import PIL.ImageTk" in pip_install
     # poco piu' sotto) invece di inseguire il nome esatto per ogni
     # distro/versione.
-    [ "$PKG_MANAGER" = "apt" ] && install_pkg python3-imagetk
+    if [ "$PKG_MANAGER" = "apt" ]; then
+        install_pkg python3-imagetk
+        # Verifica immediata (invece di scoprirlo solo al controllo
+        # mandatorio piu' sotto, dove un fallback pip potrebbe mascherare
+        # la causa reale): se import fallisce ancora qui, il pacchetto
+        # apt non e' realmente funzionante nonostante l'esito "ok" sopra.
+        "$PYTHON_CMD" -c "import PIL.ImageTk" &>/dev/null 2>&1 \
+            || warn "$(t imagetk_verify_failed)"
+    fi
     install_pkg python3-pip
     install_pkg ffmpeg
     install_pkg poppler
