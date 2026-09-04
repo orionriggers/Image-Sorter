@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.45.13"
+VERSION = "1.45.14"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -27187,20 +27187,29 @@ class ImageSorter:
             if self._cmp_btn_ref:
                 self._cmp_btn_ref.config(bg=ACCENT_COLOR, fg=TEXT_COLOR)
         # Il cambio di colonne appena fatto ridimensiona subito il canvas
-        # centrale, che altrimenti passerebbe dal debounce di 80ms
-        # dell'handler <Configure> (_on_canvas_configure) - pensato per
-        # assorbire piu' eventi ravvicinati durante l'assestamento del
-        # window manager all'avvio/ridimensionamento finestra, non per
-        # questo caso: un singolo click e' un cambio di geometria
-        # deliberato e isolato, quindi si puo' ridisegnare subito dalla
-        # copia gia' in RAM (senza rileggere il file) invece di aspettare
-        # — e' quello "spegni e ricarica" del centro segnalato da Carlo.
-        # update_idletasks() fa arrivare subito il <Configure> risultante
-        # (che programma comunque il proprio ridisegno differito, poi
-        # ridondante ma innocuo); _render_cached_image() se ne va senza
-        # fare nulla se non c'e' ancora un'immagine in RAM per il file
-        # corrente (caricamento in corso, avvio, ecc.), lasciando fare al
-        # percorso normale.
+        # centrale (widget gia' alla nuova larghezza, sincrono lato Tk).
+        # Senza intervenire qui, il suo <Configure> passerebbe dal
+        # debounce di _on_canvas_configure (80ms, pensato per assorbire
+        # piu' eventi ravvicinati durante l'assestamento del window
+        # manager all'avvio): per tutta quell'attesa il CONTENUTO
+        # disegnato resta pero' alle vecchie coordinate/dimensioni (il
+        # widget si ridimensiona, il suo contenuto no finche' non lo si
+        # ridisegna), quindi l'immagine appare per un istante ancora
+        # piccola e spostata verso un lato del canvas ormai piu'
+        # grande/piccolo, poi scatta al centro quando il debounce scade —
+        # il "salto a sinistra poi si centra" segnalato da Carlo. Provato
+        # anche ad accorciare il debounce invece di saltarlo (20ms): il
+        # salto restava comunque visibile, solo piu' breve — confermato
+        # con un test dedicato (bbox del centro letto subito dopo il
+        # toggle vs dopo l'assestamento, differivano). Qui il cambio di
+        # geometria e' singolo e deliberato (un click, non una raffica di
+        # eventi da finestra ancora in apertura): si puo' quindi
+        # ridisegnare subito, in modo sincrono, dalla copia gia' in RAM
+        # (senza rileggere il file) — niente attesa, niente stato
+        # intermedio mai disegnato. _render_cached_image() non fa nulla
+        # se non c'e' ancora un'immagine in RAM per il file corrente
+        # (avvio, caricamento in corso), lasciando fare al percorso
+        # normale in quei casi.
         self.canvas.update_idletasks()
         self._render_cached_image()
 
