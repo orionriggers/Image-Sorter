@@ -1,5 +1,5 @@
 # translations.py — Testi e traduzioni IT/EN
-VERSION = "1.45.1"
+VERSION = "1.45.2"
 #
 # COME AGGIUNGERE UNA NUOVA LINGUA
 # 1. Aggiungi un blocco in LANG:  "xx": { "lang_name": "Nome", "app_name": "Image Sorter", ... }
@@ -60,6 +60,7 @@ LANG = {
         "about_tagline":    "Un programma per gestione immagini e file",
         "about_warranty":   "Questo programma non fornisce nessuna garanzia di utilizzo",
         "btn_open":         "Apri",
+        "btn_open_manual":  "Apri Manuale",
         "btn_export_cfg":     "Esporta impostazioni",
         "btn_import_cfg":     "Importa impostazioni",
         "btn_export_presets": "Esporta preset",
@@ -339,6 +340,7 @@ LANG = {
         "about_tagline":    "A program for image and file management",
         "about_warranty":   "This program provides no warranty of use",
         "btn_open":         "Open",
+        "btn_open_manual":  "Open Manual",
         "btn_export_cfg":     "Export settings",
         "btn_import_cfg":     "Import settings",
         "btn_export_presets": "Export presets",

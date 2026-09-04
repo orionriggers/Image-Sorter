@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.45.16"
+VERSION = "1.45.17"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -20616,6 +20616,16 @@ class SettingsDialog:
                               stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL)
                           ).pack(side="left", padx=4, ipady=2)
+        # Manuale online (pagina web, non un file locale come i due sopra)
+        tk.Button(fr_rm, text=T("btn_open_manual",lang),
+                  font=("TkFixedFont", 8),
+                  bg=ACCENT_COLOR, fg=TEXT_COLOR,
+                  relief="flat", padx=8,
+                  command=lambda: subprocess.Popen(
+                      ["xdg-open", "https://www.orionriggers.com/image_sorter/"],
+                      stdout=subprocess.DEVNULL,
+                      stderr=subprocess.DEVNULL)
+                  ).pack(side="left", padx=4, ipady=2)
 
         # Esporta / Importa impostazioni
         tk.Frame(inner, bg=ACCENT_COLOR, height=1).pack(fill="x", padx=20, pady=(12,8))
