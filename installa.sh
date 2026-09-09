@@ -83,6 +83,7 @@ t() {
             dep_desc_folium)  echo "mappa GPS interattiva" ;;
             dep_desc_dnd)     echo "drag & drop tastierino" ;;
             dep_desc_heif)    echo "supporto HEIC/HEIF (foto iPhone)" ;;
+            dep_desc_avif)    echo "supporto AVIF" ;;
             dep_installed)    echo "installato" ;;
             dep_failed_opt)   echo "non installabile -- funzionalita' opzionale disabilitata" ;;
             dep_failed_req)   echo "non installabile -- alcune funzionalita' potrebbero non funzionare" ;;
@@ -172,6 +173,7 @@ t() {
             dep_desc_folium)  echo "interactive GPS map" ;;
             dep_desc_dnd)     echo "drag & drop on keypad" ;;
             dep_desc_heif)    echo "HEIC/HEIF support (iPhone photos)" ;;
+            dep_desc_avif)    echo "AVIF support" ;;
             dep_installed)    echo "installed" ;;
             dep_failed_opt)   echo "could not install -- optional feature disabled" ;;
             dep_failed_req)   echo "could not install -- some features may not work" ;;
@@ -481,6 +483,7 @@ pip_install "reverse-geocode"  "reverse_geocode"  "true"  "$(t dep_desc_rgeo)"
 pip_install "folium"           "folium"           "true"  "$(t dep_desc_folium)"
 pip_install "tkinterdnd2"      "tkinterdnd2"      "true"  "$(t dep_desc_dnd)"
 pip_install "pillow-heif"      "pillow_heif"      "true"  "$(t dep_desc_heif)"
+pip_install "pillow-avif-plugin" "pillow_avif"    "true"  "$(t dep_desc_avif)"
 
 # =============================================================================
 # 4. STREAM DECK
