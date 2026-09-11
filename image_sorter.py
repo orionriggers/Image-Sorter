@@ -26637,6 +26637,13 @@ class ImageSorter:
         if getattr(self, "_action_bar", None) and self._action_bar.winfo_exists():
             self._close_action_bar()
             return
+        # 1b. Annulla l'avviso "premi CANC di nuovo" se attivo: non è una
+        #     finestra separata (è disegnato sul canvas principale), quindi
+        #     senza questo controllo esplicito Escape lo scavalcherebbe e
+        #     arriverebbe fino a chiudere il programma.
+        if getattr(self, "_delete_pending", False):
+            self._cancel_delete_pending()
+            return
         # 2. Chiudi crop se aperto
         crop = getattr(self, "_crop_overlay", None)
         if crop and getattr(crop, "_active", False):
@@ -26669,17 +26676,60 @@ class ImageSorter:
         if fb and fb.win.winfo_exists():
             fb._on_close()
             return
-        # 8. Se c'è un qualsiasi Toplevel visibile figlio della root, chiudi il più recente
-        children = [w for w in self.root.winfo_children()
-                    if isinstance(w, tk.Toplevel) and w.winfo_viewable()]
-        if children:
-            children[-1].destroy()
+        # 8. Cerca ricorsivamente in tutto l'albero dei Toplevel (non solo i
+        #    figli diretti di root) il popup visibile più annidato — copre
+        #    anche i dialog aperti DENTRO un'altra finestra (es. una conferma
+        #    dentro Timeline/EXIF/Analisi cartelle), che altrimenti
+        #    sfuggirebbero a un controllo limitato a root.winfo_children().
+        #    Nel caso frequente in cui il popup non ha mai ottenuto il vero
+        #    fuoco della tastiera (un window manager reale spesso non lo
+        #    concede da solo a una finestra appena aperta) il suo bind
+        #    locale <Escape> non scatterebbe mai da solo: glielo si simula
+        #    esplicitamente, così viene eseguita l'eventuale pulizia propria
+        #    della finestra invece di un destroy() alla cieca.
+        popup = self._find_deepest_popup()
+        if popup is not None:
+            try:
+                # focus_force() prima di simulare l'evento: event_generate()
+                # per un tasto segue comunque il vero fuoco corrente di Tk,
+                # non il widget passato — senza, la simulazione arriverebbe
+                # a vuoto esattamente come la pressione reale originale.
+                popup.focus_force()
+                popup.event_generate("<Escape>")
+            except Exception:
+                pass
+            try:
+                if popup.winfo_exists() and popup.winfo_viewable():
+                    popup.destroy()
+            except Exception:
+                pass
             return
         # 9. Esci da fullscreen o chiudi app
         if self._fullscreen:
             self._toggle_fullscreen()
         else:
             self._quit()
+
+    def _find_deepest_popup(self):
+        """Trova, in tutta la gerarchia dei Toplevel (non solo i figli
+        diretti di root), il popup visibile più annidato — quello aperto
+        più di recente sopra tutti gli altri. I popup sono sempre figli di
+        root o di un altro Toplevel (mai annidati dentro widget ordinari),
+        quindi la ricerca scende solo lungo la catena dei Toplevel: resta
+        economica anche con centinaia di widget ordinari nella finestra
+        principale. Restituisce None se non c'è nessun popup aperto.
+        """
+        best, best_depth = None, -1
+        stack = [(self.root, 0)]
+        while stack:
+            widget, depth = stack.pop()
+            for child in widget.winfo_children():
+                if not isinstance(child, tk.Toplevel):
+                    continue
+                if child.winfo_viewable() and depth >= best_depth:
+                    best, best_depth = child, depth
+                stack.append((child, depth + 1))
+        return best
 
     def _canvas_click(self, event):
         """Click sul canvas: se su badge play di un video, avvia il player."""
