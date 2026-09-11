@@ -1,6 +1,6 @@
 IMAGE SORTER - JOURNAL GENERALE DI PROGETTO
 ======================================================================
-Aggiornato a: v1.43.0 (bump coordinato di chiusura sessione 22/08/2026)
+Aggiornato a: v1.46.0 (bump coordinato di chiusura sessione 11/09/2026)
 Autore: Carlo Porrone
 
 Questo file sostituisce, come quadro d'insieme, i singoli journal di
@@ -21,9 +21,9 @@ Carlo Porrone con Claude come programmatore, su Linux Mint/Ubuntu
 (Cinnamon, X11), lanciata di solito con doppio clic, non da terminale.
 
 ===========================================================================
-STRUTTURA DEL PROGETTO (v1.43.0)
+STRUTTURA DEL PROGETTO (v1.46.0)
 ===========================================================================
-  image_sorter.py    Programma principale (~25.800 righe), GUI Tkinter
+  image_sorter.py    Programma principale (~28.400 righe), GUI Tkinter
   timeline.py         Timeline e mappa GPS
   exif_editor.py       Editor metadati EXIF
   disk_analyzer.py     Analisi utilizzo disco (sunburst/treemap)
@@ -38,6 +38,11 @@ STRUTTURA DEL PROGETTO (v1.43.0)
                         overview GitHub) - tenuti aggiornati a fine
                         sessione, ma con debito accumulato in passato:
                         controllare sempre se serve un ripasso
+  docs/                Manuale HTML (IT/EN) + screenshot, pubblicato via
+                        GitHub Pages (orionriggers.github.io/Image-Sorter)
+                        dalla v1.46.0 - prima linkato da un dominio esterno.
+                        Contiene anche .nojekyll (sito HTML statico puro,
+                        niente processing Jekyll di GitHub)
 
 I cinque file "core" (image_sorter.py, timeline.py, exif_editor.py,
 disk_analyzer.py, translations.py) condividono lo stesso numero di
@@ -648,6 +653,25 @@ KEY LEARNINGS & PRINCIPI CODIFICATI (validi per TUTTO il progetto)
     mai (mainloop() gira sempre) - per test che dipendono da thread
     reali, schedulare i passi con root.after() e usare root.mainloop()
     davvero, non un ciclo di update() dall'esterno
+  - event_generate() per un evento di tastiera (es. "<Escape>") segue
+    comunque il VERO fuoco corrente di Tk, non il widget su cui viene
+    chiamato - chiamarlo su un popup che non ha mai ricevuto il fuoco
+    reale (vedi il principio sopra su focus_force()) non fa scattare il
+    suo bind locale. Verificato empiricamente (v1.46.0, fix tasto Esc):
+    serve un .focus_force() sul popup subito PRIMA di simulargli
+    l'evento, non dopo e non al posto di - a quel punto la simulazione
+    arriva al bind giusto, e il popup guadagna anche il fuoco vero per
+    un'eventuale pressione reale successiva
+  - Verificare "questa chiave/stringa e' ancora usata nel codice?" con
+    grep va fatto sul PATTERN DI CHIAMATA esatto (es. T("chiave")/
+    _Tf("chiave")), non sulla sola sottostringa fra virgolette ovunque nel
+    file - un grep largo trova falsi positivi non correlati (kind di un
+    alert, nome di un'azione del deck, chiave di un dict interno, opzione
+    Tkinter) che sembrano "ancora in uso" ma non lo sono affatto. Successo
+    durante la pulizia di translations.py in v1.46.0: un primo controllo
+    grezzo segnalava 14 chiavi "vive" su 178 rimosse, tutte in realta'
+    falsi positivi - il grep mirato sulla chiamata vera ha confermato zero
+    riscontri per tutte e 14
 
 ===========================================================================
 APPROCCIO DI VERIFICA (non negoziabile, vale per ogni consegna)
@@ -1801,6 +1825,117 @@ del blocco corretto, fold/unfold via click simulato (dopo il fix del bug
 sopra), menu tasto destro con le due azioni "Tieni un lato, cestina
 l'altro" verificate end-to-end (invocazione + argomenti ricevuti), le
 altre 3 schede (invariate) continuano a funzionare.
+
+===========================================================================
+v1.46.0 — BUMP COORDINATO: FIX ESC (POPUP ANNIDATI + AVVISO CANCELLAZIONE),
+CLEANUP TRADUZIONI, MANUALE SU GITHUB PAGES (11/09/2026)
+===========================================================================
+Sessione aperta con del lavoro di una sessione precedente rimasto non
+committato: migrazione del manuale a GitHub Pages (cartella docs/, mai
+aggiunta a git), pulizia di translations.py (178 chiavi morte rimosse,
+verificate con grep+AST+test funzionale) e due bug _Tf/T nei toast di
+export/import impostazioni. Prima di procedere, Carlo ha chiesto conferma
+puntuale che le 178 chiavi rimosse fossero DAVVERO tutte morte, dopo che
+un mio controllo grezzo (grep -l "chiave" su tutto il file, non sulla
+chiamata) aveva segnalato 14 falsi allarmi (es. "error"/"warning" come
+kind di _hud_alert, "delete"/"preset_delete" come nomi di azioni del
+deck, "open" come opzione Tkinter di un Treeview) — nessuna di quelle 14
+era in realta' una chiamata T()/_Tf(). Vedi il principio aggiunto in KEY
+LEARNINGS: un grep di verifica "e' ancora usato?" deve mirare al PATTERN
+DI CHIAMATA, non alla sottostringa nuda. Commit separati: uno per la
+migrazione docs/ (con .nojekyll, sito HTML statico puro), uno per la
+pulizia traduzioni + fix toast.
+
+FIX PRINCIPALE DELLA SESSIONE — TASTO ESC CHIUDEVA IL PROGRAMMA INTERO
+CON UN POPUP APERTO SOPRA (segnalato da Carlo)
+
+Indagine (senza toccare nulla finche' non e' stata completa, su richiesta
+esplicita di Carlo): l'handler _on_escape_key su root aveva GIA' una
+catena di priorita' a 9 step, incluso un fallback step 8 che cercava un
+Toplevel visibile tra i FIGLI DIRETTI di root e lo chiudeva. La maggior
+parte dei ~50 popup del progetto (image_sorter.py + timeline.py +
+exif_editor.py + disk_analyzer.py) aveva GIA' anche un bind <Escape>
+locale proprio. Eppure il bug si manifestava lo stesso. Causa reale,
+verificata empiricamente (script Python sotto xvfb-run): senza
+focus_force() sul popup (solo 7 popup su ~50 lo chiamavano), NESSUNA
+finestra risulta avere il vero fuoco Tk — nemmeno root. Sotto il vero
+window manager di Carlo, un Esc premuto in quello stato arriva a
+qualunque cosa abbia davvero il fuoco (in pratica quasi sempre root),
+MAI al bind locale del popup, che quindi non scatta mai. Quando il popup
+e' figlio DIRETTO di root, il fallback step 8 lo salva comunque "per
+fortuna". Quando e' ANNIDATO (aperto da un'altra finestra non-root, es.
+un dialog dentro Timeline/EXIF editor/Analisi cartelle - trovati almeno
+8 casi concreti in image_sorter.py con pattern Toplevel(self.win), piu'
+2 in timeline.py), il vecchio step 8 non lo trova affatto
+(root.winfo_children() guarda solo i figli diretti) e Esc scavalca tutto
+fino a _quit(): questo e' il bug esatto segnalato.
+
+Caso ulteriore, DIVERSO dai popup Toplevel: l'avviso "premi CANC di
+nuovo -> Cestino" (doppio Canc per cestinare, vedi docs/conferma_
+cestino) non e' affatto una finestra - e' disegnato sul canvas
+principale in _delete_current() (stato self._delete_pending, tag
+"delete_warn"). Nessun _on_escape_key lo intercettava: aggiunto uno
+step 1b dedicato che chiama _cancel_delete_pending() (gia' esistente,
+usato dalle frecce) invece di scavalcare fino a _quit().
+
+FIX (strategia concordata con Carlo dopo aver presentato l'inventario
+completo e i casi limite, senza toccare NESSUN punto di creazione dei
+~50 popup): riscritto solo lo step 8 di _on_escape_key. Nuovo metodo
+_find_deepest_popup() cerca ricorsivamente, scendendo SOLO lungo la
+catena dei Toplevel (mai dentro widget ordinari - economico anche con
+centinaia di widget nella finestra principale), il popup visibile piu'
+annidato in tutto l'albero, non solo tra i figli diretti di root. Al
+popup trovato viene fatto .focus_force() e poi event_generate("<Escape>")
+- cosi' scatta la SUA logica di chiusura propria (comprese eventuali
+pulizie specifiche), invece di un destroy() alla cieca; se il popup non
+ha un bind Escape proprio, fallback esplicito a destroy() comunque,
+cosi' si chiude sempre qualcosa invece di niente.
+
+BUG NEL PRIMO TENTATIVO, TROVATO DAL TEST FUNZIONALE: la prima versione
+chiamava solo event_generate("<Escape>") senza focus_force() prima -
+test fallito silenziosamente (nessuna assert, lista vuota). Isolato con
+uno script di debug dedicato: event_generate() per un tasto segue il
+VERO fuoco corrente di Tk, non il widget passato come target - esiste
+gia' come conseguenza del principio focus_force() in KEY LEARNINGS, ma
+non era mai stato verificato per event_generate() prima d'ora. Aggiunto
+il principio dedicato.
+
+VERIFICA: 7 test funzionali sotto xvfb-run, in una copia isolata,
+costruendo lo stato minimo (FakeSorter con solo gli attributi letti da
+_on_escape_key via getattr, bindato ai metodi VERI del modulo importato
+- non l'intera ImageSorter). Copertura: nessun popup -> chiude ancora il
+programma (invariato); avviso cancellazione attivo -> si annulla, non
+chiude nulla; popup diretto figlio di root -> chiuso, root intatta;
+**popup annidato dentro un'altra finestra (il caso esatto del bug) ->
+si chiude solo lui, finestra esterna e programma intatti**; popup
+annidato SENZA bind Escape proprio -> chiuso comunque dal fallback
+destroy(); nesting a 3 livelli -> chiude solo il piu' interno; dopo aver
+chiuso tutti i popup, Esc torna a chiudere il programma. Confermato da
+Carlo sul sistema reale ("funziona come sperato").
+
+Limite noto della verifica xvfb: sotto Xvfb SENZA window manager,
+root.focus_get() risulta None gia' prima di aprire qualunque popup -
+niente ha mai il vero fuoco per nessuno. Utile per validare la LOGICA
+degli handler (quale popup viene trovato e chiuso), ma non puo'
+riprodurre ne' validare il comportamento specifico di un vero window
+manager che nega il fuoco a una finestra appena aperta - quella parte
+resta, come sempre in questo progetto, da confermare da Carlo sul
+sistema vero.
+
+BUMP COORDINATO v1.46.0: tutti e 5 i file core. Cartella di backup
+1.46/ creata con i 14 file canonici (schema di 1.44/1.45: i 5 core +
+metadata_store.py/deck_core.py/deck_daemon.py/installa.sh/CLAUDE.md/
+journal_generale.txt/LEGGIMI.txt/README.md/README_en.txt) — Carlo aveva
+inizialmente chiesto "solo i 5 file core, niente extra come in
+1.42/1.43", ma il problema di 1.42/1.43 erano i file GENERATI (config/
+log/history json) e residui estranei (LICENSE, ToDoSorter.txt), non i
+9 file aggiuntivi della lista di CLAUDE.md — gia' risolto correttamente
+in 1.44/1.45. Confermato con Carlo prima di procedere: schema 1.44/1.45
+confermato invece della richiesta letterale. Aggiornati anche numeri di
+versione E changelog (sezione NOVITA'/WHAT'S NEW v1.45 -> v1.46) in
+LEGGIMI.txt/README_en.txt/README.md, inclusa la riga installa.sh
+(1.36.3 -> 1.36.4, gia' bumpato per l'AVIF automatico in un commit
+precedente ma mai riportato nei manuali fino ad ora).
 
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
