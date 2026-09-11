@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Sorter — User Manual</title>
+<style>
+  :root {
+    --bg: #0d1520;
+    --panel: #16213e;
+    --panel-2: #1a2740;
+    --border: #2a3a5a;
+    --cyan: #00c8ff;
+    --text: #c8d8e8;
+    --muted: #6a7fa0;
+    --red: #e94560;
+    --yellow: #f5a623;
+    --green: #2ecc71;
+    --blue: #4a90e2;
+    --purple: #9b59b6;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  code, .mono, .kbd, .toc-num, h1, h2, h3, h4, .tag {
+    font-family: "JetBrains Mono", "Cascadia Code", "Consolas", "SF Mono", monospace;
+  }
+
+  .layout {
+    display: flex;
+    min-height: 100vh;
+  }
+  nav.toc {
+    flex: 0 0 260px;
+    width: 260px;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: 100vh;
+    overflow-y: auto;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 28px 0;
+  }
+  nav.toc .brand {
+    padding: 0 24px 20px 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  nav.toc .brand .name {
+    color: var(--cyan);
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: 0.02em;
+  }
+  nav.toc .brand .ver {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 2px;
+  }
+  nav.toc a {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    padding: 6px 24px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.86rem;
+    border-left: 2px solid transparent;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  nav.toc a.sub {
+    padding-left: 40px;
+    font-size: 0.78rem;
+  }
+  nav.toc a:hover {
+    color: var(--text);
+    background: rgba(0,200,255,0.05);
+    border-left-color: var(--cyan);
+  }
+  nav.toc .toc-num {
+    color: var(--cyan);
+    opacity: 0.6;
+    font-size: 0.78rem;
+    min-width: 22px;
+  }
+
+  main {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 56px 64px 120px 64px;
+    max-width: 980px;
+  }
+
+  .hero { margin-bottom: 64px; }
+  .hero .eyebrow {
+    color: var(--cyan);
+    font-size: 0.82rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .hero h1 {
+    font-size: 2.4rem;
+    margin: 0 0 14px 0;
+    color: #fff;
+    letter-spacing: -0.01em;
+  }
+  .hero p.lead {
+    color: var(--muted);
+    font-size: 1.05rem;
+    max-width: 640px;
+    margin: 0;
+  }
+  .hero .dots { display: flex; gap: 8px; margin-top: 22px; }
+  .hero .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  section { margin-bottom: 76px; scroll-margin-top: 24px; }
+  section h2 {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 1.5rem;
+    color: #fff;
+    margin: 0 0 6px 0;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  section h2 .tag { color: var(--cyan); font-size: 0.95rem; opacity: 0.7; }
+  section > .desc { color: var(--muted); max-width: 680px; margin: 16px 0 28px 0; }
+
+  h3.subhead {
+    scroll-margin-top: 24px;
+    font-size: 1.05rem;
+    color: var(--cyan);
+    margin: 40px 0 6px 0;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  h3.subhead .subtag {
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-weight: normal;
+  }
+  h3.subhead + .desc { color: var(--muted); max-width: 680px; margin: 0 0 16px 0; }
+
+  nav.toc .lang-switch {
+    display: block;
+    margin-top: 10px;
+    padding: 0;
+    color: var(--cyan) !important;
+    font-size: 0.78rem;
+    border-left: none !important;
+  }
+
+  .feature-grid { display: flex; flex-wrap: wrap; gap: 16px; margin: 20px 0; }
+  .feature {
+    flex: 1 1 260px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--cyan);
+    border-radius: 6px;
+    padding: 16px 18px;
+  }
+  .feature h3 { margin: 0 0 6px 0; font-size: 0.95rem; color: var(--cyan); }
+  .feature p { margin: 0; color: var(--muted); font-size: 0.88rem; }
+
+  table.shortcuts {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0 30px 0;
+    font-size: 0.9rem;
+  }
+  table.shortcuts th {
+    text-align: left;
+    color: var(--cyan);
+    font-weight: 600;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  table.shortcuts td { padding: 9px 14px; border-bottom: 1px solid rgba(42,58,90,0.5); }
+  table.shortcuts tr:hover td { background: rgba(0,200,255,0.04); }
+  .kbd {
+    display: inline-block;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.82rem;
+    color: var(--cyan);
+  }
+
+  .colorlabel-strip { display: flex; gap: 8px; margin: 14px 0; }
+  .colorlabel-strip span { width: 16px; height: 16px; border-radius: 50%; display: inline-block; }
+
+  .callout {
+    background: rgba(0,200,255,0.06);
+    border: 1px solid rgba(0,200,255,0.25);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 20px 0;
+    font-size: 0.9rem;
+  }
+  .callout.warn {
+    background: rgba(233,69,96,0.08);
+    border-color: rgba(233,69,96,0.3);
+  }
+  .callout .label { color: var(--cyan); font-weight: 600; margin-right: 6px; }
+  .callout.warn .label { color: var(--red); }
+
+  footer { border-top: 1px solid var(--border); padding: 28px 64px; color: var(--muted); font-size: 0.82rem; }
+
+  @media (max-width: 860px) {
+    .layout { display: block; }
+    nav.toc { position: relative; height: auto; width: auto; }
+    main { padding: 32px 20px 80px 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<nav class="toc">
+  <div class="brand">
+    <div class="name">IMAGE SORTER</div>
+    <div class="ver">Manual v1.45.x</div>
+    <a class="lang-switch" href="manuale_image_sorter_1.45.html">Versione italiana →</a>
+  </div>
+  <a href="#intro"><span class="toc-num">00</span> Introduction</a>
+  <a href="#installazione"><span class="toc-num">01</span> Installation</a>
+  <a href="#visualizzatore"><span class="toc-num">02</span> Viewer</a>
+  <a href="#operazioni"><span class="toc-num">03</span> Core workflow</a>
+  <a href="#navigazione-dettagliata"><span class="toc-num">04</span> Navigation &amp; display</a>
+  <a href="#modifica-file"><span class="toc-num">05</span> Editing a file</a>
+  <a href="#naviga"><span class="toc-num">06</span> Naviga (Browse)</a>
+  <a class="sub" href="#pie">Folder analysis</a>
+  <a class="sub" href="#dup">Duplicate check</a>
+  <a class="sub" href="#dup-riepilogo">Folder summary</a>
+  <a href="#timeline"><span class="toc-num">07</span> Timeline</a>
+  <a href="#cronologia"><span class="toc-num">08</span> History &amp; recovery</a>
+  <a href="#impostazioni"><span class="toc-num">09</span> Settings</a>
+  <a class="sub" href="#imp-preset">Preset</a>
+  <a class="sub" href="#imp-dest">Destinazioni (Destinations)</a>
+  <a class="sub" href="#imp-view">Visualizza (Display)</a>
+  <a class="sub" href="#imp-tags">Tag</a>
+  <a class="sub" href="#imp-keys">Tasti (Keys)</a>
+  <a class="sub" href="#imp-deck-tab">Stream Deck</a>
+  <a class="sub" href="#imp-info">Info</a>
+  <a href="#deck-window"><span class="toc-num">10</span> Deck window</a>
+  <a href="#rating"><span class="toc-num">11</span> Ratings &amp; ColorLabel</a>
+  <a href="#tag"><span class="toc-num">12</span> Tags</a>
+  <a href="#confronta"><span class="toc-num">13</span> Compare mode</a>
+  <a href="#deck"><span class="toc-num">14</span> Physical Stream Deck</a>
+  <a href="#scorciatoie"><span class="toc-num">15</span> Keyboard shortcuts</a>
+</nav>
+
+<main>
+
+  <div class="hero" id="intro">
+    <div class="eyebrow">User manual</div>
+    <h1>Image Sorter</h1>
+    <p class="lead">Image, video and PDF viewer and sorter for Linux.
+    Browse your photos quickly and sort them into destination folders with a
+    single key — from the keyboard, the mouse, or a physical Stream Deck.</p>
+    <div class="dots">
+      <span class="dot" style="background:var(--red)"></span>
+      <span class="dot" style="background:var(--yellow)"></span>
+      <span class="dot" style="background:var(--green)"></span>
+      <span class="dot" style="background:var(--blue)"></span>
+      <span class="dot" style="background:var(--purple)"></span>
+    </div>
+  </div>
+
+
+  <section id="installazione">
+    <h2>Installation <span class="tag">// download and first run</span></h2>
+    <p class="desc">
+      Image Sorter is a Python application for Linux. The source code and
+      published releases of the project are available on GitHub under a
+      Creative Commons license.
+    </p>
+
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Source code</h3>
+        <p>
+          The project is hosted on GitHub. You can download the full
+          repository, or use the Git command to get an updatable local copy.
+        </p>
+      </div>
+      <div class="feature">
+        <h3>Python environment</h3>
+        <p>
+          Running the program requires a Python environment compatible with
+          the program version and the libraries listed in the project.
+        </p>
+      </div>
+
+    </div>
+
+    <p class="desc">
+      Two equivalent ways to get the code — they're alternatives to each
+      other, not steps in sequence: <strong>either step 1a OR step 1b</strong>
+      is enough, not both. From there on (step 2 onward) the process is
+      identical either way.
+    </p>
+
+    <h3 class="subhead" id="install-github">1a. Download ZIP, no Git needed <span class="subtag">// simplest, no requirements</span></h3>
+    <p class="desc">
+      The official Image Sorter repository is available at:
+    </p>
+
+    <div class="callout">
+      <span class="label">GitHub</span>
+      <a href="https://github.com/orionriggers/Image-Sorter"
+         target="_blank"
+         rel="noopener noreferrer"
+         style="color:var(--cyan); text-decoration:none;">
+        https://github.com/orionriggers/Image-Sorter
+      </a>
+    </div>
+
+    <p>
+      From the GitHub page you can choose <strong>Code → Download ZIP</strong>
+      to download a copy of the project without using Git.
+    </p>
+
+
+    <img src="github_repository.png" alt="Image Sorter GitHub repository page, with the Code > Download ZIP button">
+
+    <p>
+      The download produces a file called <code>Image-Sorter-main.zip</code>:
+      it needs to be extracted before the program can be used (right-click
+      the file → "Extract Here" in most file managers). Extracting it
+      creates a folder named <code>Image-Sorter-main</code> — a different
+      name from the repository itself, because GitHub always appends the
+      branch name (<code>main</code>) to the folder name for archives
+      downloaded this way, as opposed to a Git clone.
+    </p>
+
+    <div class="callout">
+      <span class="label">A terminal in the right folder</span>
+      anyone not comfortable with the command line can open a terminal
+      already positioned inside the extracted folder without typing any
+      <span class="kbd">cd</span>: in most file managers (Nautilus, Nemo,
+      Thunar, Dolphin...) right-clicking an empty spot in the folder shows
+      an "Open Terminal Here" entry (wording varies slightly by file
+      manager).
+    </div>
+
+    <h3 class="subhead" id="install-git">1b. Clone with Git, alternative to 1a <span class="subtag">// recommended if you'll update often</span></h3>
+    <p class="desc">
+      If Git is installed on the computer, the repository can be cloned
+      directly from the terminal — an alternative to the ZIP download in
+      step 1a above, not an extra step after it.
+    </p>
+
+    <div class="callout">
+      <span class="label">Terminal</span>
+      <code>git clone https://github.com/orionriggers/Image-Sorter.git</code>
+    </div>
+
+    <p>
+      After downloading, enter the project folder:
+    </p>
+
+    <div class="callout">
+      <span class="label">Terminal</span>
+      <code>cd Image-Sorter</code>
+    </div>
+
+    <p>
+      The Git method is especially useful if the program is updated
+      frequently, since it lets you later pull the changes published to the
+      repository.
+    </p>
+
+    <h3 class="subhead" id="install-python">2. Prepare Python <span class="subtag">// runtime environment</span></h3>
+    <p class="desc">
+      You need Python 3.8 or later (already present by default on most
+      recent Linux distributions) and a few libraries. The simplest way,
+      run from inside the project folder (the one containing
+      <code>image_sorter.py</code>), is the included install script:
+    </p>
+
+    <div class="callout">
+      <span class="label">Terminal</span>
+      <code>bash installa.sh</code>
+    </div>
+
+    <p>
+      It automatically detects the distribution (apt on Debian/Ubuntu/Mint,
+      dnf on Fedora, pacman on Arch, zypper on openSUSE) and installs
+      everything needed: system packages (tkinter, Pillow's image support,
+      ffmpeg for video previews, poppler for PDFs, hidapi for the Stream
+      Deck, xclip for file copy/paste), the Python libraries via pip,
+      <strong>the icon, the application-menu entry and a Desktop
+      shortcut</strong> (see the box below), the right-click integration in
+      the file manager (Nemo, Thunar, Dolphin), and — asking on screen —
+      the daemon that keeps the physical Stream Deck active even while the
+      program is closed. It can be re-run at any time, even after an
+      update, with no side effects.
+    </p>
+
+    <div class="callout">
+      <span class="label">Desktop icon</span>
+      <code>bash installa.sh</code> sets up everything needed to launch
+      Image Sorter like any other program, with no terminal involved: a
+      clickable icon on the Desktop, and an entry in the desktop
+      environment's application menu, searchable by name like any other
+      installed app. If the file manager asks once whether to "trust" the
+      Desktop icon before running it, that's normal (some desktop
+      environments ask this for any new shortcut, not just Image Sorter's)
+      — it happens at most once.
+      <br><br>
+      Anyone who chose <a href="#install-python-manual">the manual library
+      installation</a> below doesn't get the icon or menu entry: to get
+      them anyway, without reinstalling anything, just run
+      <code>bash installa.sh</code> afterwards — already-installed
+      libraries are detected and skipped, it only takes care of the icon,
+      menu entry and shortcut.
+    </div>
+
+    <h3 class="subhead" id="install-python-manual">Installing the libraries manually <span class="subtag">// alternative to installa.sh</span></h3>
+    <p class="desc">
+      If you'd rather not run the script (or you're on a distribution it
+      doesn't cover), the Python libraries can be installed with pip. Only
+      Pillow is mandatory — without it the program won't even start; every
+      other library is optional and, if missing, only disables the single
+      feature it powers, everything else keeps working.
+    </p>
+
+    <div class="callout">
+      <span class="label">Terminal</span>
+      <code>pip install Pillow --user</code>
+    </div>
+
+    <table class="shortcuts">
+      <tr><th>Library</th><th>Enables</th></tr>
+      <tr><td><code>send2trash</code></td><td>System trash (integrates with the desktop's trash)</td></tr>
+      <tr><td><code>pymupdf</code></td><td>PDF support</td></tr>
+      <tr><td><code>streamdeck</code></td><td>Physical Elgato Stream Deck</td></tr>
+      <tr><td><code>piexif</code></td><td>EXIF editor</td></tr>
+      <tr><td><code>reverse-geocode</code></td><td>Offline GPS geocoding (place names in Timeline)</td></tr>
+      <tr><td><code>folium</code></td><td>Interactive GPS map</td></tr>
+      <tr><td><code>tkinterdnd2</code></td><td>Drag &amp; drop of folders onto the keypad/Deck</td></tr>
+      <tr><td><code>pillow-heif</code></td><td>Opening HEIC/HEIF files (iPhone photos)</td></tr>
+      <tr><td><code>pillow-avif-plugin</code></td><td>Opening AVIF files — not installed by <code>installa.sh</code> either, add it by hand even if you use the script</td></tr>
+    </table>
+
+    <div class="callout">
+      <span class="label">All at once</span>
+      <code>pip install Pillow send2trash pymupdf streamdeck piexif reverse-geocode folium tkinterdnd2 pillow-heif pillow-avif-plugin --user</code>
+    </div>
+
+
+    <h3 class="subhead" id="install-start">3. Start Image Sorter <span class="subtag">// first run</span></h3>
+    <p class="desc">
+      Once the project is downloaded and the Python environment is ready,
+      the program can be started from the terminal by running the project's
+      main script.
+    </p>
+
+    <div class="callout">
+      <span class="label">Example</span>
+      <code>python3 image_sorter.py</code>
+    </div>
+
+    <p>
+      Passing it a path opens that file directly, or, with the
+      <code>--browser</code> option, opens that folder in the folder
+      browser (Naviga) instead of the viewer:
+    </p>
+
+    <div class="callout">
+      <span class="label">Examples</span>
+      <code>python3 image_sorter.py /path/to/image.jpg</code><br>
+      <code>python3 image_sorter.py --browser /path/to/folder</code>
+    </div>
+
+
+    <h3 class="subhead" id="install-update">4. Update the program <span class="subtag">// only if you chose 1b</span></h3>
+    <p class="desc">
+      If the project was installed via <span class="kbd">git clone</span>
+      (step 1b), updates can be pulled from the repository with:
+    </p>
+
+    <div class="callout">
+      <span class="label">Terminal</span>
+      <code>git pull</code>
+    </div>
+
+    <p>
+      Before updating, it's a good idea to close Image Sorter and, if local
+      changes were made to the project files, to check the repository status
+      to avoid conflicts.
+    </p>
+
+    <p>
+      Anyone who downloaded the ZIP (step 1a) has no local repository to
+      pull updates from: to update, just download the ZIP again from the
+      same GitHub page and extract it, replacing the previous folder (or
+      extract it elsewhere and re-run <span class="kbd">installa.sh</span>
+      from the new folder).
+    </p>
+
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Download ZIP</h3>
+        <p>Simple method to get a copy of the project without setting up Git.</p>
+      </div>
+      <div class="feature">
+        <h3>Git clone</h3>
+        <p>Better suited to those who want to keep the project updatable.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="visualizzatore">
+    <h2>Viewer <span class="tag">// main window</span></h2>
+
+
+
+
+    <p class="desc">The screen that opens on startup: shows one file at a
+    time (image, video, or PDF page) with the toolbar at the top and the
+    sorting presets on the right.</p>
+
+    <img src="visualizzatore.png" alt="Main viewer window, with the toolbar at the top and the sorting presets on the right">
+
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Navigation</h3>
+        <p>Arrow keys ← → for the next/previous file, mouse wheel,
+        ↑ ↓ for the pages of a multi-page PDF.</p>
+      </div>
+      <div class="feature">
+        <h3>Zoom and fit</h3>
+        <p><span class="kbd">+</span> / <span class="kbd">-</span> to zoom, <span class="kbd">Z</span> to fit the canvas, <span class="kbd">X</span> for the
+        original size (1:1).</p>
+      </div>
+      <div class="feature">
+        <h3>Editing</h3>
+        <p>Non-destructive rotation, resizing, and interactive cropping with
+        a rule-of-thirds grid and aspect-ratio lock — including the exact
+        ratio of the original — always with <span class="kbd">Ctrl+Z</span> undo and history.</p>
+      </div>
+      <div class="feature">
+        <h3>One-key sorting</h3>
+        <p>With the Sidebar or the Deck window open, keys <span class="kbd">1</span>-<span class="kbd">9</span> and
+        <span class="kbd">0</span> also move the file to the active preset (shown on the right),
+        while <span class="kbd">Ctrl+1–9/0</span> copies it instead of moving it.</p>
+      </div>
+      <div class="feature">
+        <h3>Trash with history</h3>
+        <p><span class="kbd">Del</span> twice (or <span class="kbd">Del+Enter</span>) to trash with confirmation — always
+        reversible from History via a temporary, customizable folder: never a direct deletion.</p>
+      </div>
+      <div class="feature">
+        <h3>Info overlays</h3>
+        <p>EXIF-info key <span class="kbd">I</span> for EXIF metadata (bottom left),
+        <span class="kbd">Ctrl</span>+<span class="kbd">F</span> for rating and colorlabel (bottom right) — overlaid
+        on the image, without opening other windows.</p>
+      </div>
+      <div class="feature">
+        <h3>Compare mode</h3>
+        <p>"Confronta" button (or key <span class="kbd">W</span>): places two smaller previews next
+        to the main image, previous and next, which follow navigation on
+        their own — view-only, handy for a quick before/after. See the
+        dedicated section below.</p>
+      </div>
+      <div class="feature">
+        <h3>Text tags</h3>
+        <p>Every file can have free-form tags besides stars and colors — a
+        dedicated window with <span class="kbd">Ctrl</span>+<span class="kbd">T</span>.</p>
+      </div>
+    </div>
+
+
+    <img src="main-menu-sx.png" alt="Main toolbar, left side">
+    <p>
+    <img src="main-menu-dx.png" alt="Main toolbar, right side">
+
+    <div class="callout">
+      <span class="label">Toolbar</span>
+
+      the buttons at the top give quick access to EXIF Info, choosing a
+      Rating/Flag, Tag, the original size, Compare, Naviga (Browse),
+      Timeline, History and Settings — the same functions are also
+      reachable with keyboard shortcuts.
+      <p> <strong>Sidebar</strong> opens the side panel — cycling between
+     inline next to the image, a separate window, or closed;
+     <strong>S-Deck</strong> switches the physical Stream Deck (if
+     connected) between operational functions and presets, while
+     <strong>Deck</strong> cycles open one, two, or N presets in a floating
+     window.
+    </div>
+
+
+
+  </section>
+
+
+  <section id="operazioni">
+    <h2>Core workflow <span class="tag">// the daily loop</span></h2>
+
+
+
+    <p class="desc">Image Sorter is built for a fast loop: open a source
+    folder, judge one file at a time, pick a destination, and move
+    immediately to the next.</p>
+    <div class="feature-grid">
+      <div class="feature"><h3>① Open a source</h3><p>Press <span class="kbd">O</span> or use <strong>Naviga</strong> (Browse) to pick a folder.</p></div>
+      <div class="feature"><h3>② Judge</h3><p>View images, videos and PDFs; use zoom, fit and info overlays.</p></div>
+      <div class="feature"><h3>③ Quick compare</h3><p><strong>Confronta</strong> (Compare) splits the screen into 3 columns,
+for a faster check across a sequence of similar images.</p></div>
+      <div class="feature"><h3>④ Sort</h3><p><span class="kbd">1–9</span> and <span class="kbd">0</span> move the file to the active preset.
+         <br> <span class="kbd">Ctrl+number</span> copies it to the active preset instead.</p></div>
+      <div class="feature"><h3>  Keep going</h3><p>After sorting, the program moves on to the next file.</p></div>
+    </div>
+    <h3 class="subhead">Opening a source <span class="subtag">// O</span></h3>
+    <p>The <span class="kbd">O</span> shortcut opens the folder browser (Naviga). If the browser is already open, the command brings it to the front, or closes it if it's already active. Picking a new source rebuilds the file list and starts over from the first item.</p>
+
+      <img src="browser_anteprime.png" alt="Folder browser with thumbnail previews, opened by pressing O">
+
+    <h3 class="subhead">Quick sorting <span class="subtag">// numbers 1–9 and 0</span></h3>
+    <p>The numbers correspond to the destination presets. Pressing a number moves the file to the
+associated destination; <span class="kbd">Ctrl</span>+number copies it, leaving the original intact. This requires the Sidebar or the Deck window to be active.</p>
+
+
+     <img src="sidebar_smistamento.png" alt="Sidebar with the quick-sorting grid">
+   <img src="deck.png" alt="Floating Deck window with the sorting grid">
+
+    <h3 class="subhead">Undoing a move <span class="subtag">// Ctrl+←</span></h3>
+    <p><span class="kbd">Ctrl</span>+<span class="kbd">←</span> undoes the last move and restores the file to its source folder.</p>
+    <h3 class="subhead">Safe trash <span class="subtag">// double Del</span></h3>
+    <p>Pressing <span class="kbd">Del</span> twice, or <span class="kbd">Del</span> + <span class="kbd">Enter</span>, moves the file to a transit folder instead of deleting it directly. It stays recoverable from History until the transit folder is emptied.</p>
+
+
+
+   <img src="conferma_cestino.png" alt="Confirmation popup before moving a file to the transit trash">
+
+    <p>With <span class="kbd">Ctrl</span> + <span class="kbd">Del</span>, the image just before the one currently shown is deleted without asking for confirmation; this doesn't apply to the first image in a folder.</p>
+
+  </section>
+
+  <section id="navigazione-dettagliata">
+
+
+    <h2>Navigation &amp; display <span class="tag">// quick controls</span></h2>
+
+
+    <h3 class="subhead">Previous and next file <span class="subtag">// ← →</span></h3>
+    <p>The <span class="kbd">←</span> and <span class="kbd">→</span> arrows move through the file sequence. Navigation wraps around.</p>
+
+
+    <h3 class="subhead">Multi-page PDF <span class="subtag">// ↑ ↓ · M</span></h3>
+    <p>On a multi-page PDF, <span class="kbd">↑</span> and <span class="kbd">↓</span> change page without changing file; <span class="kbd">M</span> shows or hides the strip of page thumbnails, with a slider to jump straight to a specific page.</p>
+
+    <h3 class="subhead">Mouse wheel <span class="subtag">// smart behaviour</span></h3>
+    <p>At normal zoom the wheel changes file; once the image is zoomed in, the wheel pans the image instead. This avoids accidental advancing while looking at a detail (disabled in <strong>Compare</strong> mode).</p>
+
+    <h3 class="subhead">Zoom and pan <span class="subtag">// + − Z X</span></h3>
+    <p><span class="kbd">+</span> and <span class="kbd">−</span> change the zoom level; <span class="kbd">Z</span> fits the canvas; <span class="kbd">X</span> shows the image at 1:1. Above zoom level 1 the image can be dragged. <span class="kbd">Ctrl</span>+wheel also zooms.</p>
+
+
+    <h3 class="subhead">Fullscreen <span class="subtag">// F · Enter · H</span></h3>
+    <p><span class="kbd">F</span> toggles fullscreen for images; <span class="kbd">Enter</span> handles fullscreen for images and the external player for videos/PDFs; <span class="kbd">H</span> shows or hides the top bar.</p>
+
+    <h3 class="subhead">Compare <span class="subtag">// W </span></h3>
+    <p><span class="kbd">W</span> splits the main window into three columns, making it easier to compare 3 adjacent images; the image in the center column can be zoomed with <span class="kbd">+</span> and <span class="kbd">−</span>, or <span class="kbd">Ctrl</span>+mouse wheel.</p>
+    <p>With <span class="kbd">Ctrl</span> + <span class="kbd">Del</span>, the previous image — shown in the left column — is deleted without asking for confirmation.</p>
+
+
+
+
+  </section>
+
+  <section id="modifica-file">
+    <h2>Editing a file <span class="tag">// context menu</span></h2>
+    <p class="desc">The image's context menu gathers the editing, opening and management operations for the current file.</p>
+    <div class="feature-grid">
+      <div class="feature"><h3>Ritaglia (Crop)</h3><p>Opens the interactive crop overlay.</p></div>
+      <div class="feature"><h3>Ridimensiona (Resize)</h3><p>Opens the panel for managing crop dimensions and aspect ratio.</p></div>
+      <div class="feature"><h3>Rinomina (Rename)</h3><p>Edits the file name directly in the interface.</p></div>
+      <div class="feature"><h3>Ruota (Rotate)</h3><p>Rotates 90° clockwise or counter-clockwise and saves the image.</p></div>
+
+      <div class="feature"><h3>Modifica con.. (Edit with..)</h3><p>Lets you choose the default editing program, which is remembered from then on.</p></div>
+
+      <div class="feature"><h3>Rating e ColorFlag</h3><p>Immediate view and edit of a rating or a colored label.</p></div>
+    </div>
+
+    <img src="menu_contestuale.png" alt="File context menu, with the editing and opening entries">
+
+
+    <h3 class="subhead">Interactive crop <span class="subtag">// Crop Overlay</span></h3>
+    <p>Cropping happens directly on the image through an interactive selection. The area is kept within the bounds of the original, and a selection that is too small is rejected.</p>
+    <p>When the crop overwrites the original, a backup is created to allow recovery; if you save under a new name the original stays untouched.</p>
+
+
+    <img src="crop_overlay.png" alt="Interactive crop overlay, with rule-of-thirds grid and magnetic handles">
+
+
+
+
+   <div class="feature-grid">
+    <div class="feature"><h3>Aspect ratio</h3><p>Manage the height/width ratio of the image, free-form or with preset values.</p></div>
+    <div class="feature"><h3>Remember size</h3><p>Keeps the crop area's dimensions between sessions.</p></div>
+    <div class="feature"><h3>Magnet</h3><p>Automatic snapping of the crop line.</p></div>
+    <div class="feature"><h3>Ritaglia (Crop)</h3><p>Overwrites or renames the file, with a confirmation dialog.</p></div>
+    <div class="feature"><h3>Ritaglia e avanza (Crop and advance)</h3><p>No confirmation is asked; moves to the next image, closing the crop window.</p></div>
+    <div class="feature"><h3>Ritaglia prossimo (Crop next)</h3><p>No confirmation is asked; moves to the next image keeping the same crop settings active.</p></div>
+
+
+     <div class="callout"><span class="label">Magnet</span> While cropping, moving a handle close to a guide line (rule-of-thirds grid, image edge, center) snaps it there automatically within a small tolerance distance, making precise, aligned crops easier without manual pixel-perfect positioning. Can be turned off for free control of the crop. Holding <span class="kbd">Shift</span> while dragging inverts the active mode.</div>
+
+
+
+  </div>
+
+ </section>
+
+
+
+  <section id="naviga">
+    <h2>Naviga <span class="tag">// folder browser</span></h2>
+    <p class="desc">A grid of thumbnails to scan an entire folder at a
+    glance, with a folder tree on the left and a preview of the selected
+    image on the right. Opens with
+    <span class="kbd">O</span> or <span class="kbd">B</span>, or from the
+    "Naviga" button in the toolbar.</p>
+
+  <p>Powerful tools for navigating folders and files, filtering and search, previews, assigning Label and Rating — including to a multi-selection of images — and direct sending to the primary Preset.</p>
+<p>Two other important, complementary features are reachable from this window: <strong>Folder analysis</strong> and <strong>Duplicate check</strong>.</p>
+
+
+    <img src="naviga_miniature.png" alt="Naviga thumbnail grid, with the folder tree on the left and the preview on the right">
+    <p>
+    <img src="naviga_bottoni.png" alt="Naviga's top button bar">
+
+
+    <div class="feature-grid">
+
+       <div class="feature">
+        <h3>Browse folders</h3>
+        <p>Familiar navigation commands, plus creating a new folder
+        (<span class="kbd">Ctrl</span>+<span class="kbd">N</span>) and
+        quickly reaching the main folders. In the thumbnail grid, besides
+        the arrow keys, <span class="kbd">PageUp</span>/<span class="kbd">PageDown</span>
+        jump one screen at a time, and <span class="kbd">Home</span>/<span class="kbd">End</span>
+        go to the first/last file.</p>
+      </div>
+          <div class="feature">
+        <h3>Favorites []</h3>
+        <p>Stores up to 3 favorite folders by clicking the <span class="kbd">[]</span> button
+        with a folder selected in the right-hand tree column.</p>
+      </div>
+      <div class="feature">
+      <h3>Three thumbnail views</h3>
+        <p>Griglia / Vista / Elenco (Grid / View / List) cycles the display type in the central pane.</p>
+      </div>
+      <div class="feature">
+        <h3>Sorting and filtering</h3>
+        <p>By name, size, date, or EXIF shot date; a text filter by file
+        name, plus a dedicated filter for minimum Rating and ColorLabel.</p>
+      </div>
+      <div class="feature">
+        <h3>Multi-selection</h3>
+        <p>Click, Ctrl+click, Shift+click for ranges, Ctrl+A for everything —
+        with batch operations over the whole selection.</p>
+      </div>
+      <div class="feature">
+        <h3>Rating/Flag checkbox</h3>
+        <p>Hides/shows the row of stars and ColorLabel under the thumbnails,
+        for a cleaner grid if preferred — the choice is remembered across
+        sessions.</p>
+      </div>
+      <div class="feature">
+        <h3>Copy, cut and paste</h3>
+        <p><span class="kbd">Ctrl</span>+<span class="kbd">C</span>/<span class="kbd">X</span>/<span class="kbd">V</span>
+        behave like a real file manager: pasting a copy in the same folder
+        creates a new file instead of doing nothing, and cutting+pasting in
+        the same folder has no effect.</p>
+      </div>
+      <div class="feature">
+        <h3>Folder color</h3>
+        <p>Right-click a folder in the tree or the grid → "Colore" (Color)
+        entry: the same 5 colors as the file ColorLabels, shown as squares
+        side by side, applicable and removable per folder. The color shows
+        up as a colored border and text in the icon grid, as colored text
+        in list view, and as the node color in the tree — Privacy always
+        takes visual precedence.</p>
+      </div>
+
+    </div>
+
+
+
+
+    <h3 class="subhead" id="pie">Folder analysis <span class="subtag">// a chart says more than numbers</span></h3>
+    <p class="desc">The slices show the relative size of each folder's
+    content, making it immediately obvious which folders take up the most
+    space.</p>
+
+
+    <img src="analizza_cartelle.png" alt="Pie chart of folder sizes">
+     <div class="callout"><span class="label">Right-click</span> a slice to jump
+    straight to the folder it represents.</div>
+
+
+
+
+    <h3 class="subhead" id="dup">Duplicate check <span class="subtag">// find duplicate files</span></h3>
+    <p class="desc">Three interfaces for finding duplicate files: the most
+    precise one with an exact SHA256 check, a faster one comparing name and
+    size directly, and a summary that reasons per folder instead of per
+    file.</p>
+
+    <!-- TODO screenshot: needs retaking — this image (v1.38.7) predates the
+         "Ordina" (Sort) button being moved (v1.43.7) and doesn't reflect
+         the current UI; retake together with doppioni_rapida.png/doppioni_ab.png. -->
+    <img src="doppioni_sha.png" alt="Contenuto (SHA256) tab of the duplicate finder, listing identical files found">
+    <br>
+    <img src="doppioni_rapida.png" alt="Rapida (name+size) tab of the duplicate finder">
+
+     <div class="callout"><span class="label">A-B compare</span> Two folders analyzed side by side.</div>
+
+
+    <img src="doppioni_ab.png" alt="Confronta A vs B tab of the duplicate finder, comparing two folders">
+
+    <h3 class="subhead" id="dup-riepilogo">Folder summary <span class="subtag">// duplicates reasoned per folder</span></h3>
+    <p class="desc">A fourth tab that summarizes the duplicates found at the
+    folder level instead of the single-file level: folders with the most
+    internal duplicates, folders with near-identical content, folders that
+    are entirely duplicated elsewhere, and folders sharing the same name in
+    different places in the tree.</p>
+    <p>When an entire folder substructure (a folder together with all its
+    subfolders) is duplicated elsewhere, it's reported as a single block
+    with a plain-language sentence — for example "Photos (+8 subfolders) is
+    nearly identical to Backup/Photos — 94% average similarity, 2.1 GB
+    recoverable" — sorted by recoverable space, with an expandable detail
+    per block. From the right-click menu on a block: "Keep one side, trash
+    the other".</p>
+    <!-- TODO screenshot: entirely missing — no existing image shows this
+         tab, added after all current Duplicate check screenshots. -->
+
+
+  </section>
+
+  <section id="timeline">
+    <h2>Timeline <span class="tag">// chronological view + GPS map</span></h2>
+    <p class="desc">Recursively scans one or more folders and organizes the
+    files by date, with filters for year, place, folder, rating and color.
+    Opens with <span class="kbd">T</span>.</p>
+
+
+    <img src="timeline.png" alt="Timeline grid view, with files grouped by month and the filter sidebar">
+
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Recursive scan</h3>
+        <p>Add one or more source folders and press "Scansiona" (Scan) —
+        configurable search depth, unlimited by default.</p>
+      </div>
+      <div class="feature">
+        <h3>GPS map</h3>
+        <p>Opens an interactive map with every file that has GPS
+        coordinates in its EXIF data, to revisit a trip by place instead of
+        by date.</p>
+      </div>
+      <div class="feature">
+        <h3>Sidebar filters</h3>
+        <p>By year, folder, rating and color — with live counts for each
+        entry, click to filter the view.</p>
+      </div>
+      <div class="feature">
+        <h3>Two thumbnail sizes</h3>
+        <p>1x / 2x — unlike Naviga, there's more horizontal space here, so
+        the stars and dots are proportionally larger.</p>
+      </div>
+      <div class="feature">
+        <h3>Preset, Rating and Tag</h3>
+        <p>As in Naviga, the matching checkboxes show, at the bottom of the
+        window, the row of destination presets and the row of existing
+        tags, to apply them to the current selection.</p>
+      </div>
+      <div class="feature">
+        <h3>Preview panel</h3>
+        <p>With the enlarged preview open on the right, a row with stars,
+        the file name and ColorLabel appears below the image — as in
+        Naviga, it updates on every selection change.</p>
+      </div>
+    </div>
+  </section>
+
+
+<section id="cronologia">
+    <h2>History &amp; recovery <span class="tag">// safe operations</span></h2>
+    <p>History keeps track of recent operations and is used to make moves and transit-trash operations recoverable.</p>
+
+
+    <img src="storico.png" alt="History window with the list of recent, recoverable operations">
+ <div class="callout"><span class="label">Transit trash</span> Deleted files aren't removed directly: they stay in a transit folder until emptying is confirmed.</div>
+
+
+  </section>
+
+  <section id="impostazioni">
+    <h2>Settings <span class="tag">// seven tabs</span></h2>
+    <p class="desc">The central configuration panel, organized into seven
+    tabs along the top of the window. Opens with
+    <span class="kbd">R</span>, and remembers the last tab that was open.</p>
+
+    <h3 class="subhead" id="imp-preset">Preset <span class="subtag">// list and management</span></h3>
+    <p class="desc">The heart of the application is the list of configured
+    presets: complete groups of ten destinations, one per key
+    <span class="kbd">0</span>-<span class="kbd">9</span>.
+    From here you create new presets, with the option to copy, rename or
+    delete them, and choose which one is the active primary preset (marked
+    with *). At the bottom, appearance options for the Deck panel (number
+    of columns) and for the Sidebar (assigned preset, fixed/window mode,
+    grid/list appearance).</p>
+
+
+
+    <img src="impostazioni_preset.png" alt="Preset tab in Settings, with the list of configured presets">
+
+
+    <h3 class="subhead" id="imp-dest">Destinazioni (Destinations) <span class="subtag">// folders per key</span></h3>
+    <p class="desc">Here you assign a folder and a label to each of the ten
+    keys (0-9) of the preset selected above. For each key: a name field, a
+    path field (read-only until "percorso libero" / free path is chosen),
+    and a button to browse the disk's folders.</p>
+
+
+    <img src="impostazioni_destinazioni.png" alt="Destinazioni tab in Settings, with folder and label for each key">
+
+
+    <div class="callout">
+      <span class="label">Drag &amp; drop</span>
+      you can drag a folder directly from an external file manager (Nemo,
+      Nautilus, Thunar...) onto a key's colored badge or name field, to
+      assign it as a destination without opening the picker — the label
+      fills itself in from the folder name if the field was empty. Requires
+      the optional <code>tkinterdnd2</code> package; if it isn't installed,
+      the "Sfoglia" (Browse) button is still available.
+    </div>
+
+    <img src="percorsi_duplicati.png" alt="Path field highlighted in red when two keys point to the same folder">
+
+    <div class="callout warn">
+      <span class="label">Duplicate paths</span>
+      if two keys in the same preset point to the same folder, the path
+      field turns red and a warning appears at the top — useful to spot a
+      slip immediately.
+    </div>
+
+
+
+
+
+
+    <h3 class="subhead" id="imp-view">Visualizza (Display) <span class="subtag">// which files to show</span></h3>
+    <p class="desc">ON/OFF switches to include or exclude images, videos,
+    PDFs and extension-less files (detected via magic bytes) from browsing.
+    At the bottom, a field to add custom extensions to include
+    (e.g. <code>.heic, .arw, .cr2, .dng</code>), comma-separated. Changes
+    apply the next time a folder is loaded.</p>
+
+
+
+    <img src="impostazioni_visualizza.png" alt="Visualizza tab in Settings, with the switches per file type">
+
+    <h3 class="subhead" id="imp-tags">Tag <span class="subtag">// managing tags and Tag Groups</span></h3>
+    <p class="desc">Two side-by-side columns. On the left, the
+    <strong>Tag</strong> column: create, rename or delete a tag from the
+    library's registry — a tag can now exist even before being applied to a
+    file, not only "discovered" by using it. On the right,
+    <strong>Gruppi Tag</strong> (Tag Groups): create, rename or delete a
+    group, and a cloud to add or remove tags from the selected group's
+    membership — purely organizational, used as a shortcut in Naviga's
+    filter (one click adds every tag in the group to the filter). At the
+    bottom, the preferred sort order for the tag cloud (alphabetical, recent
+    use, or frequency).</p>
+
+    <img src="impostazioni_tag.png" alt="Tag tab in Settings, with the Tag and Gruppi Tag columns">
+
+    <h3 class="subhead" id="imp-keys">Tasti (Keys) <span class="subtag">// shortcut reference</span></h3>
+    <p class="desc">A scrollable, read-only list of every available keyboard
+    shortcut, grouped by category — the same table at the bottom of this
+    manual, but reachable inside the program without having to leave it.</p>
+
+
+    <!-- TODO screenshot: needs retaking — this image (v1.43.4) shows both
+         the long shortcut labels getting truncated and the scrollbar
+         detached from the right edge, both fixed in the code since. -->
+    <img src="impostazioni_keys.png" alt="Tasti tab in Settings, with the list of keyboard shortcuts">
+
+
+
+    <h3 class="subhead" id="imp-deck-tab">Stream Deck <span class="subtag">// physical device</span></h3>
+    <p class="desc">At the top of the tab, an <strong>ON/OFF</strong> switch
+    disables the physical Stream Deck entirely — useful for using another
+    program with the same device: once off, neither the program nor the
+    autostart daemon touch the hardware anymore. The effect is immediate,
+    no restart needed.</p>
+    <p class="desc">Below, configuration for the device, if connected:
+    connection status, model and number of keys detected, brightness. The
+    central part manages the idle-mode pages — tabs "Pag.1", "Pag.2" etc.
+    (added with the "+ Pag." button, and removed automatically once empty),
+    a grid mirroring the physical key layout, and an editor to assign an
+    action to each selected key (open folder/app/URL, keyboard shortcut,
+    mute/unmute, text, page change, one of the direct commands).</p>
+
+
+    <!-- TODO screenshot: needs retaking — the current image (v1.38.7)
+         predates the ON/OFF switch by a long way and only shows the
+         single-key editor; an updated capture of the general tab is needed. -->
+    <img src="impostazioni_deck.png" alt="Stream Deck tab in Settings, single-key editor">
+
+
+
+
+    <h3 class="subhead" id="imp-info">Info <span class="subtag">// language and information</span></h3>
+    <p class="desc">Interface language selector (automatically reopens
+    Settings translated after the change), the program's logo, and
+    version/license information.</p>
+
+
+    <img src="impostazioni_info.png" alt="Info tab in Settings, with the language selector and version information">
+
+  <div class="callout">
+      <span class="label">Privacy</span>
+    lets you pick folders that won't be shown or scanned in the browse
+    window (Naviga) or in Timeline; in addition, every operation on the
+    folders in this list is not recorded in History and so cannot be
+    undone.
+    <p>Folders on the "privacy" list are marked with a red border in Naviga
+    and in Folder analysis, and any window showing images from those
+    folders is given a red border too.</p>
+    </div>
+
+
+  </section>
+
+  <section id="deck-window">
+    <h2>Deck window <span class="tag">// on-screen keypad</span></h2>
+    <p class="desc">Our best tool for managing presets: a floating,
+    always-on-top, resizable keypad that mirrors on screen — clickable with
+    the mouse — the same sorting grid as the Sidebar.
+    Opens with <span class="kbd">D</span> or <span class="kbd">P</span>, or
+    from the "Deck" button in the toolbar. Useful on a second monitor, or
+    whenever the mouse is preferred to the keyboard.
+    Saved destinations that aren't reachable (missing disk or folder) are
+    shown with a grey background.</p>
+
+
+
+    <img src="deck.png" alt="Floating Deck window with several presets side by side">
+
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Up to 7 presets together</h3>
+        <p>Each column shows a different preset, chosen from the dropdown
+        at the top: handy for sorting into several groups of destinations
+        without constantly switching the active preset.</p>
+      </div>
+      <div class="feature">
+        <h3>Drag &amp; drop folders</h3>
+        <p>Just like in the Destinazioni tab, you can drag a folder from an
+        external file manager straight onto a key to assign it as a
+        destination — instant, without going through Settings.</p>
+      </div>
+      <div class="feature">
+        <h3>Touch-friendly buttons</h3>
+        <p>This control panel is optimized for quickly finding and managing
+        destination keys — using a touchscreen is the best way to use it!</p>
+      </div>
+    </div>
+
+
+
+    <div class="callout">
+      <span class="label">Reordering preset destinations:</span>
+      dragging one key onto another (even in a different column/preset)
+      swaps the two destinations: label and path change places, while the
+      key's number and color stay put. It's the fastest way to reorder a
+      preset's folders, or to move one from a preset to another, without
+      having to retype it in Settings.
+    </div>
+  </section>
+
+
+
+  <section id="rating">
+    <h2>Ratings &amp; ColorLabel </h2>
+    <p class="desc">Every file — photo, video or PDF — can have a rating
+    from 0 to 5 stars and one or more colored labels, which aren't mutually
+    exclusive.</p>
+
+    <div class="colorlabel-strip">
+      <span style="background:var(--red)"></span>
+      <span style="background:var(--yellow)"></span>
+      <span style="background:var(--green)"></span>
+      <span style="background:var(--blue)"></span>
+      <span style="background:var(--purple)"></span>
+    </div>
+
+    <p style="color:var(--muted); max-width:680px;">Visible and editable
+    everywhere it makes sense: under every thumbnail in Naviga and Timeline,
+    in the enlarged preview panel, from the right-click menu, and from a
+    dedicated overlay on the main image (<span class="kbd">Ctrl</span>+<span class="kbd">F</span>).
+    Every change is reflected everywhere immediately, with no need to
+    reload.</p>
+
+    <img src="naviga_griglia_rating.png" alt="Thumbnail grid with stars and ColorLabel visible under each file">
+
+    <div class="callout">
+      <span class="label">Filtering by rating</span>
+      in Naviga, the "Filtro *" button next to the sort controls opens a
+      minimum-rating and color picker; in Timeline, the sidebar shows
+      dedicated sections with counts.
+    </div>
+  </section>
+
+
+
+  <section id="tag">
+    <h2>Tags <span class="tag">// free text tags and Tag Groups</span></h2>
+    <p class="desc">Besides Rating and ColorLabel, every file can carry as
+    many free-form text tags as you like — your own keywords, not a
+    predefined list.</p>
+
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Tag window <span class="kbd">Ctrl</span>+<span class="kbd">T</span></h3>
+        <p>A cloud of existing tags, filterable by typing; a new tag is
+        created with Enter. Follows navigation of the current file (arrow
+        keys, toolbar buttons...) and works as a toggle: click to add or
+        remove the tag from the file shown.</p>
+      </div>
+      <div class="feature">
+        <h3>Multi-selection</h3>
+        <p>From the right-click menu, "Tag..." entry: a tag is highlighted
+        only if present on ALL selected files; clicking applies or removes
+        it using the same "all-or-nothing" logic already used for stars and
+        colors.</p>
+      </div>
+      <div class="feature">
+        <h3>Clickable row</h3>
+        <p>Below the grid, both in Naviga and in Timeline: applies a tag to
+        the current selection without opening the dedicated window —
+        "Tag" checkbox to hide it.</p>
+      </div>
+      <div class="feature">
+        <h3>Tag Groups</h3>
+        <p>Group related tags (Settings &gt; Tag tab, see above) — for now
+        mainly useful as a shortcut in Naviga's filter: one click adds
+        every tag in the group at once.</p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <span class="label">Tag filter in Naviga</span>
+      the "Filtro *" button shows every tag in the library (not just the
+      ones typed), Tag Groups as a shortcut, and uses "any match"
+      (tags_any) logic across the chosen tags. The tag filter only exists
+      in Naviga — in Timeline the tag row at the bottom is for applying
+      tags, not for filtering the view.
+    </div>
+  </section>
+
+
+
+  <section id="confronta">
+    <h2>Compare mode <span class="tag">// previous/next side by side</span></h2>
+    <p class="desc">"Confronta" button in the viewer, next to "Schermo
+    intero" (Fullscreen) (or key <span class="kbd">W</span>): places two
+    smaller previews next to the main canvas — the previous file on the
+    left, the next one on the right — which follow navigation on their own,
+    with no need to go back for a quick before/after.
+   <br>The <span class="kbd">Del</span> key deletes the center image, asking for
+    confirmation; <span class="kbd">Ctrl</span>+<span class="kbd">Del</span> instead
+    trashes the file in the left column, without asking for confirmation.</p>
+
+    <img src="confronta_mode.png" alt="Three-column Compare mode, with the previous and next previews on either side">
+
+    <div class="callout">
+      <span class="label">View-only</span>
+      the two side previews have no right-click menu or commands of their
+      own: they're only there to show what comes before and after without
+      leaving the current file. Every command (rotate, crop, sort...) still
+      acts only on the center image.
+    </div>
+  </section>
+
+  <section id="deck">
+    <h2>Physical Stream Deck <span class="tag">// optional hardware control</span></h2>
+    <p class="desc">Support for any Elgato Stream Deck model, in two modes
+    (configurable from the "Stream Deck" tab in Settings, see above).</p>
+
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Preset mode</h3>
+        <p>The physical keys mirror the software's active preset: same
+        numbers 0-9, same colors, direct sorting from the device.</p>
+      </div>
+      <div class="feature">
+        <h3>Idle mode</h3>
+        <p>Configurable pages with free actions per key: open a folder, an
+        application, a URL, a keyboard shortcut, mute/unmute, text.</p>
+      </div>
+      <div class="feature">
+        <h3>Over 30 direct commands</h3>
+        <p>Rotate, delete, zoom, send to an external editor and more — each
+        assignable to a key with a customizable icon.</p>
+      </div>
+      <div class="feature">
+        <h3>Reactive "Rating/Flag" buttons</h3>
+        <p>A row of 5 colorlabels and a row of 5 stars, lit up or off based
+        on the file currently open — click to apply or remove.</p>
+      </div>
+      <div class="feature">
+        <h3>Background daemon</h3>
+        <p>Keeps the physical deck active even while the program is closed,
+        automatically handing control back when Image Sorter is opened.</p>
+      </div>
+      <div class="feature">
+        <h3>ON/OFF switch</h3>
+        <p>From Settings &gt; Stream Deck: once off, neither the program nor
+        the autostart daemon touch the physical device anymore — useful for
+        using another piece of software with the same Stream Deck.
+        Immediate effect, no restart needed.</p>
+      </div>
+    </div>
+  </section>
+
+
+
+  <section id="scorciatoie">
+    <h2>Keyboard shortcuts <span class="tag">// quick reference</span></h2>
+    <p class="desc">The same list, always up to date, is also available
+    inside the program in the <a href="#imp-keys">Impostazioni &gt; Tasti</a> (Settings &gt; Keys) tab.</p>
+
+    <table class="shortcuts">
+      <tr><th colspan="2">Navigation</th></tr>
+      <tr><td><span class="kbd">→</span> / <span class="kbd">←</span></td><td>Next / previous file</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">←</span> or <span class="kbd">Ctrl</span>+<span class="kbd">X</span></td><td>Undo last move</td></tr>
+      <tr><td><span class="kbd">PageUp</span> / <span class="kbd">PageDown</span></td><td>Previous / next preset</td></tr>
+      <tr><td><span class="kbd">Tab</span> or <span class="kbd">N</span></td><td>Next preset</td></tr>
+      <tr><td><span class="kbd">Shift</span>+<span class="kbd">Tab</span></td><td>Previous preset</td></tr>
+      <tr><td>Mouse wheel</td><td>Browse files (pans the image if zoom &gt; 1)</td></tr>
+
+      <tr><th colspan="2">Sorting</th></tr>
+      <tr><td><span class="kbd">1</span>–<span class="kbd">9</span>, <span class="kbd">0</span></td><td>Move to the active preset</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">1</span>–<span class="kbd">9</span>/<span class="kbd">0</span></td><td>Copy to the active preset</td></tr>
+      <tr><td><span class="kbd">Del</span> ×2</td><td>Trash the file</td></tr>
+      <tr><td><span class="kbd">Del</span>+<span class="kbd">Enter</span> (numpad too)</td><td>Trash (alternative confirmation)</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">Del</span></td><td>Trash the previous file, without moving</td></tr>
+
+      <tr><th colspan="2">Zoom &amp; display</th></tr>
+      <tr><td><span class="kbd">+</span> / <span class="kbd">-</span></td><td>Zoom in / out</td></tr>
+      <tr><td><span class="kbd">Z</span></td><td>Fit canvas</td></tr>
+      <tr><td><span class="kbd">X</span></td><td>Original size (1:1)</td></tr>
+      <tr><td><span class="kbd">F</span> or <span class="kbd">Enter</span> (numpad too)</td><td>Fullscreen / Player</td></tr>
+      <tr><td><span class="kbd">H</span></td><td>Show / hide header</td></tr>
+      <tr><td><span class="kbd">I</span></td><td>EXIF info overlay</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">F</span></td><td>Rating overlay (stars and colorlabel)</td></tr>
+      <tr><td><span class="kbd">W</span></td><td>Compare mode (previous/next previews)</td></tr>
+
+      <tr><th colspan="2">Panels &amp; windows</th></tr>
+      <tr><td><span class="kbd">O</span> or <span class="kbd">B</span></td><td>Folder browser (Naviga)</td></tr>
+      <tr><td><span class="kbd">T</span></td><td>Timeline</td></tr>
+      <tr><td><span class="kbd">S</span></td><td>Sidebar (inline / window / hidden)</td></tr>
+      <tr><td><span class="kbd">D</span> / <span class="kbd">P</span></td><td>Deck window: 1 col &gt; 2 col &gt; N col &gt; close</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">D</span></td><td>Physical Stream Deck: toggle preset mode</td></tr>
+      <tr><td><span class="kbd">R</span></td><td>Settings</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">R</span></td><td>Rename current file</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">T</span></td><td>Open the Tag window for the current file</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">H</span></td><td>Open the operations History</td></tr>
+      <tr><td><span class="kbd">Esc</span></td><td>Close open window / quit</td></tr>
+      <tr><td><span class="kbd">Q</span></td><td>Quit</td></tr>
+
+      <tr><th colspan="2">Image editing</th></tr>
+      <tr><td><span class="kbd">C</span></td><td>Rotate 90° clockwise</td></tr>
+      <tr><td><span class="kbd">A</span></td><td>Rotate 90° counter-clockwise</td></tr>
+      <tr><td><span class="kbd">K</span></td><td>Crop</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">Z</span></td><td>Undo last crop</td></tr>
+
+      <tr><th colspan="2">Multi-page PDF</th></tr>
+      <tr><td><span class="kbd">↑</span> / <span class="kbd">↓</span></td><td>Previous / next page</td></tr>
+      <tr><td><span class="kbd">M</span></td><td>Show/hide page thumbnails</td></tr>
+
+      <tr><th colspan="2">Folder browser (Naviga)</th></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">N</span></td><td>Create a new subfolder in the open folder</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">A</span></td><td>Select all files</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">C</span>/<span class="kbd">X</span>/<span class="kbd">V</span></td><td>Copy / Cut / Paste</td></tr>
+      <tr><td><span class="kbd">PageUp</span> / <span class="kbd">PageDown</span></td><td>Thumbnail grid: jump one screen forward/back</td></tr>
+      <tr><td><span class="kbd">Home</span> / <span class="kbd">End</span></td><td>Thumbnail grid: first / last file</td></tr>
+      <tr><td>Keys <span class="kbd">1</span>–<span class="kbd">9</span> (with an active selection)</td><td>Move the selected files to the matching preset</td></tr>
+    </table>
+  </section>
+
+
+</main>
+</div>
+
+<footer>
+  Image Sorter v1.45.x — Manual including an installation section.
+  Creative Commons Attribution (CC BY) — Carlo Porrone, 2026.
+</footer>
+
+</body>
+</html>

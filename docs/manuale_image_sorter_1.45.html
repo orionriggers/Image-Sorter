@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Sorter — Manuale delle funzioni principali</title>
+<style>
+  :root {
+    --bg: #0d1520;
+    --panel: #16213e;
+    --panel-2: #1a2740;
+    --border: #2a3a5a;
+    --cyan: #00c8ff;
+    --text: #c8d8e8;
+    --muted: #6a7fa0;
+    --red: #e94560;
+    --yellow: #f5a623;
+    --green: #2ecc71;
+    --blue: #4a90e2;
+    --purple: #9b59b6;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  code, .mono, .kbd, .toc-num, h1, h2, h3, h4, .tag {
+    font-family: "JetBrains Mono", "Cascadia Code", "Consolas", "SF Mono", monospace;
+  }
+
+  .layout {
+    display: flex;
+    min-height: 100vh;
+  }
+  nav.toc {
+    flex: 0 0 260px;
+    width: 260px;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: 100vh;
+    overflow-y: auto;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 28px 0;
+  }
+  nav.toc .brand {
+    padding: 0 24px 20px 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  nav.toc .brand .name {
+    color: var(--cyan);
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: 0.02em;
+  }
+  nav.toc .brand .ver {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 2px;
+  }
+  nav.toc a {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    padding: 6px 24px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.86rem;
+    border-left: 2px solid transparent;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  nav.toc a.sub {
+    padding-left: 40px;
+    font-size: 0.78rem;
+  }
+  nav.toc a:hover {
+    color: var(--text);
+    background: rgba(0,200,255,0.05);
+    border-left-color: var(--cyan);
+  }
+  nav.toc .toc-num {
+    color: var(--cyan);
+    opacity: 0.6;
+    font-size: 0.78rem;
+    min-width: 22px;
+  }
+
+  main {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 56px 64px 120px 64px;
+    max-width: 980px;
+  }
+
+  .hero { margin-bottom: 64px; }
+  .hero .eyebrow {
+    color: var(--cyan);
+    font-size: 0.82rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .hero h1 {
+    font-size: 2.4rem;
+    margin: 0 0 14px 0;
+    color: #fff;
+    letter-spacing: -0.01em;
+  }
+  .hero p.lead {
+    color: var(--muted);
+    font-size: 1.05rem;
+    max-width: 640px;
+    margin: 0;
+  }
+  .hero .dots { display: flex; gap: 8px; margin-top: 22px; }
+  .hero .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  section { margin-bottom: 76px; scroll-margin-top: 24px; }
+  section h2 {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 1.5rem;
+    color: #fff;
+    margin: 0 0 6px 0;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  section h2 .tag { color: var(--cyan); font-size: 0.95rem; opacity: 0.7; }
+  section > .desc { color: var(--muted); max-width: 680px; margin: 16px 0 28px 0; }
+
+  h3.subhead {
+    scroll-margin-top: 24px;
+    font-size: 1.05rem;
+    color: var(--cyan);
+    margin: 40px 0 6px 0;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  h3.subhead .subtag {
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-weight: normal;
+  }
+  h3.subhead + .desc { color: var(--muted); max-width: 680px; margin: 0 0 16px 0; }
+
+  nav.toc .lang-switch {
+    display: block;
+    margin-top: 10px;
+    padding: 0;
+    color: var(--cyan) !important;
+    font-size: 0.78rem;
+    border-left: none !important;
+  }
+
+  .feature-grid { display: flex; flex-wrap: wrap; gap: 16px; margin: 20px 0; }
+  .feature {
+    flex: 1 1 260px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--cyan);
+    border-radius: 6px;
+    padding: 16px 18px;
+  }
+  .feature h3 { margin: 0 0 6px 0; font-size: 0.95rem; color: var(--cyan); }
+  .feature p { margin: 0; color: var(--muted); font-size: 0.88rem; }
+
+  table.shortcuts {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0 30px 0;
+    font-size: 0.9rem;
+  }
+  table.shortcuts th {
+    text-align: left;
+    color: var(--cyan);
+    font-weight: 600;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  table.shortcuts td { padding: 9px 14px; border-bottom: 1px solid rgba(42,58,90,0.5); }
+  table.shortcuts tr:hover td { background: rgba(0,200,255,0.04); }
+  .kbd {
+    display: inline-block;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.82rem;
+    color: var(--cyan);
+  }
+
+  .colorlabel-strip { display: flex; gap: 8px; margin: 14px 0; }
+  .colorlabel-strip span { width: 16px; height: 16px; border-radius: 50%; display: inline-block; }
+
+  .callout {
+    background: rgba(0,200,255,0.06);
+    border: 1px solid rgba(0,200,255,0.25);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 20px 0;
+    font-size: 0.9rem;
+  }
+  .callout.warn {
+    background: rgba(233,69,96,0.08);
+    border-color: rgba(233,69,96,0.3);
+  }
+  .callout .label { color: var(--cyan); font-weight: 600; margin-right: 6px; }
+  .callout.warn .label { color: var(--red); }
+
+  footer { border-top: 1px solid var(--border); padding: 28px 64px; color: var(--muted); font-size: 0.82rem; }
+
+  @media (max-width: 860px) {
+    .layout { display: block; }
+    nav.toc { position: relative; height: auto; width: auto; }
+    main { padding: 32px 20px 80px 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<nav class="toc">
+  <div class="brand">
+    <div class="name">IMAGE SORTER</div>
+    <div class="ver">Manuale v1.45.x</div>
+    <a class="lang-switch" href="manuale_image_sorter_1.45_en.html">English version →</a>
+  </div>
+  <a href="#intro"><span class="toc-num">00</span> Introduzione</a>
+  <a href="#installazione"><span class="toc-num">01</span> Installazione</a>
+  <a href="#visualizzatore"><span class="toc-num">02</span> Visualizzatore</a>
+  <a href="#operazioni"><span class="toc-num">03</span> Operazioni principali</a>
+  <a href="#navigazione-dettagliata"><span class="toc-num">04</span> Navigazione e visualizzazione</a>
+  <a href="#modifica-file"><span class="toc-num">05</span> Modifica del file</a>
+  <a href="#naviga"><span class="toc-num">06</span> Naviga</a>
+  <a class="sub" href="#pie">Analisi cartelle</a>
+  <a class="sub" href="#dup">Controllo doppioni</a>
+  <a class="sub" href="#dup-riepilogo">Riepilogo cartelle</a>
+  <a href="#timeline"><span class="toc-num">07</span> Timeline</a>
+  <a href="#cronologia"><span class="toc-num">08</span> Storico e recupero</a>
+  <a href="#impostazioni"><span class="toc-num">09</span> Impostazioni</a>
+  <a class="sub" href="#imp-preset">Preset</a>
+  <a class="sub" href="#imp-dest">Destinazioni</a>
+  <a class="sub" href="#imp-view">Visualizza</a>
+  <a class="sub" href="#imp-tags">Tag</a>
+  <a class="sub" href="#imp-keys">Tasti</a>
+  <a class="sub" href="#imp-deck-tab">Stream Deck</a>
+  <a class="sub" href="#imp-info">Info</a>
+  <a href="#deck-window"><span class="toc-num">10</span> Finestra Deck</a>
+  <a href="#rating"><span class="toc-num">11</span> Valutazioni e ColorLabel</a>
+  <a href="#tag"><span class="toc-num">12</span> Tag</a>
+  <a href="#confronta"><span class="toc-num">13</span> Modalità Confronta</a>
+  <a href="#deck"><span class="toc-num">14</span> Stream Deck fisico</a>
+  <a href="#scorciatoie"><span class="toc-num">15</span> Scorciatoie</a>
+</nav>
+
+<main>
+
+  <div class="hero" id="intro">
+    <div class="eyebrow">Manuale delle funzioni principali</div>
+    <h1>Image Sorter</h1>
+    <p class="lead">Visualizzatore e smistatore di immagini, video e PDF per Linux.
+    Naviga rapidamente le tue foto e smistale in cartelle di destinazione con un
+    tasto solo — da tastiera, mouse o Stream Deck fisico.</p>
+    <div class="dots">
+      <span class="dot" style="background:var(--red)"></span>
+      <span class="dot" style="background:var(--yellow)"></span>
+      <span class="dot" style="background:var(--green)"></span>
+      <span class="dot" style="background:var(--blue)"></span>
+      <span class="dot" style="background:var(--purple)"></span>
+    </div>
+  </div>
+
+
+  <section id="installazione">
+    <h2>Installazione <span class="tag">// download e primo avvio</span></h2>
+    <p class="desc">
+      Image Sorter è un'applicazione Python per Linux. Il codice sorgente e le
+      versioni pubblicate del progetto sono disponibili su GitHub con licenza Creative Common.
+    </p>
+
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Codice sorgente</h3>
+        <p>
+          Il progetto è ospitato su GitHub. È possibile scaricare il repository
+          completo oppure utilizzare il comando Git per ottenere una copia
+          locale aggiornata.
+        </p>
+      </div>
+      <div class="feature">
+        <h3>Ambiente Python</h3>
+        <p>
+          Per l'esecuzione è necessario un ambiente Python compatibile con la
+          versione del programma e con le librerie indicate nel progetto.
+        </p>
+      </div>
+
+    </div>
+
+    <p class="desc">
+      Due modi equivalenti per procurarsi il codice — sono alternativi tra
+      loro, non passaggi in sequenza: <strong>bastano il punto 1a OPPURE il
+      punto 1b</strong>, non entrambi. Da lì in poi (punto 2 e seguenti) la
+      procedura è identica per tutti e due.
+    </p>
+
+    <h3 class="subhead" id="install-github">1a. Download ZIP, senza Git <span class="subtag">// più semplice, nessun requisito</span></h3>
+    <p class="desc">
+      Il repository ufficiale di Image Sorter è disponibile all'indirizzo:
+    </p>
+
+    <div class="callout">
+      <span class="label">GitHub</span>
+      <a href="https://github.com/orionriggers/Image-Sorter"
+         target="_blank"
+         rel="noopener noreferrer"
+         style="color:var(--cyan); text-decoration:none;">
+        https://github.com/orionriggers/Image-Sorter
+      </a>
+    </div>
+
+    <p>
+      Dalla pagina GitHub è possibile scegliere <strong>Code → Download ZIP</strong>
+      per scaricare una copia del progetto senza utilizzare Git.
+    </p>
+
+
+    <img src="github_repository.png" alt="Pagina del repository GitHub di Image Sorter, con il pulsante Code > Download ZIP">
+
+    <p>
+      Il download produce un file <code>Image-Sorter-main.zip</code>: va
+      estratto prima di poter usare il programma (tasto destro sul file →
+      "Estrai qui" nella maggior parte dei file manager). L'estrazione crea
+      una cartella chiamata <code>Image-Sorter-main</code> — un nome diverso
+      da quello del repository, perché GitHub aggiunge sempre il nome del
+      ramo (<code>main</code>) al nome della cartella per gli archivi
+      scaricati così, non clonati con Git.
+    </p>
+
+    <div class="callout">
+      <span class="label">Terminale nella cartella giusta</span>
+      chi non ha familiarità con la riga di comando può aprire un terminale
+      già posizionato dentro la cartella estratta senza scrivere alcun
+      <span class="kbd">cd</span>: nella maggior parte dei file manager
+      (Nemo, Nautilus, Thunar, Dolphin...) basta un tasto destro nell'area
+      vuota della cartella e la voce "Apri terminale qui" (o "Apri qui un
+      terminale", a seconda del file manager).
+    </div>
+
+    <h3 class="subhead" id="install-git">1b. Clonare con Git, alternativa a 1a <span class="subtag">// consigliato se prevedi aggiornamenti frequenti</span></h3>
+    <p class="desc">
+      Se Git è installato sul computer, il repository può essere clonato
+      direttamente nel terminale — alternativa al download ZIP del punto
+      1a qui sopra, non un passaggio aggiuntivo dopo di esso.
+    </p>
+
+    <div class="callout">
+      <span class="label">Terminale</span>
+      <code>git clone https://github.com/orionriggers/Image-Sorter.git</code>
+    </div>
+
+    <p>
+      Dopo il download, entrare nella cartella del progetto:
+    </p>
+
+    <div class="callout">
+      <span class="label">Terminale</span>
+      <code>cd Image-Sorter</code>
+    </div>
+
+    <p>
+      Il metodo Git è particolarmente utile se il programma viene aggiornato
+      frequentemente, perché permette in seguito di recuperare le modifiche
+      pubblicate nel repository.
+    </p>
+
+    <h3 class="subhead" id="install-python">2. Preparare Python <span class="subtag">// ambiente di esecuzione</span></h3>
+    <p class="desc">
+      Serve Python 3.8 o successivo (già presente di serie sulla maggior
+      parte delle distribuzioni Linux recenti) e alcune librerie. Il modo
+      più semplice, dentro la cartella del progetto (quella con dentro
+      <code>image_sorter.py</code>), è lo script di installazione incluso:
+    </p>
+
+    <div class="callout">
+      <span class="label">Terminale</span>
+      <code>bash installa.sh</code>
+    </div>
+
+    <p>
+      Riconosce automaticamente la distribuzione (apt su Debian/Ubuntu/Mint,
+      dnf su Fedora, pacman su Arch, zypper su openSUSE) e installa tutto il
+      necessario: i pacchetti di sistema (tkinter, il supporto immagini di
+      Pillow, ffmpeg per l'anteprima video, poppler per i PDF, hidapi per lo
+      Stream Deck, xclip per il copia/incolla file), le librerie Python via
+      pip, <strong>l'icona, la voce nel menu applicazioni e un collegamento
+      sul Desktop</strong> (vedi il riquadro qui sotto), l'integrazione nel
+      menu tasto destro del file manager (Nemo, Thunar, Dolphin) e —
+      chiedendolo a video — il demone per tenere attivo lo Stream Deck
+      fisico anche a programma chiuso. Può essere rilanciato in qualunque
+      momento, anche dopo un aggiornamento, senza effetti collaterali.
+    </p>
+
+    <div class="callout">
+      <span class="label">Icona sul Desktop</span>
+      <code>bash installa.sh</code> crea da solo tutto il necessario per
+      avviare Image Sorter come un programma qualunque, senza terminale:
+      un'icona cliccabile sul Desktop (o "Scrivania", se la cartella si
+      chiama così nella lingua del sistema), e una voce nel menu
+      applicazioni del desktop environment, cercabile per nome come le
+      altre app installate. Se il file manager chiede la prima volta se
+      "fidarsi" dell'icona sul Desktop prima di eseguirla, è normale (alcuni
+      desktop environment lo richiedono per qualunque collegamento nuovo,
+      non solo per Image Sorter) — succede al massimo una volta.
+      <br><br>
+      Chi ha scelto <a href="#install-python-manual">l'installazione
+      manuale delle librerie</a> qui sotto non ottiene icona né voce nel
+      menu: per averle comunque, senza reinstallare nulla, basta lanciare
+      <code>bash installa.sh</code> in un secondo momento — le librerie già
+      presenti vengono riconosciute e saltate, si occupa solo di icona,
+      menu e collegamento.
+    </div>
+
+    <h3 class="subhead" id="install-python-manual">Installazione manuale delle librerie <span class="subtag">// alternativa a installa.sh</span></h3>
+    <p class="desc">
+      Se si preferisce non eseguire lo script (o si è su una distribuzione
+      non coperta), le librerie Python si installano con pip. L'unica
+      obbligatoria è Pillow — senza, il programma non parte proprio; tutte
+      le altre sono opzionali e disattivano solo la singola funzione
+      collegata se mancanti, il resto continua a funzionare.
+    </p>
+
+    <div class="callout">
+      <span class="label">Terminale</span>
+      <code>pip install Pillow --user</code>
+    </div>
+
+    <table class="shortcuts">
+      <tr><th>Libreria</th><th>Abilita</th></tr>
+      <tr><td><code>send2trash</code></td><td>Cestino di sistema (integrazione col cestino del desktop)</td></tr>
+      <tr><td><code>pymupdf</code></td><td>Supporto PDF</td></tr>
+      <tr><td><code>streamdeck</code></td><td>Stream Deck Elgato fisico</td></tr>
+      <tr><td><code>piexif</code></td><td>Editor EXIF</td></tr>
+      <tr><td><code>reverse-geocode</code></td><td>Geocoding GPS offline (nomi dei luoghi in Timeline)</td></tr>
+      <tr><td><code>folium</code></td><td>Mappa GPS interattiva</td></tr>
+      <tr><td><code>tkinterdnd2</code></td><td>Drag &amp; drop di cartelle sul tastierino/Deck</td></tr>
+      <tr><td><code>pillow-heif</code></td><td>Apertura file HEIC/HEIF (foto iPhone)</td></tr>
+      <tr><td><code>pillow-avif-plugin</code></td><td>Apertura file AVIF — non installata da <code>installa.sh</code>, va aggiunta a mano anche scegliendo lo script</td></tr>
+    </table>
+
+    <div class="callout">
+      <span class="label">Tutte insieme</span>
+      <code>pip install Pillow send2trash pymupdf streamdeck piexif reverse-geocode folium tkinterdnd2 pillow-heif pillow-avif-plugin --user</code>
+    </div>
+
+
+    <h3 class="subhead" id="install-start">3. Avviare Image Sorter <span class="subtag">// primo avvio</span></h3>
+    <p class="desc">
+      Una volta scaricato il progetto e predisposto l'ambiente Python, il
+      programma può essere avviato dal terminale eseguendo lo script principale
+      previsto dal progetto.
+    </p>
+
+    <div class="callout">
+      <span class="label">Esempio</span>
+      <code>python3 image_sorter.py</code>
+    </div>
+
+    <p>
+      Passandogli un percorso, si avvia aprendo direttamente quel file o,
+      con l'opzione <code>--browser</code>, quella cartella nel Browser
+      cartelle (Naviga) invece che nel visualizzatore:
+    </p>
+
+    <div class="callout">
+      <span class="label">Esempi</span>
+      <code>python3 image_sorter.py /percorso/immagine.jpg</code><br>
+      <code>python3 image_sorter.py --browser /percorso/cartella</code>
+    </div>
+
+
+    <h3 class="subhead" id="install-update">4. Aggiornare il programma <span class="subtag">// solo per chi ha scelto 1b</span></h3>
+    <p class="desc">
+      Se il progetto è stato installato tramite <span class="kbd">git clone</span>
+      (punto 1b), gli aggiornamenti possono essere recuperati dal repository con:
+    </p>
+
+    <div class="callout">
+      <span class="label">Terminale</span>
+      <code>git pull</code>
+    </div>
+
+    <p>
+      Prima di aggiornare è consigliabile chiudere Image Sorter e, se sono state
+      apportate modifiche locali ai file del progetto, verificare lo stato del
+      repository per evitare conflitti.
+    </p>
+
+    <p>
+      Chi ha scaricato lo ZIP (punto 1a) non ha un repository locale da cui
+      recuperare gli aggiornamenti: per aggiornare basta scaricare di nuovo
+      lo ZIP dalla stessa pagina GitHub ed estrarlo, sostituendo la cartella
+      precedente (oppure estraendolo altrove e rilanciando
+      <span class="kbd">installa.sh</span> dalla nuova cartella).
+    </p>
+
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Download ZIP</h3>
+        <p>Metodo semplice per ottenere una copia del progetto senza configurare Git.</p>
+      </div>
+      <div class="feature">
+        <h3>Git clone</h3>
+        <p>Metodo più adatto a chi desidera mantenere il progetto aggiornabile.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="visualizzatore">
+    <h2>Visualizzatore <span class="tag">// finestra principale</span></h2>
+
+
+
+
+    <p class="desc">La schermata che si apre all'avvio: mostra un file alla volta
+    (immagine, video o pagina PDF) con la barra degli strumenti in alto e i
+    preset di smistamento sulla destra.</p>
+    
+    <img src="visualizzatore.png" alt="Finestra principale del visualizzatore, con barra strumenti in alto e preset di smistamento sulla destra">
+
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Navigazione</h3>
+        <p>Frecce ← → per il file successivo/precedente, rotella del mouse,
+        ↑ ↓ per le pagine di un PDF multipagina.</p>
+      </div>
+      <div class="feature">
+        <h3>Zoom e adattamento</h3>
+        <p><span class="kbd">+</span> / <span class="kbd">-</span> per zoomare, <span class="kbd">Z</span> per adattare al canvas, <span class="kbd">X</span> per la dimensione
+        originale (1:1).</p>
+      </div>
+      <div class="feature">
+        <h3>Modifiche</h3>
+        <p>Rotazione non distruttiva, ridimensionamento e ritaglio interattivo con griglia dei terzi e blocco proporzioni, incluso il
+        rapporto esatto dell'originale, sempre con annullamento <span class="kbd">Ctrl+Z</span> e storico.</p>
+      </div>
+      <div class="feature">
+        <h3>Smistamento con un tasto</h3>
+        <p>Con SideBar o Deck aperti, anche i tasti <span class="kbd">1</span>-<span class="kbd">9</span> e 
+        <span class="kbd">0</span> spostano il file nel preset attivo (visibile a destra), 
+        mentre <span class="kbd">Ctrl+1–9/0</span> lo copia invece di spostarlo.</p>
+      </div>
+      <div class="feature">
+        <h3>Cestino con cronologia</h3>
+        <p><span class="kbd">Canc</span> due volte (o <span class="kbd">Canc+Invio</span>) per cestinare con conferma — sempre
+        annullabile dallo Storico via cartella personalizzabile temporanea: mai una cancellazione diretta.</p>
+      </div>
+      <div class="feature">
+        <h3>Overlay informativi</h3>
+        <p>Tasto Info Exif <span class="kbd">I</span> per i metadati EXIF (in basso a sinistra),
+        <span class="kbd">Ctrl</span>+<span class="kbd">F</span> per valutazione e colorlabel (in basso a destra) — sovrapposti
+        all'immagine, senza aprire altre finestre.</p>
+      </div>
+      <div class="feature">
+        <h3>Modalità Confronta</h3>
+        <p>Bottone "Confronta" (o tasto <span class="kbd">W</span>): affianca all'immagine centrale
+        due anteprime più piccole, precedente e successiva, che seguono la navigazione — solo
+        visive, utili per un rapido prima/dopo. Vedi la sezione dedicata più sotto.</p>
+      </div>
+      <div class="feature">
+        <h3>Tag testuali</h3>
+        <p>Ogni file può avere tag liberi oltre a stelle e colori — finestra dedicata con
+        <span class="kbd">Ctrl</span>+<span class="kbd">T</span>.</p>
+      </div>
+    </div>
+
+
+    <img src="main-menu-sx.png" alt="Barra strumenti principale, lato sinistro">
+    <p>
+    <img src="main-menu-dx.png" alt="Barra strumenti principale, lato destro">
+
+    <div class="callout">
+      <span class="label">Barra strumenti</span>
+
+      i pulsanti in alto danno accesso rapido alle Info EXIF, alla scelta di Valutazione/Flag, Tag,
+      dimensione Originale, Confronta, Naviga, Timeline, Storico e Impostazioni — le
+      stesse funzioni sono raggiungibili con comandi rapidi da tastiera.
+      <p> <strong>Sidebar</strong> apre la barra laterale, a rotazione accanto all'immagine, su
+     finestra separata, o la chiude; <strong>S-Deck</strong> passa da funzioni operative a preset,
+     se connesso fisicamente il Stream Deck, mentre <strong>Deck</strong> apre a rotazione una,
+     due o n. preset su finestra flottante.
+    </div>
+
+
+
+  </section>
+
+
+  <section id="operazioni">
+    <h2>Operazioni principali <span class="tag">// flusso di lavoro</span></h2>
+
+
+
+    <p class="desc">Image Sorter è pensato per un flusso rapido: apri una cartella sorgente, valuta un file alla volta, scegli la destinazione e passa immediatamente al successivo.</p>
+    <div class="feature-grid">
+      <div class="feature"><h3>① Aprire una sorgente</h3><p>Premi <span class="kbd">O</span> o usa <strong>Naviga</strong> per scegliere una cartella.</p></div>
+      <div class="feature"><h3>② Valutare</h3><p>Visualizza immagini, video e PDF; usa zoom, adattamento e informazioni. </p></div>
+      <div class="feature"><h3>③ Confronto rapido</h3><p>La funzione <strong>Confronta</strong> divide la schermata in 3 colonne, 
+per una più rapida verifica della sequenza di immagini simili.</p></div>
+      <div class="feature"><h3>④ Smistare</h3><p><span class="kbd">1–9</span> e <span class="kbd">0</span> spostano nel preset attivo.      
+         <br> <span class="kbd">Ctrl+numero</span> effettua una copia nel preset attivo.</p></div>
+      <div class="feature"><h3>  Continuare</h3><p>Dopo lo smistamento il programma prosegue sul file successivo.</p></div>
+    </div>
+    <h3 class="subhead">Apertura della sorgente <span class="subtag">// O</span></h3>
+    <p>Il comando <span class="kbd">O</span> apre il browser delle cartelle. Se il browser è già aperto, il comando lo porta in primo piano oppure lo chiude quando è già attivo. La selezione di una nuova sorgente ricostruisce l'elenco dei file e riparte dal primo elemento.</p>
+
+      <img src="browser_anteprime.png" alt="Browser cartelle con anteprime, aperto premendo O">
+
+    <h3 class="subhead">Smistamento rapido <span class="subtag">// numeri 1–9 e 0</span></h3>
+    <p>I numeri corrispondono ai preset di destinazione. Premendo il numero il file viene spostato nella destinazione 
+associata; con <span class="kbd">Ctrl</span>+numero viene copiato lasciando intatto l'originale. La funzione richiede Sidebar o Deck attivi.</p>  
+
+
+     <img src="sidebar_smistamento.png" alt="Sidebar con la griglia di smistamento rapido">
+   <img src="deck.png" alt="Finestra Deck flottante con la griglia di smistamento">
+
+    <h3 class="subhead">Annullare uno spostamento <span class="subtag">// Ctrl+←</span></h3>
+    <p><span class="kbd">Ctrl</span>+<span class="kbd">←</span> annulla l'ultimo spostamento e ripristina il file nella sorgente.</p>
+    <h3 class="subhead">Cestino sicuro <span class="subtag">// doppio Canc</span></h3>
+    <p>Con <span class="kbd">Canc</span> due volte, oppure <span class="kbd">Canc</span> + <span class="kbd">Invio</span>, il file viene spostato in una cartella di transito e non eliminato direttamente. Rimane recuperabile tramite lo storico finché il transito non viene svuotato.</p>
+
+
+
+   <img src="conferma_cestino.png" alt="Popup di conferma prima di spostare un file nel cestino di transito">
+
+    <p>Con <span class="kbd">Ctrl</span> + <span class="kbd">Canc</span>, viene cancellata l'immagine precedente a quella appena visualizzata, senza richiesta di conferma; la funzione non è attiva per la prima immagine di una cartella.</p>
+
+  </section>
+
+  <section id="navigazione-dettagliata">
+
+
+    <h2>Navigazione e visualizzazione <span class="tag">// controlli rapidi</span></h2>
+
+
+    <h3 class="subhead">File precedente e successivo <span class="subtag">// ← →</span></h3>
+    <p>Le frecce <span class="kbd">←</span> e <span class="kbd">→</span> percorrono la sequenza dei file. La navigazione è circolare.</p>
+
+
+    <h3 class="subhead">PDF multipagina <span class="subtag">// ↑ ↓ · M</span></h3>
+    <p>Su un PDF multipagina, <span class="kbd">↑</span> e <span class="kbd">↓</span> cambiano pagina senza cambiare file; <span class="kbd">M</span> mostra o nasconde la striscia di miniature delle pagine, con uno slider per saltare direttamente a una pagina specifica.</p>
+
+    <h3 class="subhead">Rotella del mouse <span class="subtag">// comportamento intelligente</span></h3>
+    <p>A zoom normale la rotella cambia file; quando l'immagine è ingrandita, la rotella scorre l'immagine. Questo evita avanzamenti accidentali mentre si osserva un dettaglio (funzione disattivata in <strong>Confronta</strong>).</p>
+
+    <h3 class="subhead">Zoom e pan <span class="subtag">// + − Z X</span></h3>
+    <p><span class="kbd">+</span> e <span class="kbd">−</span> modificano l'ingrandimento; <span class="kbd">Z</span> adatta al canvas; <span class="kbd">X</span> mostra l'immagine a 1:1. Con zoom superiore a 1 è possibile trascinare l'immagine. <span class="kbd">Ctrl</span>+rotella esegue lo zoom.</p>
+
+
+    <h3 class="subhead">Schermo intero <span class="subtag">// F · Invio · H</span></h3>
+    <p><span class="kbd">F</span> attiva lo schermo intero per le immagini; <span class="kbd">Invio</span> gestisce lo schermo intero per le immagini e il player esterno per video/PDF; <span class="kbd">H</span> mostra o nasconde la barra superiore.</p>
+
+    <h3 class="subhead">Confronta <span class="subtag">// W </span></h3>
+    <p><span class="kbd">W</span> divide la finestra principale in tre colonne, agevolando la comparazione tra 3 immagini contigue; è possibile ingrandire l'immagine nella colonna centrale con i tasti <span class="kbd">+</span> e <span class="kbd">−</span> oppure <span class="kbd">Ctrl</span>+rotella del mouse.</p>    
+    <p>Con <span class="kbd">Ctrl</span> + <span class="kbd">Canc</span>, viene cancellata l'immagine precedente, visualizzata nella colonna di sinistra, senza richiesta di conferma.</p>
+
+
+
+
+  </section>
+
+  <section id="modifica-file">
+    <h2>Modifica del file <span class="tag">// menu contestuale</span></h2>
+    <p class="desc">Il menu contestuale dell'immagine raccoglie le operazioni di modifica, apertura e gestione del file corrente.</p>
+    <div class="feature-grid">
+      <div class="feature"><h3>Ritaglia</h3><p>Apre l'overlay interattivo di ritaglio.</p></div>
+      <div class="feature"><h3>Ridimensiona</h3><p>Apre il pannello di gestione delle misure e proporzioni di ritaglio.</p></div>
+      <div class="feature"><h3>Rinomina</h3><p>Modifica il nome del file direttamente nell'interfaccia.</p></div>
+      <div class="feature"><h3>Ruota</h3><p>Ruota di 90° in senso orario o antiorario e salva l'immagine.</p></div>
+
+      <div class="feature"><h3>Modifica con..</h3><p>Permette di scegliere il programma di modifica predefinito, che da quel momento viene memorizzato.</p></div>
+
+      <div class="feature"><h3>Rating e ColorFlag</h3><p>Immediata visualizzazione e modifica di una valutazione o di un'etichetta colorata.</p></div>
+    </div>
+
+    <img src="menu_contestuale.png" alt="Menu contestuale del file, con le voci di modifica e apertura">
+
+
+    <h3 class="subhead">Ritaglio interattivo <span class="subtag">// Crop Overlay</span></h3>
+    <p>Il ritaglio avviene direttamente sull'immagine tramite una selezione interattiva. L'area viene mantenuta entro i limiti dell'originale e una selezione troppo piccola viene rifiutata.</p>
+    <p>Quando il crop sovrascrive l'originale viene creato un backup per consentire il recupero; se si salva con un nuovo nome l'originale resta intatto.</p>
+
+
+    <img src="crop_overlay.png" alt="Overlay interattivo di ritaglio, con griglia dei terzi e maniglie magnetiche">
+
+
+
+
+
+   <div class="feature-grid">
+    <div class="feature"><h3>Proporzioni</h3><p>Gestione delle proporzioni tra altezza e larghezza dell'immagine, libere o con valori preimpostati.</p></div> 
+    <div class="feature"><h3>Ricorda dimensioni</h3><p>Mantenimento delle dimensioni della zona di taglio tra una sessione e l'altra.</p></div> 
+    <div class="feature"><h3>Magnete</h3><p>Aggancio automatico della linea di ritaglio.</p></div>
+    <div class="feature"><h3>Ritaglia</h3><p>Per sovrascrivere o per rinominare il file, con finestra di conferma.</p></div> 
+    <div class="feature"><h3>Ritaglia e avanza</h3><p>Non viene richiesta conferma e si passa all'immagine successiva chiudendo la finestra di ritaglio.</p></div> 
+    <div class="feature"><h3>Ritaglia prossimo</h3><p>Non viene richiesta conferma e si passa all'immagine successiva con le stesse impostazioni di ritaglio attive.</p></div> 
+
+
+     <div class="callout"><span class="label">Magnete</span> Durante il ritaglio, avvicinando un handle a una linea guida (griglia dei terzi, bordo dell'immagine, centro) questo vi si aggancia automaticamente entro una piccola distanza di tolleranza, facilitando ritagli precisi e allineati senza necessità di posizionamento manuale millimetrico. Disattivabile per un controllo libero del ritaglio. Tenendo premuto <span class="kbd">Shift</span> mentre si trascina, si inverte la modalità attiva.</div>
+
+
+
+  </div>
+ 
+ </section>
+
+ 
+
+    
+  
+
+  <section id="naviga">
+    <h2>Naviga <span class="tag">// browser cartelle</span></h2>
+    <p class="desc">Una griglia di miniature per scorrere una cartella intera
+    a colpo d'occhio, con albero delle cartelle sulla sinistra e anteprima dell'immagine selezionata sulla destra. Si apre con
+    <span class="kbd">O</span> o <span class="kbd">B</span>, oppure dal
+    pulsante "Naviga" in barra.</p>
+
+  <p>Potenti strumenti di navigazione tra cartelle e file, filtro e ricerca, previsualizzazione, assegnazione di Label e Rating, anche a selezione multipla di immagini, invio diretto al Preset primario.</p>
+<p>Altre due importanti funzioni complementari sono raggiungibili da questa finestra: <strong>Analisi cartelle</strong> e <strong>Controllo doppioni</strong>.</p>
+
+
+    <img src="naviga_miniature.png" alt="Griglia miniature di Naviga, con albero cartelle a sinistra e anteprima a destra">
+    <p>
+    <img src="naviga_bottoni.png" alt="Barra dei pulsanti superiore di Naviga">
+
+
+    <div class="feature-grid">
+
+       <div class="feature">
+        <h3>Naviga tra le cartelle</h3>
+        <p>Consueti comandi di navigazione con possibilità di creare una nuova
+        cartella (<span class="kbd">Ctrl</span>+<span class="kbd">N</span>) e
+        raggiungere rapidamente le cartelle principali. Nella griglia
+        miniature, oltre alle frecce, <span class="kbd">PagSu</span>/<span class="kbd">PagGiù</span>
+        saltano una schermata alla volta e <span class="kbd">Home</span>/<span class="kbd">Fine</span>
+        vanno al primo/ultimo file.</p>
+      </div>
+          <div class="feature">
+        <h3>Preferiti []</h3>
+        <p>Memorizza fino a 3 cartelle preferite cliccando il bottone  <span class="kbd">[]</span> con
+        una cartella selezionata nell'albero della colonna a destra.</p>
+      </div>
+      <div class="feature">
+      <h3>Tre visualizzazioni diverse come miniature</h3>
+        <p>Griglia / Vista / Elenco cambia il tipo di visualizzazione sulla schermata centrale, a rotazione.</p>
+      </div>
+      <div class="feature">
+        <h3>Ordinamento e filtro</h3>
+        <p>Per nome, dimensione, data o data di scatto EXIF; filtro testuale
+        per nome file, più un filtro dedicato per Rating minimo e
+        ColorLabel.</p>
+      </div>
+      <div class="feature">
+        <h3>Selezione multipla</h3>
+        <p>Click, Ctrl+click, Shift+click per intervalli, Ctrl+A per tutto —
+        con operazioni batch su tutta la selezione.</p>
+      </div>
+      <div class="feature">
+        <h3>Checkbox Rating e Flag</h3>
+        <p>Nasconde/mostra la riga di stelle e ColorLabel sotto le miniature,
+        se si preferisce una griglia più pulita — la scelta è ricordata tra le
+        sessioni.</p>
+      </div>
+      <div class="feature">
+        <h3>Copia, taglia e incolla</h3>
+        <p><span class="kbd">Ctrl</span>+<span class="kbd">C</span>/<span class="kbd">X</span>/<span class="kbd">V</span>
+        si comportano come in un vero file manager: incollare una copia
+        nella stessa cartella crea un nuovo file invece di non fare nulla,
+        e tagliare+incollare nella stessa cartella non ha effetto.</p>
+      </div>
+      <div class="feature">
+        <h3>Colore cartella</h3>
+        <p>Tasto destro su una cartella nell'albero o nella griglia → voce
+        "Colore": gli stessi 5 colori delle ColorLabel dei file, come
+        quadrati affiancati, applicabili e rimovibili per singola cartella.
+        Il colore compare come bordo e testo colorato nella griglia icone,
+        come testo colorato in vista lista e come colore del nodo
+        nell'albero — la privacy ha sempre la precedenza visiva.</p>
+      </div>
+
+    </div>
+
+
+
+
+    <h3 class="subhead" id="pie">Analizza cartelle <span class="subtag">// un grafico racconta più di tanti numeri</span></h3>
+    <p class="desc">Gli spicchi indicano la dimensione relativa del contenuto delle varie cartelle: si individuano 
+    immediatamente le cartelle più ingombranti.</p>
+    
+
+    <img src="analizza_cartelle.png" alt="Grafico a torta delle dimensioni delle cartelle">
+     <div class="callout"><span class="label">Tasto destro</span> su uno spicchio permette di raggiungere rapidamente
+    la cartella indicata.</div>
+
+
+
+
+    <h3 class="subhead" id="dup">Controllo doppioni <span class="subtag">// ricerca duplicati</span></h3>
+    <p class="desc">Tre interfacce per una ricerca di file duplicati: la più precisa con controllo esatto
+    SHA256, quella più rapida con confronto diretto tra nome e dimensioni, e un riepilogo che
+    ragiona per cartelle invece che per singolo file.</p>
+
+    <!-- TODO screenshot: da rifare — questa immagine (v1.38.7) precede lo
+         spostamento del pulsante "Ordina" (v1.43.7) e non riflette la UI
+         attuale; ricatturare insieme a doppioni_rapida.png/doppioni_ab.png. -->
+    <img src="doppioni_sha.png" alt="Scheda Contenuto (SHA256) di Cerca doppioni, con l'elenco dei file identici trovati">
+    <br>
+    <img src="doppioni_rapida.png" alt="Scheda Rapida (nome+dimensione) di Cerca doppioni">
+
+     <div class="callout"><span class="label">Ricerca a confronto A-B</span> Due cartelle da analizzare in parallelo.</div>
+
+
+    <img src="doppioni_ab.png" alt="Scheda Confronta A vs B di Cerca doppioni, con due cartelle messe a confronto">
+
+    <h3 class="subhead" id="dup-riepilogo">Riepilogo cartelle <span class="subtag">// doppioni ragionati per cartella</span></h3>
+    <p class="desc">Un quarto tab che riassume i doppioni trovati a livello di
+    cartella invece che di singolo file: cartelle con più doppioni al loro
+    interno, cartelle con contenuto quasi identico, cartelle interamente
+    duplicate altrove e cartelle con lo stesso nome in punti diversi
+    dell'albero.</p>
+    <p>Quando un'intera sottostruttura di cartelle (una cartella con tutte le
+    sue sottocartelle) è duplicata altrove, viene segnalata come un unico
+    blocco con una frase discorsiva — ad esempio "Foto (+8 sottocartelle) è
+    quasi identica a Backup/Foto — 94% di somiglianza media, 2.1 GB
+    recuperabili" — ordinato per spazio recuperabile, con dettaglio
+    apribile per blocco. Dal menu tasto destro su un blocco: "Tieni un lato,
+    cestina l'altro".</p>
+    <!-- TODO screenshot: manca del tutto — nessuna immagine esistente mostra
+         questo tab, introdotto dopo tutti gli screenshot attuali di
+         Cerca doppioni. -->
+
+
+  </section>
+
+  <section id="timeline">
+    <h2>Timeline <span class="tag">// vista cronologica + mappa GPS</span></h2>
+    <p class="desc">Scansiona ricorsivamente una o più cartelle e organizza i
+    file per data, con filtri per anno, luogo, cartella, valutazione e
+    colore. Si apre con <span class="kbd">T</span>.</p>
+
+
+    <img src="timeline.png" alt="Vista a griglia di Timeline, con i file raggruppati per mese e la barra laterale dei filtri">
+
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Scansione ricorsiva</h3>
+        <p>Aggiungi una o più cartelle sorgente e premi "Scansiona" — profondità
+        di ricerca configurabile, illimitata di default.</p>
+      </div>
+      <div class="feature">
+        <h3>Mappa GPS</h3>
+        <p>Apre una mappa interattiva con tutti i file che hanno coordinate
+        GPS nell'EXIF, per rivedere un viaggio per luogo invece che per data.</p>
+      </div>
+      <div class="feature">
+        <h3>Filtri nella barra laterale</h3>
+        <p>Per anno, cartella, valutazione e colore — con conteggi live per
+        ciascuna voce, click per filtrare la vista.</p>
+      </div>
+      <div class="feature">
+        <h3>Due dimensioni miniatura</h3>
+        <p>1x / 2x — a differenza di Naviga, qui c'è più spazio orizzontale
+        disponibile, quindi stelle e pallini sono proporzionalmente più
+        grandi.</p>
+      </div>
+      <div class="feature">
+        <h3>Preset, Rating e Tag</h3>
+        <p>Come in Naviga, con i rispettivi checkbox si possono visualizzare in fondo alla finestra la riga con i
+        preset di destinazione e una con i tag esistenti, per applicarli alla selezione corrente.</p>
+      </div>
+      <div class="feature">
+        <h3>Pannello anteprima</h3>
+        <p>Con l'anteprima ingrandita aperta sulla destra, sotto l'immagine
+        compare una riga con stelle, nome del file e ColorLabel — come in
+        Naviga, si aggiorna a ogni cambio di selezione.</p>
+      </div>
+    </div>
+  </section>
+
+
+<section id="cronologia">
+    <h2>Storico e recupero <span class="tag">// operazioni sicure</span></h2>
+    <p>Lo storico conserva le operazioni recenti e viene utilizzato per rendere recuperabili gli spostamenti e le operazioni verso il cestino di transito.</p>
+   
+
+    <img src="storico.png" alt="Finestra Storico con l'elenco delle operazioni recenti e recuperabili">
+ <div class="callout"><span class="label">Cestino di transito</span> I file eliminati non vengono cancellati direttamente: restano in una cartella di transito fino alla conferma di svuotamento.</div>
+
+
+  </section>
+
+  <section id="impostazioni">
+    <h2>Impostazioni <span class="tag">// sette schede</span></h2>
+    <p class="desc">Il pannello di configurazione centrale, organizzato in sette
+    schede lungo la parte alta della finestra. Si apre con
+    <span class="kbd">R</span>, e ricorda l'ultima scheda aperta.</p>
+
+    <h3 class="subhead" id="imp-preset">Preset <span class="subtag">// elenco e gestione</span></h3>
+    <p class="desc">Il cuore dell'applicazione è nell'elenco dei preset configurati:
+    gruppi completi di dieci destinazioni, uno per ciascun tasto <span class="kbd">0</span>-<span class="kbd">9</span>. 
+    Da qui si creano nuovi preset, con possibilità di copia, rinomina o elimina, 
+    e si sceglie quale sia quello primario attivo (segnato con *).
+    In fondo, le opzioni di aspetto per il pannello Deck
+    (numero di colonne) e per la Sidebar (preset assegnato, modalità
+    fissa/finestra, aspetto griglia/elenco).</p>
+    
+
+
+    <img src="impostazioni_preset.png" alt="Scheda Preset di Impostazioni, con l'elenco dei preset configurati">
+
+
+    <h3 class="subhead" id="imp-dest">Destinazioni <span class="subtag">// cartelle per tasto</span></h3>
+    <p class="desc">Qui si assegna una cartella e un'etichetta a ciascuno dei
+    dieci tasti (0-9) del preset selezionato in alto. Per ogni tasto: un
+    campo nome, un campo percorso (di sola lettura finché non si sceglie
+    "percorso libero"), e un pulsante per sfogliare le cartelle del disco.</p>
+    
+
+    <img src="impostazioni_destinazioni.png" alt="Scheda Destinazioni di Impostazioni, con cartella ed etichetta per ciascun tasto">
+
+
+    <div class="callout">
+      <span class="label">Drag &amp; drop</span>
+      si può trascinare una cartella direttamente da un file manager esterno
+      (Nemo, Nautilus, Thunar...) sopra il badge colorato o il campo nome di
+      un tasto, per assegnarla come destinazione senza aprire il selettore —
+      l'etichetta si compila da sola dal nome della cartella se il campo era
+      vuoto. Richiede il pacchetto opzionale <code>tkinterdnd2</code>;
+      se non è installato, resta comunque disponibile il pulsante "Sfoglia".
+    </div>
+
+    <img src="percorsi_duplicati.png" alt="Campo percorso evidenziato in rosso quando due tasti puntano alla stessa cartella">
+
+    <div class="callout warn">
+      <span class="label">Percorsi duplicati</span>
+      se due tasti dello stesso preset puntano alla stessa cartella, il campo
+      percorso si colora di rosso e appare un avviso in alto — utile per
+      accorgersi subito di una svista.
+    </div>
+
+
+
+
+
+
+    <h3 class="subhead" id="imp-view">Visualizza <span class="subtag">// quali file mostrare</span></h3>
+    <p class="desc">Interruttori ON/OFF per includere o escludere immagini,
+    video, PDF e file senza estensione (rilevati tramite magic bytes) dalla
+    navigazione. In fondo, un campo per aggiungere estensioni personalizzate
+    da includere (es. <code>.heic, .arw, .cr2, .dng</code>), separate da
+    virgola. Le modifiche si applicano al successivo caricamento cartella.</p>
+
+
+
+    <img src="impostazioni_visualizza.png" alt="Scheda Visualizza di Impostazioni, con gli interruttori per tipo di file">
+
+    <h3 class="subhead" id="imp-tags">Tag <span class="subtag">// gestione tag e Gruppi Tag</span></h3>
+    <p class="desc">Due colonne affiancate. A sinistra, la colonna <strong>Tag</strong>:
+    crea, rinomina o elimina un tag dal registro della libreria — un tag può
+    ora esistere anche prima di essere applicato a un file, non più solo
+    "scoperto" usandolo. A destra, <strong>Gruppi Tag</strong>: crea, rinomina
+    o elimina un gruppo, e una nuvola per aggiungere o togliere tag
+    dall'appartenenza al gruppo selezionato — puramente organizzativi, usati
+    come scorciatoia nel filtro di Naviga (un click aggiunge tutti i tag del
+    gruppo al filtro). In fondo, la scelta preferita per visualizzare l'ordinamento della nuvola tag (alfabetico,
+    uso recente, o frequenza).</p>
+
+    <img src="impostazioni_tag.png" alt="Scheda Tag di Impostazioni, con le colonne Tag e Gruppi Tag">
+
+    <h3 class="subhead" id="imp-keys">Tasti <span class="subtag">// riferimento scorciatoie</span></h3>
+    <p class="desc">Un elenco scorrevole, in sola lettura, di tutte le
+    scorciatoie da tastiera disponibili, raggruppate per categoria — la
+    stessa tabella riportata in fondo a questo manuale, ma consultabile
+    dentro il programma senza doverlo lasciare.</p>
+   
+
+
+    <!-- TODO screenshot: da rifare — questa immagine (v1.43.4) mostra sia il
+         testo delle scorciatoie lunghe troncato sia la scrollbar staccata
+         dal bordo destro, entrambi corretti nel codice da allora. -->
+    <img src="impostazioni_keys.png" alt="Scheda Tasti di Impostazioni, con l'elenco delle scorciatoie">
+
+
+
+    <h3 class="subhead" id="imp-deck-tab">Stream Deck <span class="subtag">// dispositivo fisico</span></h3>
+    <p class="desc">In cima alla scheda, un interruttore <strong>ON/OFF</strong>
+    disattiva del tutto lo Stream Deck fisico — utile per usare un altro
+    programma con lo stesso dispositivo: da disattivato, né il programma né
+    il demone in autostart toccano più l'hardware. L'effetto è immediato,
+    senza bisogno di riavviare.</p>
+    <p class="desc">Sotto, la configurazione del dispositivo, se collegato:
+    stato di connessione, modello e numero di tasti rilevati, luminosità. La
+    parte centrale gestisce le pagine della modalità idle —
+    schede "Pag.1", "Pag.2" ecc. (si aggiungono col pulsante "+ Pag.", e
+    spariscono da sole se restano vuote), una griglia che rispecchia la
+    disposizione fisica dei tasti, e un editor per assegnare un'azione a
+    ciascun tasto selezionato (apri cartella/app/URL, scorciatoia da
+    tastiera, muto/smuto, testo, cambio pagina, uno dei comandi diretti).</p>
+
+
+    <!-- TODO screenshot: da rifare — l'immagine attuale (v1.38.7) precede
+         di molto l'interruttore ON/OFF e mostra solo l'editor di un singolo
+         tasto; serve una cattura della scheda generale aggiornata. -->
+    <img src="impostazioni_deck.png" alt="Scheda Stream Deck di Impostazioni, editor di un tasto">
+
+
+
+
+    <h3 class="subhead" id="imp-info">Info <span class="subtag">// lingua e informazioni</span></h3>
+    <p class="desc">Selettore della lingua dell'interfaccia (riapre
+    automaticamente le Impostazioni tradotte dopo il cambio), il logo del
+    programma, e le informazioni di versione/licenza.</p>
+    
+
+    <img src="impostazioni_info.png" alt="Scheda Info di Impostazioni, con selettore lingua e informazioni di versione">
+
+  <div class="callout">
+      <span class="label">Privacy</span>
+    permette di selezionare cartelle che non verranno visualizzate o analizzate nella finestra di navigazione
+    e in Timeline; inoltre ogni operazione relativa alle cartelle inserite nell'elenco non verrà memorizzata
+    nello storico e quindi non è annullabile. 
+    <p>Le cartelle inserite nell'elenco "privacy" vengono segnalate bordate di rosso in Naviga e in Analisi 
+    cartelle, e ogni finestra con immagini provenienti da quelle cartelle viene bordata di rosso.</p>
+    </div>
+
+
+  </section>
+
+  <section id="deck-window">
+    <h2>Finestra Deck <span class="tag">// tastierino a schermo</span></h2>
+    <p class="desc">Il nostro migliore strumento di gestione dei preset: un
+    tastierino flottante, sempre in primo piano e ridimensionabile, che
+    riproduce a schermo — cliccabile col mouse — la stessa griglia di
+    smistamento della sidebar.
+    Si apre con <span class="kbd">D</span> o <span class="kbd">P</span>, o dal pulsante
+    "Deck" in barra. Utile su un secondo monitor, o quando si preferisce il
+    mouse alla tastiera.
+    Le destinazioni salvate ma non raggiungibili (disco o cartella assente) sono indicate dallo sfondo grigio.</p>
+
+
+
+    <img src="deck.png" alt="Finestra Deck flottante con più preset affiancati">
+
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Fino a 7 preset insieme</h3>
+        <p>Ogni colonna mostra un preset diverso, scelto dal menu a tendina
+        in cima: comodo per smistare verso più gruppi di destinazioni senza
+        cambiare preset attivo di continuo.</p>
+      </div>
+      <div class="feature">
+        <h3>Drag &amp; drop cartelle</h3>
+        <p>Come nella scheda Destinazioni, si può trascinare una cartella da
+        un file manager esterno direttamente su un tasto per assegnarla come
+        destinazione — immediato, senza passare da Impostazioni.</p>
+      </div>
+      <div class="feature">
+        <h3>Bottoni touch</h3>
+        <p>Questo pannello di controllo è ottimizzato per la rapida gestione e 
+        individuazione dei tasti destinazione, usare uno schermo touch è la soluzione migliore!</p>
+      </div>
+    </div>
+
+
+
+    <div class="callout">
+      <span class="label">Riordinare le destinazioni dei preset:</span>
+      trascinando un tasto sopra un altro (anche in una colonna/preset
+      diverso) le due destinazioni si scambiano: etichetta e percorso
+      cambiano posto, mentre numero e colore del tasto restano dove sono. È
+      il modo più rapido per riordinare le cartelle di un preset, o per
+      spostarne una da un preset all'altro, senza doverla ridigitare in
+      Impostazioni.
+    </div>
+  </section>
+
+
+
+  <section id="rating">
+    <h2>Valutazioni e ColorLabel </h2>
+    <p class="desc">Ogni file — foto, video o PDF — può avere una valutazione
+    da 0 a 5 stelle e una o più etichette colorate, non escludenti tra loro.</p>
+
+    <div class="colorlabel-strip">
+      <span style="background:var(--red)"></span>
+      <span style="background:var(--yellow)"></span>
+      <span style="background:var(--green)"></span>
+      <span style="background:var(--blue)"></span>
+      <span style="background:var(--purple)"></span>
+    </div>
+
+    <p style="color:var(--muted); max-width:680px;">Visibili e modificabili
+    ovunque abbia senso: sotto ogni miniatura in Naviga e Timeline, nel
+    pannello anteprima ingrandita, dal menu tasto destro, e da un overlay
+    dedicato sull'immagine principale (<span class="kbd">Ctrl</span>+<span class="kbd">F</span>).
+    Ogni cambiamento si riflette subito ovunque, senza bisogno di
+    ricaricare.</p>
+
+    <img src="naviga_griglia_rating.png" alt="Griglia miniature con stelle e ColorLabel visibili sotto ogni file">
+
+    <div class="callout">
+      <span class="label">Filtrare per valutazione</span>
+      in Naviga, il pulsante "Filtro *" accanto ai controlli di
+      ordinamento apre una selezione di valutazione minima e colori; in
+      Timeline, la barra laterale mostra sezioni dedicate con conteggi.
+    </div>
+  </section>
+
+
+
+  <section id="tag">
+    <h2>Tag <span class="tag">// tag testuali liberi e Gruppi Tag</span></h2>
+    <p class="desc">Oltre a Rating e ColorLabel, ogni file può avere quanti
+    tag testuali liberi si vuole — parole chiave proprie, non un elenco
+    predefinito.</p>
+
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Finestra Tag <span class="kbd">Ctrl</span>+<span class="kbd">T</span></h3>
+        <p>Nuvola di tag esistenti, filtrabile digitando; un tag nuovo si
+        crea con Invio. Segue la navigazione del file corrente (frecce,
+        pulsanti barra strumenti...) e funziona a interruttore: click per
+        aggiungere o togliere il tag dal file mostrato.</p>
+      </div>
+      <div class="feature">
+        <h3>Selezione multipla</h3>
+        <p>Dal menu tasto destro, voce "Tag...": un tag è evidenziato solo
+        se presente su TUTTI i file selezionati; il click applica o
+        rimuove con lo stesso principio "tutti-o-nessuno" già usato per
+        stelle e colori.</p>
+      </div>
+      <div class="feature">
+        <h3>Riga cliccabile</h3>
+        <p>Sotto la griglia, sia in Naviga che in Timeline: applica un tag
+        alla selezione corrente senza aprire la finestra dedicata —
+        checkbox "Tag" per nasconderla.</p>
+      </div>
+      <div class="feature">
+        <h3>Gruppi Tag</h3>
+        <p>Raggruppa tag correlati (scheda Impostazioni &gt; Tag, vedi
+        sopra) — per ora servono soprattutto come scorciatoia nel filtro
+        di Naviga: un click aggiunge tutti i tag del gruppo in un
+        colpo.</p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <span class="label">Filtro tag in Naviga</span>
+      il pulsante "Filtro *" mostra tutti i tag della libreria (non solo
+      quelli digitati), i Gruppi Tag come scorciatoia, e usa la logica
+      "basta uno" (tags_any) fra i tag scelti. Il filtro per tag esiste
+      solo in Naviga — in Timeline la riga tag in basso serve per applicarli, non
+      per filtrare la vista.
+    </div>
+  </section>
+
+
+
+  <section id="confronta">
+    <h2>Modalità Confronta <span class="tag">// precedente/successivo affiancati</span></h2>
+    <p class="desc">Bottone "Confronta" nel visualizzatore, accanto a
+    "Schermo intero" (o tasto <span class="kbd">W</span>): affianca al
+    canvas principale due anteprime più piccole — il file precedente a
+    sinistra, il successivo a destra — che seguono la navigazione da sole,
+    senza dover tornare indietro per un rapido prima/dopo. 
+   <br>Il tasto <span class="kbd">Canc</span> elimina l'immagine centrale chiedendo conferma,
+    la combinazione <span class="kbd">Ctrl</span>+<span class="kbd">Canc</span> invece
+    cestina il file della colonna di sinistra, senza chiedere conferma.</p>
+
+    <img src="confronta_mode.png" alt="Modalità Confronta a tre colonne, con le anteprime precedente e successiva ai lati">
+
+    <div class="callout">
+      <span class="label">Solo visive</span>
+      le due anteprime laterali non hanno menu tasto destro né comandi
+      propri: servono solo a vedere cosa c'è prima e dopo senza spostarsi
+      dal file corrente. Ogni comando (rotazione, ritaglio, smistamento...)
+      continua ad agire solo sull'immagine centrale.
+    </div>
+  </section>
+
+  <section id="deck">
+    <h2>Stream Deck fisico <span class="tag">// controllo hardware opzionale</span></h2>
+    <p class="desc">Supporto per qualunque modello Elgato Stream Deck, in due
+    modalità (configurabili dalla scheda "Stream Deck" di Impostazioni, vedi
+    sopra).</p>
+
+    <div class="feature-grid">
+      <div class="feature">
+        <h3>Modalità preset</h3>
+        <p>I tasti fisici rispecchiano il preset attivo del software: stessi
+        numeri 0-9, stessi colori, smistamento diretto dal dispositivo.</p>
+      </div>
+      <div class="feature">
+        <h3>Modalità idle</h3>
+        <p>Pagine configurabili con azioni libere per tasto: apri cartella,
+        applicazione, URL, scorciatoia da tastiera, muto/smuto, testo.</p>
+      </div>
+      <div class="feature">
+        <h3>Oltre 30 comandi diretti</h3>
+        <p>Ruota, elimina, zoom, invia a un editor esterno e altri — ciascuno
+        assegnabile a un tasto con icona personalizzabile.</p>
+      </div>
+      <div class="feature">
+        <h3>Pulsanti reattivi "Rating/Flag"</h3>
+        <p>Una riga di 5 colorlabel e una di 5 stelle, accese o spente in base 
+        al file attualmente aperto — click per applicare o togliere.</p>
+      </div>
+      <div class="feature">
+        <h3>Demone in background</h3>
+        <p>Tiene il deck fisico attivo anche a programma chiuso, cedendo il
+        controllo automaticamente quando Image Sorter si apre.</p>
+      </div>
+      <div class="feature">
+        <h3>Interruttore ON/OFF</h3>
+        <p>Da Impostazioni &gt; Stream Deck: disattivandolo, né il programma
+        né il demone in autostart toccano più il dispositivo fisico — utile
+        per usare un altro software con lo stesso Stream Deck. Effetto
+        immediato, senza riavviare.</p>
+      </div>
+    </div>
+  </section>
+
+
+
+  <section id="scorciatoie">
+    <h2>Scorciatoie da tastiera <span class="tag">// riferimento rapido</span></h2>
+    <p class="desc">Lo stesso elenco, sempre aggiornato, è consultabile anche
+    dentro il programma nella scheda <a href="#imp-keys">Impostazioni &gt; Tasti</a>.</p>
+
+    <table class="shortcuts">
+      <tr><th colspan="2">Navigazione</th></tr>
+      <tr><td><span class="kbd">→</span> / <span class="kbd">←</span></td><td>File successivo / precedente</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">←</span> o <span class="kbd">Ctrl</span>+<span class="kbd">X</span></td><td>Annulla ultimo spostamento</td></tr>
+      <tr><td><span class="kbd">PagSu</span> / <span class="kbd">PagGiù</span></td><td>Preset precedente / successivo</td></tr>
+      <tr><td><span class="kbd">Tab</span> o <span class="kbd">N</span></td><td>Preset successivo</td></tr>
+      <tr><td><span class="kbd">Shift</span>+<span class="kbd">Tab</span></td><td>Preset precedente</td></tr>
+      <tr><td>Rotella mouse</td><td>Naviga file (scorre l'immagine se zoom &gt; 1)</td></tr>
+
+      <tr><th colspan="2">Smistamento</th></tr>
+      <tr><td><span class="kbd">1</span>–<span class="kbd">9</span>, <span class="kbd">0</span></td><td>Sposta nel preset attivo</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">1</span>–<span class="kbd">9</span>/<span class="kbd">0</span></td><td>Copia nel preset attivo</td></tr>
+      <tr><td><span class="kbd">Canc</span> ×2</td><td>Cestina il file</td></tr>
+      <tr><td><span class="kbd">Canc</span>+<span class="kbd">Invio</span> (anche tastierino)</td><td>Cestina (conferma alternativa)</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">Canc</span></td><td>Cestina il file precedente, senza spostarsi</td></tr>
+
+      <tr><th colspan="2">Zoom e visualizzazione</th></tr>
+      <tr><td><span class="kbd">+</span> / <span class="kbd">-</span></td><td>Zoom in / out</td></tr>
+      <tr><td><span class="kbd">Z</span></td><td>Adatta al canvas (fit)</td></tr>
+      <tr><td><span class="kbd">X</span></td><td>Dimensione originale (1:1)</td></tr>
+      <tr><td><span class="kbd">F</span> o <span class="kbd">Invio</span> (anche tastierino)</td><td>Schermo intero / Player</td></tr>
+      <tr><td><span class="kbd">H</span></td><td>Mostra / nascondi intestazione</td></tr>
+      <tr><td><span class="kbd">I</span></td><td>Overlay info EXIF</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">F</span></td><td>Overlay valutazione (stelle e colorlabel)</td></tr>
+      <tr><td><span class="kbd">W</span></td><td>Modalità Confronta (anteprime precedente/successiva)</td></tr>
+
+      <tr><th colspan="2">Pannelli e finestre</th></tr>
+      <tr><td><span class="kbd">O</span> o <span class="kbd">B</span></td><td>Browser cartelle (Naviga)</td></tr>
+      <tr><td><span class="kbd">T</span></td><td>Timeline</td></tr>
+      <tr><td><span class="kbd">S</span></td><td>Sidebar (inline / finestra / nascosta)</td></tr>
+      <tr><td><span class="kbd">D</span> / <span class="kbd">P</span></td><td>Finestra Deck: 1 col &gt; 2 col &gt; N col &gt; chiude</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">D</span></td><td>Stream Deck fisico: attiva/disattiva modalità preset</td></tr>
+      <tr><td><span class="kbd">R</span></td><td>Impostazioni</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">R</span></td><td>Rinomina file corrente</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">T</span></td><td>Apre la finestra Tag sul file corrente</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">H</span></td><td>Apre lo Storico operazioni</td></tr>
+      <tr><td><span class="kbd">Esc</span></td><td>Chiudi finestra aperta / esci</td></tr>
+      <tr><td><span class="kbd">Q</span></td><td>Esci</td></tr>
+
+      <tr><th colspan="2">Modifica immagine</th></tr>
+      <tr><td><span class="kbd">C</span></td><td>Ruota 90° orario</td></tr>
+      <tr><td><span class="kbd">A</span></td><td>Ruota 90° antiorario</td></tr>
+      <tr><td><span class="kbd">K</span></td><td>Ritaglia</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">Z</span></td><td>Annulla ultimo crop</td></tr>
+
+      <tr><th colspan="2">PDF multipagina</th></tr>
+      <tr><td><span class="kbd">↑</span> / <span class="kbd">↓</span></td><td>Pagina precedente / successiva</td></tr>
+      <tr><td><span class="kbd">M</span></td><td>Mostra/nascondi miniature pagine</td></tr>
+
+      <tr><th colspan="2">Browser cartelle (Naviga)</th></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">N</span></td><td>Crea nuova sottocartella nella cartella aperta</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">A</span></td><td>Seleziona tutti i file</td></tr>
+      <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">C</span>/<span class="kbd">X</span>/<span class="kbd">V</span></td><td>Copia / Taglia / Incolla</td></tr>
+      <tr><td><span class="kbd">PagSu</span> / <span class="kbd">PagGiù</span></td><td>Griglia miniature: salta una schermata avanti/indietro</td></tr>
+      <tr><td><span class="kbd">Home</span> / <span class="kbd">Fine</span></td><td>Griglia miniature: primo / ultimo file</td></tr>
+      <tr><td>Tasti <span class="kbd">1</span>–<span class="kbd">9</span> (con selezione attiva)</td><td>Sposta i file selezionati nel preset corrispondente</td></tr>
+    </table>
+  </section>
+
+
+</main>
+</div>
+
+<footer>
+  Image Sorter v1.45.x — Manuale con sezione installazione.
+  Creative Commons Attribution (CC BY) — Carlo Porrone, 2026.
+</footer>
+
+</body>
+</html>

@@ -20622,7 +20622,7 @@ class SettingsDialog:
                   bg=ACCENT_COLOR, fg=TEXT_COLOR,
                   relief="flat", padx=8,
                   command=lambda: subprocess.Popen(
-                      ["xdg-open", "https://www.orionriggers.com/image_sorter/"],
+                      ["xdg-open", "https://orionriggers.github.io/Image-Sorter/"],
                       stdout=subprocess.DEVNULL,
                       stderr=subprocess.DEVNULL)
                   ).pack(side="left", padx=4, ipady=2)
