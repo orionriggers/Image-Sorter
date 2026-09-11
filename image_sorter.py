@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.45.17"
+VERSION = "1.45.18"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -20699,7 +20699,7 @@ class SettingsDialog:
             with open(path, "w", encoding="utf-8") as f:
                 _json.dump(data, f, indent=2, ensure_ascii=False)
             self.sorter._show_toast(
-                _Tf("cfg_export_ok", lang, path=os.path.basename(path)),
+                T("cfg_export_ok", lang, path=os.path.basename(path)),
                 duration=3000)
         except Exception as ex:
             self.sorter._hud_alert(T(key,lang), str(ex), parent=self.win)
@@ -20733,7 +20733,7 @@ class SettingsDialog:
             self.sorter._show_toast(T("cfg_import_ok", lang), duration=4000)
         except Exception as ex:
             self.sorter._hud_alert(T(key,lang),
-                _Tf("cfg_import_err", lang, msg=str(ex)[:80]),
+                T("cfg_import_err", lang, msg=str(ex)[:80]),
                 parent=self.win)
 
     def _apply_dest(self):
