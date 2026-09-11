@@ -1,8 +1,8 @@
-IMAGE SORTER v1.45
+IMAGE SORTER v1.46
 ==================
 A program to manage, view, and sort images, videos, and PDFs.
 
-Version         : 1.45
+Version         : 1.46
 Language        : Python 3.8+
 Interface       : tkinter + Pillow
 Platform        : Linux (tested on Linux Mint / Ubuntu)
@@ -42,12 +42,12 @@ LAUNCH
 
 PROGRAM FILES
 -------------
-  image_sorter.py    main program                   v1.45.10
-  disk_analyzer.py   disk usage analyzer            v1.45.0
-  timeline.py        timeline and GPS map           v1.45.0
-  exif_editor.py     EXIF metadata editor           v1.45.0
-  translations.py    IT/EN strings                  v1.45.0
-  installa.sh        installation script            v1.36.3
+  image_sorter.py    main program                   v1.46.0
+  disk_analyzer.py   disk usage analyzer            v1.46.0
+  timeline.py        timeline and GPS map           v1.46.0
+  exif_editor.py     EXIF metadata editor           v1.46.0
+  translations.py    IT/EN strings                  v1.46.0
+  installa.sh        installation script            v1.36.4
 
 MAIN SHORTCUTS
 --------------
@@ -941,3 +941,30 @@ row), reported right away by Carlo after real-world use:
     window (200x200, gray) for a fraction of a second - now it only
     becomes visible once fully built, as the Browser and Timeline
     already did
+
+WHAT'S NEW v1.45 -> v1.46
+-------------------------
+  - Image formats: installa.sh now automatically installs the AVIF plugin
+    (pillow-avif-plugin, already in place for HEIC/HEIF) - no longer
+    needs to be installed by hand to open .avif photos
+  - Translations: removed 178 dead keys from translations.py (verified
+    with a targeted grep on T()/_Tf() calls, an AST diff, and a
+    functional test - none of the removed keys were actually in use).
+    Also fixed two bugs in the settings export/import toasts that called
+    _Tf (%s placeholders) instead of T (keys using .format(**kw)) for
+    cfg_export_ok/cfg_import_err
+  - Manual: moved from an external domain to GitHub Pages
+    (orionriggers.github.io/Image-Sorter), served from the repository's
+    docs/ folder; the "Open Manual" button in Settings > Info now points
+    to the new address
+  - Escape key: with a warning/dialog/popup window open on top of the
+    main window, Esc used to close the whole program instead of just
+    that window - cause: many popups never get real keyboard focus
+    under a real window manager (it doesn't hand it over on its own to a
+    freshly opened window), so their local Escape binding never fired.
+    The search for which popup to close now walks recursively through
+    the entire window tree (not just the main window's direct children),
+    covering popups nested inside another window too (e.g. a
+    confirmation dialog inside Timeline/EXIF editor/Disk analyzer); also
+    covers the "press DEL again" warning (drawn on the canvas, not a
+    separate window)

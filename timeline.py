@@ -1,5 +1,5 @@
 # timeline.py — Timeline, mappa GPS, scansione ricorsiva
-VERSION = "1.45.1"
+VERSION = "1.46.0"
 # Visualizzazione profonda: scansione ricorsiva, timeline per data/luogo, mappa GPS
 # Dipendenze: reverse_geocode, folium (pip install reverse-geocode folium)
 

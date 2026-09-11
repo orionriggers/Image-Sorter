@@ -1,8 +1,8 @@
-IMAGE SORTER v1.45
+IMAGE SORTER v1.46
 ==================
 Un programma per gestire, visualizzare e smistare immagini, video e PDF.
 
-Versione        : 1.45
+Versione        : 1.46
 Linguaggio      : Python 3.8+
 Interfaccia     : tkinter + Pillow
 Piattaforma     : Linux (testato su Linux Mint / Ubuntu)
@@ -42,12 +42,12 @@ AVVIO
 
 FILE DEL PROGRAMMA
 ------------------
-  image_sorter.py    programma principale           v1.45.10
-  disk_analyzer.py   analisi utilizzo disco         v1.45.0
-  timeline.py        timeline e mappa GPS           v1.45.0
-  exif_editor.py     editor metadati EXIF           v1.45.0
-  translations.py    stringhe IT/EN                 v1.45.0
-  installa.sh        script di installazione        v1.36.3
+  image_sorter.py    programma principale           v1.46.0
+  disk_analyzer.py   analisi utilizzo disco         v1.46.0
+  timeline.py        timeline e mappa GPS           v1.46.0
+  exif_editor.py     editor metadati EXIF           v1.46.0
+  translations.py    stringhe IT/EN                 v1.46.0
+  installa.sh        script di installazione        v1.36.4
 
 TASTI RAPIDI PRINCIPALI
 -----------------------
@@ -1094,3 +1094,30 @@ reale:
     per una frazione di secondo una finestra vuota di dimensione
     predefinita (200x200, grigia) — ora diventa visibile solo a
     costruzione completata, come già avveniva per Naviga e Timeline
+
+NOVITÀ v1.45 → v1.46
+--------------------
+  - Formati immagine: installa.sh installa ora automaticamente il plugin
+    AVIF (pillow-avif-plugin, già presente per HEIC/HEIF) — non serve più
+    installarlo a mano per aprire foto .avif
+  - Traduzioni: rimosse 178 chiavi morte da translations.py (verificate
+    con grep mirato sulle chiamate T()/_Tf(), confronto AST e test
+    funzionale — nessuna delle chiavi rimosse era davvero in uso).
+    Corretti anche due bug nei toast di export/import impostazioni che
+    chiamavano _Tf (segnaposto %s) invece di T (chiavi con .format(**kw))
+    su cfg_export_ok/cfg_import_err
+  - Manuale: spostato da un dominio esterno a GitHub Pages
+    (orionriggers.github.io/Image-Sorter), pubblicato dalla cartella
+    docs/ del repository; il bottone "Apri Manuale" in Impostazioni >
+    Info punta ora al nuovo indirizzo
+  - Tasto Esc: con una finestra di avviso/dialog/popup aperta sopra la
+    finestra principale, Esc chiudeva l'intero programma invece della
+    sola finestra — causa: molti popup non ottengono mai il vero fuoco
+    della tastiera sotto un window manager reale (non lo concede da solo
+    a una finestra appena aperta), quindi il loro bind Escape locale non
+    scattava mai. La ricerca del popup da chiudere ora scende
+    ricorsivamente in tutto l'albero delle finestre (non solo i figli
+    diretti della finestra principale), coprendo anche i popup annidati
+    dentro un'altra finestra (es. una conferma dentro Timeline/EXIF
+    editor/Analisi cartelle); coperto anche l'avviso "premi CANC di
+    nuovo" (disegnato sul canvas, non una finestra separata)
