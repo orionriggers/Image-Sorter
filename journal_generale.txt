@@ -1984,6 +1984,43 @@ schedulati con after(8)/after(10), non in modo sincrono — un test che
 chiama root.update() una sola volta subito dopo può trovare la griglia
 ancora vuota per puro timing, non per un bug.
 
+v1.46.2 (solo image_sorter.py): Naviga si aggiorna DA SOLA dopo aver
+cestinato doppioni dalla finestra "Ricerca doppioni" — segnalato da
+Carlo, che aveva notato la griglia restare con file/miniature ormai
+cancellati fino al prossimo "Aggiorna" manuale (v1.46.1). Nuovo
+ImageSorter._notify_files_trashed(paths): se self.folder_browser è
+aperto e la sua _current_folder compare tra le cartelle dei percorsi
+passati, chiama fb._refresh_view() (v1.46.1). Stesso schema di
+_sync_browser() già esistente (poco sopra nel file) per
+self.folder_browser/winfo_exists().
+
+DuplicateFinder ha OTTO punti indipendenti di cestinamento (una per
+combinazione di tab — SHA256/rapida/A vs B/riepilogo cartelle — e
+contesto — bottone bulk/menu tasto destro/riga singola): _trash_selected,
+_trash_selected_ab, _trash_ab, _bulk_trash_ab, _trash_folder_duplicates,
+_trash_and_refresh, _trash_row, _bulk_trash_lb. Agganciata la notifica a
+TUTTI e otto (grep di move_to_transit( sotto class DuplicateFinder per
+non perderne uno, stesso principio di rename_path — un'azione con più
+implementazioni indipendenti va controllata in ognuna, non solo dove
+segnalato). Due di questi (_trash_folder_duplicates, _bulk_trash_lb)
+cestinano in un thread di lavoro: la notifica passa da
+self.win.after(0, ...) come il resto del loro codice, mai chiamata
+diretta dal thread (i widget Tk, incluso Naviga, non sono thread-safe).
+
+VERIFICA, GOTCHA DI TEST: un after() schedulato da un thread DIVERSO da
+quello principale (i due casi sopra) fallisce con "main thread is not
+in main loop" se il processo non è mai passato per un vero
+root.mainloop() — anche chiamando root.update() a raffica in un ciclo
+Python (il pump() di v1.46.1, che *sembra* equivalente ma non lo è per
+questo caso specifico). Fix nel test: pump() ridefinito con
+root.after(ms, root.quit); root.mainloop() invece del ciclo
+update()+sleep(). Test funzionale sotto xvfb-run: Naviga aperta su una
+cartella con 2 coppie di "duplicati"; cestinato un file dal percorso
+sync (_trash_row, con self.sorter._hud_yesno monkeypatchata per saltare
+la conferma reale) e uno dal percorso threaded (_bulk_trash_lb) — in
+entrambi i casi il file spariva dal disco E dalla griglia di Naviga
+senza alcuna chiamata manuale a "Aggiorna".
+
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
 ===========================================================================
