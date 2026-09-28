@@ -1937,6 +1937,53 @@ LEGGIMI.txt/README_en.txt/README.md, inclusa la riga installa.sh
 (1.36.3 -> 1.36.4, gia' bumpato per l'AVIF automatico in un commit
 precedente ma mai riportato nei manuali fino ad ora).
 
+v1.46.1 (solo image_sorter.py): voce "Aggiorna" nel tasto destro di
+Naviga su file e cartella (esisteva già solo sullo sfondo vuoto della
+griglia — richiesto da Carlo per i casi in cui file/sottocartelle sono
+spostati o modificati da fuori il programma mentre Naviga resta
+aperta). Nuovo _refresh_view(): ricarica la cartella corrente
+(_load_thumbnails, che si occupa già anche dell'anteprima via
+_restore_preview) e scarta le voci di _thumb_cache di quella cartella
+anche a mtime invariato (un file ripristinato/sovrascritto con
+shutil.copy2 mantiene l'mtime della sorgente — la cache altrimenti
+resterebbe con la miniatura vecchia all'infinito).
+
+BUG PREESISTENTE TROVATO DAL TEST FUNZIONALE (non di questa sessione,
+mai segnalato prima): _refresh_expanded_nodes() — già esistente, usata
+anche dalla spunta "Nascoste" — ricostruisce l'albero livello per
+livello in ricorsione, ma ogni nodo appena ricreato da
+_populate_children()/_insert_node() parte SEMPRE con un placeholder
+"..." (lazy loading). Il controllo di refresh_node() che dovrebbe
+decidere se aggiornare un nodo o lasciarlo cosi' guarda se i suoi FIGLI
+sono gia' un placeholder — ma per un nodo appena ricreato lo sono
+sempre, anche se quel nodo era espanso con contenuto vero un istante
+prima: la ricorsione si ferma lì e il ramo collassa in un placeholder
+NON espanso, perdendo tutto cio' che c'era sotto (verificato con una
+cartella nidificata a 4 livelli, es. /tmp/tmp.XXX/photos: dopo il
+refresh "photos" e "sub_old" al suo interno sparivano dietro un "...").
+Non corretto qui (fuori scope, e usato altrove): _refresh_view() evita
+il problema con un nuovo _refresh_current_tree_node(), che aggiorna
+SOLO il nodo della cartella corrente (un livello, dove la logica di
+refresh_node() è corretta) invece di richiamare la funzione con la
+ricorsione rotta. _find_tree_node() cerca l'iid per percorso senza
+espandere nulla (stessa risalita/discesa di _expand_to, in sola
+lettura). Da tenere a mente se in futuro si tocca
+_refresh_expanded_nodes() per un altro motivo.
+
+VERIFICA: test funzionale xvfb-run in cartella isolata — cartella con 2
+file + una sottocartella, aperta in FolderBrowser; poi da FUORI la API
+(simulando un file manager esterno): file rinominato, nuovo file
+creato, nuova sottocartella creata, file sovrascritto con mtime
+preservato via os.utime(). Dopo _refresh_view(): griglia mostra il
+rinominato e il nuovo file (non il vecchio nome), il nodo albero della
+cartella mostra la nuova sottocartella accanto a quella vecchia, la
+voce di cache col vecchio mtime non c'e' più. Richiesto un helper
+pump(root, ms) che fa girare il loop Tk per un tempo reale (non un
+singolo root.update()): _load_thumbnails carica le celle in lotti
+schedulati con after(8)/after(10), non in modo sincrono — un test che
+chiama root.update() una sola volta subito dopo può trovare la griglia
+ancora vuota per puro timing, non per un bug.
+
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
 ===========================================================================
