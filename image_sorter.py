@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.1"
+VERSION = "1.46.2"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -5049,6 +5049,7 @@ class DuplicateFinder:
                     parent=self.win):
                 return
             trashed = 0
+            trashed_paths = []
             for idx, fpath in files:
                 if os.path.isfile(fpath):
                     dest = move_to_transit(fpath, self.sorter.config)
@@ -5061,8 +5062,11 @@ class DuplicateFinder:
                         lb.itemconfig(idx, fg=MUTED_COLOR)
                         row_paths[idx] = None
                         trashed += 1
+                        trashed_paths.append(fpath)
             result_lbl.config(text=_Tf("Cestinati {n} file.", self.sorter.config.get("language","it"), n=trashed))
             sel_btn.config(state="disabled", text="Cestina selezionati (0)")
+            if trashed_paths:
+                self.sorter._notify_files_trashed(trashed_paths)
 
         sel_btn.config(command=_trash_selected)
 
@@ -5903,6 +5907,7 @@ class DuplicateFinder:
                 parent=self.win):
             return
         done = 0
+        trashed_paths = []
         for idx, fpath in paths:
             dest = move_to_transit(fpath, self.sorter.config)
             if dest:
@@ -5915,10 +5920,13 @@ class DuplicateFinder:
                 lb.itemconfig(idx, fg=MUTED_COLOR)
                 row_map[idx] = None
                 done += 1
+                trashed_paths.append(fpath)
         self._ab_result_lbl.config(text=tk_safe(f"{done} file cestinati"))
         upd = getattr(self, "_ab_update_preview", None)
         if upd:
             upd()
+        if trashed_paths:
+            self.sorter._notify_files_trashed(trashed_paths)
 
     def _trash_ab(self, idx, fpath, lb, row_map):
         """Cestina un file dalla vista colonne A vs B."""
@@ -5940,6 +5948,7 @@ class DuplicateFinder:
             upd = getattr(self, "_ab_update_preview", None)
             if upd:
                 upd()
+            self.sorter._notify_files_trashed([fpath])
 
     def _bulk_trash_ab(self):
         """Cestina tutti i file di B (mantieni A)."""
@@ -5955,6 +5964,7 @@ class DuplicateFinder:
                 parent=self.win):
             return
         done = 0
+        trashed_paths = []
         for idx, fp in to_del:
             dest = move_to_transit(fp, self.sorter.config)
             if dest:
@@ -5965,7 +5975,10 @@ class DuplicateFinder:
                 self._lb_b.itemconfig(idx, fg=MUTED_COLOR)
                 self._ab_row_b[idx] = None
                 done += 1
+                trashed_paths.append(fp)
         self._ab_result_lbl.config(text=_Tf("{done} file cestinati", self.sorter.config.get("language","it"), done=done))
+        if trashed_paths:
+            self.sorter._notify_files_trashed(trashed_paths)
 
     def _run_ab_col(self, mode, scan_btn, stop_btn):
         """Avvia la scansione A vs B per la vista a colonne."""
@@ -6524,6 +6537,7 @@ class DuplicateFinder:
 
         def _do():
             trashed = 0
+            trashed_paths = []
             for folder, paths in files_by_folder.items():
                 for p in paths:
                     if os.path.isfile(p):
@@ -6533,16 +6547,22 @@ class DuplicateFinder:
                                             "files": [p], "dest": dest,
                                             "note": "doppioni: riepilogo cartelle"})
                             trashed += 1
+                            trashed_paths.append(p)
                 try:
                     if os.path.isdir(folder) and not os.listdir(folder):
                         os.rmdir(folder)
                 except OSError:
                     pass
+            # Thread di lavoro: i widget Tk (incluso Naviga) vanno
+            # toccati solo dal thread principale, via after(0, ...).
             self.win.after(0, lambda n=trashed: self.sorter._hud_alert(
                 "Fatto",
                 f"{n} file cestinati.\n"
                 f"Rilancia la scansione per aggiornare l'elenco.",
                 parent=self.win))
+            if trashed_paths:
+                self.win.after(0, lambda ps=trashed_paths:
+                               self.sorter._notify_files_trashed(ps))
         threading.Thread(target=_do, daemon=True).start()
 
     def _keep_folder_trash_siblings(self, keep_folders, cluster_folders,
@@ -7496,6 +7516,7 @@ class DuplicateFinder:
             append_history({"action": "trashed_transit", "files": [fpath],
                             "dest": dest, "note": "doppioni: menu contestuale"})
             self.win.after(50, lambda p=fpath: self._refresh_current_lb(p))
+            self.sorter._notify_files_trashed([fpath])
 
     def _refresh_current_lb(self, trashed_path=None):
         """Aggiorna listbox e anteprima dopo cestinamento."""
@@ -7598,6 +7619,7 @@ class DuplicateFinder:
             lb.see(idx)
             row_paths[idx] = None
             if refresh_cb: refresh_cb()
+            self.sorter._notify_files_trashed([fpath])
 
     def _bulk_trash_lb(self, lb, row_paths, result_lbl):
         to_trash = [(idx, path) for idx, path in row_paths.items()
@@ -7631,6 +7653,7 @@ class DuplicateFinder:
             return
         def _do():
             trashed = 0
+            trashed_paths = []
             for i, (idx, fpath) in enumerate(to_delete):
                 dest = move_to_transit(fpath, self.sorter.config)
                 if dest:
@@ -7638,6 +7661,7 @@ class DuplicateFinder:
                                     "files": [fpath], "dest": dest,
                                     "note": "doppioni: mantieni 1"})
                     trashed += 1
+                    trashed_paths.append(fpath)
                     row_paths[idx] = None
                 if i % 5 == 0:
                     self.win.after(0, lambda d=trashed, t=count:
@@ -7645,6 +7669,10 @@ class DuplicateFinder:
             _lang = self.sorter.config.get("language","it")
             self.win.after(0, lambda n=trashed:
                 result_lbl.config(text=_Tf("Cestinati {n} file.", _lang, n=n)))
+            # Thread di lavoro: Naviga va toccata solo dal thread principale.
+            if trashed_paths:
+                self.win.after(0, lambda ps=trashed_paths:
+                               self.sorter._notify_files_trashed(ps))
         import threading as _thr
         _thr.Thread(target=_do, daemon=True).start()
 
@@ -22373,6 +22401,27 @@ class ImageSorter:
         else:
             # Stessa cartella: evidenzia solo il file
             self.root.after(100, lambda: fb._highlight_file(current))
+
+    def _notify_files_trashed(self, paths):
+        """Se Naviga e' aperta sulla cartella di uno di questi file, la
+        ricarica (_refresh_view: griglia + nodo albero + cache
+        miniature). Senza questo, cancellando doppioni dalla finestra
+        "Ricerca doppioni" (o da qualunque altro punto che sposta file
+        nel cestino fuori da Naviga) la griglia restava con file e
+        miniature ormai cancellati fino al prossimo "Aggiorna" manuale —
+        segnalato da Carlo. Chiamare SEMPRE dal thread principale: alcuni
+        chiamanti cestinano in un thread di lavoro e devono passare da
+        self.root.after(0, ...) prima di arrivare qui, i widget Tk non
+        sono thread-safe."""
+        if not (self.folder_browser and self.folder_browser.win.winfo_exists()):
+            return
+        fb = self.folder_browser
+        cur = getattr(fb, "_current_folder", None)
+        if not cur:
+            return
+        cur = os.path.normpath(cur)
+        if any(os.path.normpath(os.path.dirname(p)) == cur for p in paths):
+            fb._refresh_view()
 
     def _zoom(self, factor):
         self._zoom_factor = max(0.1, min(10.0, self._zoom_factor * factor))
