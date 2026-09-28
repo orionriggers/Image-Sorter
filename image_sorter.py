@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.0"
+VERSION = "1.46.1"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -8792,6 +8792,111 @@ class FolderBrowser:
             if self.tree.item(top, "open"):
                 refresh_node(top)
 
+    def _refresh_view(self):
+        """Ricarica per intero la finestra Naviga: albero, griglia/lista e
+        anteprima della cartella attualmente aperta — richiamato dalla
+        voce "Aggiorna" nei tre menu contestuali (file, cartella, sfondo
+        griglia). Serve per i casi in cui file o sottocartelle sono stati
+        spostati/rinominati/modificati FUORI da Image Sorter (file
+        manager esterno, altro programma) mentre Naviga restava aperta:
+        la finestra non se ne accorge da sola.
+
+        Scarta anche le miniature già in cache per questa cartella: la
+        chiave della cache include l'mtime e quindi si invalida da sola
+        per un file modificato, ma un file ripristinato o sovrascritto
+        MANTENENDO lo stesso mtime (es. shutil.copy2, che lo preserva
+        deliberatamente) manterrebbe altrimenti la miniatura vecchia.
+        Stesso pattern di invalidazione già in uso altrove nel programma
+        (keys_to_del + del _thumb_cache[k]).
+
+        Il nodo dell'albero della cartella corrente viene ricaricato con
+        _refresh_current_tree_node() (solo quel nodo), non con la
+        _refresh_expanded_nodes() già esistente: quella ricostruisce piu'
+        livelli in ricorsione, ma ogni nodo appena ricreato parte con un
+        placeholder "..." e la ricorsione si ferma lì invece di sostituirlo
+        — verificato con un test reale (cartella nidificata a piu' livelli,
+        es. .../tmp.XXX/photos): dopo il refresh la cartella "photos" e
+        tutto cio' che conteneva collassavano in un placeholder non
+        espanso, anche se erano visibili ed espansi prima. Bug preesistente
+        di _refresh_expanded_nodes, non toccato qui (resta cosi' per gli
+        altri chiamanti, es. la spunta "Nascoste") — segnalato a parte."""
+        folder = getattr(self, "_current_folder", None)
+        if not folder:
+            return
+        try:
+            _norm = os.path.normpath(folder)
+            keys_to_del = [k for k in _thumb_cache
+                          if os.path.dirname(os.path.normpath(k[0])) == _norm]
+            for k in keys_to_del:
+                del _thumb_cache[k]
+        except Exception:
+            pass
+        try:
+            self._refresh_current_tree_node()
+        except Exception:
+            pass
+        self._load_thumbnails(folder)
+        self._status_msg("Aggiornato", SUCCESS)
+
+    def _find_tree_node(self, path):
+        """Trova l'iid del nodo dell'albero per un percorso assoluto,
+        SENZA espanderlo (a differenza di _expand_to, che invece espande
+        e seleziona): stessa identica risalita/discesa per percorso di
+        _expand_to (righe poco sopra), qui in sola lettura. Nessun figlio
+        trovato a un livello (ramo non ancora espanso nell'albero) ->
+        None."""
+        target = os.path.normpath(os.path.realpath(path))
+        parts = []
+        p = target
+        while True:
+            parts.insert(0, p)
+            parent = os.path.dirname(p)
+            if parent == p:
+                break
+            p = parent
+        cur = ""
+        for part in parts:
+            found = None
+            for child in self.tree.get_children(cur):
+                vals = self.tree.item(child, "values")
+                if (vals and vals[0] != "__ph__"
+                        and os.path.normpath(vals[0]) == part):
+                    found = child
+                    break
+            if found is None:
+                return None
+            cur = found
+        return cur
+
+    def _refresh_current_tree_node(self):
+        """Ricarica SOLO i figli del nodo dell'albero della cartella
+        attualmente aperta in Naviga (non l'intero albero): individua
+        sottocartelle aggiunte/rimosse/rinominate da fuori il programma
+        restando su un singolo livello, dove la logica di
+        _refresh_expanded_nodes è corretta (il bug lì è solo nella
+        ricorsione su livelli più profondi, vedi _refresh_view)."""
+        folder = getattr(self, "_current_folder", None)
+        if not folder:
+            return
+        node = self._find_tree_node(folder)
+        if not node:
+            return   # ramo non (ancora) visibile nell'albero: niente da fare
+        children = self.tree.get_children(node)
+        if not children:
+            return
+        first_vals = self.tree.item(children[0], "values")
+        if first_vals and first_vals[0] == "__ph__":
+            return   # non ancora espanso: nessun contenuto reale da aggiornare
+        expanded = [self.tree.item(c, "values")[0]
+                    for c in children
+                    if self.tree.item(c, "open") and self.tree.item(c, "values")]
+        self.tree.delete(*children)
+        self._populate_children(node, folder)
+        for child in self.tree.get_children(node):
+            cv = self.tree.item(child, "values")
+            if cv and cv[0] in expanded:
+                self.tree.item(child, open=True)
+
     def _status_msg(self, text, color=None):
         """Mostra un messaggio nella status bar senza split path/nome."""
         try:
@@ -13557,6 +13662,9 @@ class FolderBrowser:
                 menu.add_separator()
                 menu.add_command(label=_rlbl,
                                  command=lambda: self.sorter._ripristina_file(filepath))
+        menu.add_separator()
+        menu.add_command(label="Aggiorna",
+                         command=lambda: self._refresh_view())
         # Chiudi cliccando fuori o col tasto destro
         _unbound = [False]
         _bid = [None]
@@ -13673,6 +13781,9 @@ class FolderBrowser:
         menu.add_command(label="Proprietà...",
                          command=lambda p=path: self._folder_properties(p))
         menu.add_separator()
+        menu.add_command(label="Aggiorna",
+                         command=lambda: self._refresh_view())
+        menu.add_separator()
         menu.add_command(label="Sposta nel cestino",
                          command=lambda p=path: self._trash_folder(p))
         menu.add_separator()
@@ -13731,7 +13842,7 @@ class FolderBrowser:
                          command=lambda: open_in_filemanager(folder))
         menu.add_separator()
         menu.add_command(label="Aggiorna",
-                         command=lambda: self._load_thumbnails(folder))
+                         command=lambda: self._refresh_view())
         _post_menu(menu, event.x_root, event.y_root, self.win)
 
     def _folder_properties(self, path):
