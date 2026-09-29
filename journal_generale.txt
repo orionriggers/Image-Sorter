@@ -2021,6 +2021,51 @@ la conferma reale) e uno dal percorso threaded (_bulk_trash_lb) — in
 entrambi i casi il file spariva dal disco E dalla griglia di Naviga
 senza alcuna chiamata manuale a "Aggiorna".
 
+v1.46.4 (solo image_sorter.py): Naviga, "Riproduci in sequenza (N
+video)" nel menu tasto destro con più file selezionati — manda tutti i
+video della selezione a UN solo processo del player esterno (playlist
+in una finestra) invece di uno per file. `_launch_video_player()`
+accetta ora anche una lista di percorsi, passati tutti insieme sulla
+riga di comando: mpv/vlc/totem-xplayer/celluloid/dragon/smplayer/
+mplayer li accodano da soli come playlist, verificato che nessuno di
+questi richieda una sintassi diversa da "player file1 file2 file3" per
+farlo — nessuna libreria nuova.
+
+PRINCIPIO NUOVO: `_selected_files` è un `set()` (mai stato un
+problema finché serviva solo "quali file", non "in che ordine") — Carlo
+ha chiesto che l'ordine di riproduzione segua l'ordine di CLIC, non
+quello alfabetico che il menu usa già per tutte le altre azioni in
+blocco (`targets = sorted(self._selected_files)`). Aggiunta una lista
+PARALLELA `self._selection_order`, aggiornata a mano in OGNI punto che
+già muta `_selected_files` per un gesto dell'utente: `_toggle_select`
+(append/remove — condiviso da griglia/lista/pallini/celle ricreate
+dopo conversione, un solo punto per tutte quelle viste), `_shift_select`,
+`_on_arrow`/`_on_shift_arrow` (tastiera), `_sel_clear`/`_sel_clear_silent`,
+il reset selezione in `_load_thumbnails` a ogni cambio cartella, e il
+cambio di percorso quando un file selezionato viene convertito
+(sostituito IN POSIZIONE, non spostato in fondo). Deselezionare e
+riselezionare un file lo sposta in fondo alla lista (comportamento
+scelto: "ultimo tocco", stesso principio già usato per l'anteprima con
+selezione multipla in v1.46.3). Lasciata FUORI apposta la vista ad
+albero interna del pannello contenuti (`_load_tree_view`,
+multi-selezione nativa di `ttk.Treeview`, un widget con un proprio
+meccanismo non intercettabile allo stesso modo) — chi arriva da lì
+degrada in coda con l'ordine alfabetico di sempre, non sparisce dalla
+playlist. Se in futuro serve l'ordine di clic altrove (o va estesa
+anche alla vista ad albero interna), il punto di aggancio giusto è
+`_toggle_select`, non i tanti punti che leggono `_selected_files`.
+
+VERIFICA: test funzionale xvfb-run con 3 ".mp4" finti nominati apposta
+in modo che l'ordine ALFABETICO (a,b,c) sia diverso da quello di clic
+simulato nel test (c,a,b) — se l'implementazione fosse ricaduta su
+`sorted()` per errore il test lo scopriva subito. `_launch_video_player`
+monkeypatchata per registrare gli argomenti; `_post_menu`
+monkeypatchata per catturare il menu senza aprirlo davvero a schermo
+(evita gestione di un popup reale nel test). Controllati anche:
+deselezionare e riselezionare un file lo sposta in fondo; selezione
+mista 2 video + 1 immagine → etichetta "(2 video)" e solo i due video
+passati, nell'ordine di clic, immagine esclusa.
+
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
 ===========================================================================
