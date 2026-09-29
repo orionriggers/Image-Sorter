@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.4"
+VERSION = "1.46.5"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -7816,6 +7816,9 @@ class FolderBrowser:
                                         # di clic — usato solo da "Riproduci in
                                         # sequenza" (playlist video), _selected_files
                                         # resta un set per tutto il resto
+        self._delete_pending  = False  # CANC premuto una volta, in attesa del secondo
+        self._delete_pending_targets = None
+        self._delete_timer    = None
         self._cell_refs      = {}      # {fpath: cell_frame} per aggiornare stile
         self.win = tk.Toplevel(parent)
         _lang = self.sorter.config.get("language","it")
@@ -8276,9 +8279,7 @@ class FolderBrowser:
         self.win.bind("<Control-v>", lambda e:
             self._clipboard_paste(self._current_folder)
             if self._current_folder else None)
-        self.win.bind("<Delete>", lambda e:
-            self._trash_selection(sorted(self._selected_files))
-            if self._selected_files else None)
+        self.win.bind("<Delete>", lambda e: self._delete_selected_keyboard())
         # Aggiunto al paned solo se il check "Albero" era attivo nella
         # sessione precedente (default: attivo, comportamento di sempre)
         # — vedi _show_tree_var qui sotto e _toggle_tree_panel, che
@@ -9910,9 +9911,7 @@ class FolderBrowser:
         tv.bind("<Control-a>",       lambda e: (
             tv.selection_set(tv.get_children()),
             _on_tv_select(e)))
-        tv.bind("<Delete>", lambda e:
-            self._trash_selection(list(self._selected_files))
-            if self._selected_files else None)
+        tv.bind("<Delete>", lambda e: self._delete_selected_keyboard())
 
         self._tv_widget = tv   # riferimento per operazioni esterne
 
@@ -10478,6 +10477,8 @@ class FolderBrowser:
         self._thumb_gen = getattr(self, '_thumb_gen', 0) + 1
 
         # Svuota pannello, selezione e riferimenti
+        if getattr(self, "_delete_pending", False):
+            self._cancel_delete_pending()
         self._selected_files.clear()
         self._selection_order.clear()
         self._cell_refs.clear()
@@ -11617,6 +11618,8 @@ class FolderBrowser:
 
     def _shift_select(self, filepath):
         """Seleziona tutti i file dal ultimo cliccato a filepath."""
+        if getattr(self, "_delete_pending", False):
+            self._cancel_delete_pending()
         files = list(self._cell_refs.keys())  # ordine attuale griglia
         if not files: return
         last = getattr(self, "_last_clicked", None)
@@ -11700,6 +11703,8 @@ class FolderBrowser:
 
     def _toggle_select(self, fpath, cell):
         """Toggle selezione di un file nel browser."""
+        if getattr(self, "_delete_pending", False):
+            self._cancel_delete_pending()
         # Deseleziona cartella se presente
         if getattr(self.sorter, '_selected_browser_folder', None):
             self._deselect_folder_cell()
@@ -11792,6 +11797,8 @@ class FolderBrowser:
         saltano rispettivamente di una schermata di righe o all'inizio/
         fine dell'elenco invece che di un singolo file — mancavano del
         tutto, segnalato da Carlo."""
+        if getattr(self, "_delete_pending", False):
+            self._cancel_delete_pending()
         files = list(self._cell_refs.keys())
         if not files: return
         ncols = max(1, getattr(self, "_thumb_ncols", 3))
@@ -12155,12 +12162,67 @@ class FolderBrowser:
         if errors: msg += f" — {len(errors)} errori"
         self._status_msg(msg, SUCCESS if not errors else HIGHLIGHT)
 
-    def _trash_selection(self, targets):
-        """Cestina una lista di file con conferma, in thread per non bloccare UI."""
+    def _delete_selected_keyboard(self):
+        """CANC sulla selezione: doppio tocco (o CANC+Invio), stesso
+        schema del visualizzatore principale (ImageSorter._delete_current)
+        — segnalato da Carlo, qui c'era invece un popup di conferma,
+        incoerente con la finestra principale. Primo tocco mostra
+        l'avviso nella barra di stato (auto-annullato dopo 3 secondi);
+        il secondo tocco, o Invio nel frattempo, cestina davvero."""
+        if not getattr(self, "_delete_pending", False):
+            targets = sorted(self._selected_files)
+            if not targets:
+                return
+            self._delete_pending = True
+            self._delete_pending_targets = targets
+            n = len(targets)
+            name = os.path.basename(targets[0]) if n == 1 else f"{n} file"
+            self._status_msg(f"Premi CANC di nuovo (o Invio) → Cestina {name}",
+                             "#e9455e")   # stesso rosso del visualizzatore
+
+            def _confirm(e=None):
+                if getattr(self, "_delete_pending", False):
+                    t = self._delete_pending_targets
+                    self._cancel_delete_pending()
+                    self._trash_selection(t, confirm=False)
+                return "break"
+            self.win.bind("<Return>", _confirm)
+            if self._delete_timer:
+                try: self.win.after_cancel(self._delete_timer)
+                except Exception: pass
+            self._delete_timer = self.win.after(3000, self._cancel_delete_pending)
+        else:
+            # Secondo tocco CANC: cestina subito, senza aspettare Invio.
+            t = self._delete_pending_targets
+            self._cancel_delete_pending()
+            self._trash_selection(t, confirm=False)
+
+    def _cancel_delete_pending(self):
+        """Annulla il CANC in sospeso (timeout di 3s, cambio selezione,
+        navigazione, chiusura finestra...) senza cestinare nulla."""
+        self._delete_pending = False
+        self._delete_pending_targets = None
+        if self._delete_timer:
+            try: self.win.after_cancel(self._delete_timer)
+            except Exception: pass
+            self._delete_timer = None
+        try:
+            self.win.unbind("<Return>")
+        except Exception:
+            pass
+
+    def _trash_selection(self, targets, confirm=True):
+        """Cestina una lista di file, in thread per non bloccare UI.
+
+        confirm=False salta il popup di conferma: usato dal CANC da
+        tastiera (_delete_selected_keyboard), dove la conferma e' gia'
+        il secondo tocco di CANC/Invio — un popup IN PIU' sopra sarebbe
+        una doppia conferma. Il menu tasto destro "Sposta nel cestino"
+        continua a passare da qui col default (popup)."""
         if not targets:
             return
         n = len(targets)
-        if not self._hud_yesno("Cestina",
+        if confirm and not self._hud_yesno("Cestina",
                 f"Spostare nel cestino {n} file?",
                 yes_label="Cestina", no_label="Annulla",
                 parent=self.win):
@@ -12198,6 +12260,8 @@ class FolderBrowser:
 
     def _sel_clear_silent(self):
         """Deseleziona tutti i file senza ricostruire la barra (evita flash)."""
+        if getattr(self, "_delete_pending", False):
+            self._cancel_delete_pending()
         for fpath in list(self._selected_files):
             cell = self._cell_refs.get(fpath)
             if cell and cell.winfo_exists():
@@ -12207,6 +12271,8 @@ class FolderBrowser:
 
     def _sel_clear(self):
         """Deseleziona tutti i file."""
+        if getattr(self, "_delete_pending", False):
+            self._cancel_delete_pending()
         for fpath in list(self._selected_files):
             cell = self._cell_refs.get(fpath)
             if cell and cell.winfo_exists():
@@ -14415,6 +14481,10 @@ class FolderBrowser:
         self.win.clipboard_append(path)
 
     def _on_close(self):
+        # Timer del CANC in sospeso: dopo la distruzione della finestra
+        # farebbe fallire after_cancel/unbind su widget non piu' esistenti.
+        if getattr(self, "_delete_pending", False):
+            self._cancel_delete_pending()
         # Salva la posizione di entrambi i divisori (albero e, se visibile,
         # anteprima) e le dimensioni della finestra anche qui, non solo
         # quando si disattiva esplicitamente la checkbox anteprima:
