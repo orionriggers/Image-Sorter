@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.3"
+VERSION = "1.46.4"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -3044,22 +3044,33 @@ def open_in_filemanager(filepath):
             continue
 
 
-def _launch_video_player(filepath):
-    """Avvia un player video esterno per filepath, provando in ordine una
-    lista di player comuni — estratta da ImageSorter._play_video() (che
-    ora la richiama) perche' serve anche al comando "Apri" di Naviga e
-    Timeline sui video (richiesto da Carlo: prima navigavano al file
-    nel visualizzatore principale, che per un video mostra solo un
+def _launch_video_player(filepaths):
+    """Avvia un player video esterno, provando in ordine una lista di
+    player comuni — estratta da ImageSorter._play_video() (che ora la
+    richiama) perche' serve anche al comando "Apri" di Naviga e Timeline
+    sui video (richiesto da Carlo: prima navigavano al file nel
+    visualizzatore principale, che per un video mostra solo un
     fotogramma statico, invece di lanciare davvero un player). Evita
     xdg-open come prima scelta: potrebbe riaprire Image Sorter stesso
     se e' il programma predefinito per quell'estensione. Ritorna True
     se un processo e' stato avviato con successo (non garantisce che il
-    player si sia aperto senza errori, solo che il comando e' partito)."""
+    player si sia aperto senza errori, solo che il comando e' partito).
+
+    filepaths puo' essere un singolo percorso (str, comportamento di
+    sempre) oppure una lista/tupla di percorsi: in quel caso vengono
+    passati TUTTI allo stesso processo — mpv/vlc/totem-xplayer/
+    celluloid/dragon/smplayer/mplayer li accodano da soli come playlist
+    sequenziale in un'unica finestra, nessuna libreria in piu' serve.
+    Usato da Naviga per "Riproduci in sequenza" su piu' video
+    selezionati, invece di aprire un processo (una finestra) per file."""
+    paths = [filepaths] if isinstance(filepaths, str) else list(filepaths)
+    if not paths:
+        return False
     players = ["mpv", "vlc", "totem", "celluloid", "dragon",
                "smplayer", "mplayer", "xplayer"]
     for player in players:
         try:
-            subprocess.Popen([player, filepath],
+            subprocess.Popen([player] + paths,
                              stdout=subprocess.DEVNULL,
                              stderr=subprocess.DEVNULL)
             return True
@@ -3067,9 +3078,10 @@ def _launch_video_player(filepath):
             continue
         except Exception:
             continue
-    # Fallback a xdg-open solo se nessun player dedicato e' stato trovato
+    # Fallback a xdg-open solo se nessun player dedicato e' stato
+    # trovato: non gestisce playlist, si limita al primo file.
     try:
-        subprocess.Popen(["xdg-open", filepath],
+        subprocess.Popen(["xdg-open", paths[0]],
                          stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL)
         return True
@@ -7800,6 +7812,10 @@ class FolderBrowser:
         self._search_root    = None     # cartella da cui e' partita la ricerca
         self._search_thread  = None
         self._selected_files = set()   # file selezionati per operazioni multiple
+        self._selection_order = []     # stessi file di _selected_files, ma in ORDINE
+                                        # di clic — usato solo da "Riproduci in
+                                        # sequenza" (playlist video), _selected_files
+                                        # resta un set per tutto il resto
         self._cell_refs      = {}      # {fpath: cell_frame} per aggiornare stile
         self.win = tk.Toplevel(parent)
         _lang = self.sorter.config.get("language","it")
@@ -8486,6 +8502,7 @@ class FolderBrowser:
         self._cell_refs    = {}
         self._dir_cell_refs = {}   # {dpath: (widget, orig_bg)}
         self._selected_files = set()
+        self._selection_order = []
 
         # Barra selezione multipla (contenuto vuoto/pieno a seconda della
         # selezione file, altezza SEMPRE riservata quando vuota per
@@ -10462,6 +10479,7 @@ class FolderBrowser:
 
         # Svuota pannello, selezione e riferimenti
         self._selected_files.clear()
+        self._selection_order.clear()
         self._cell_refs.clear()
         self._dir_cell_refs.clear()
         self._last_clicked = None   # per Shift+click range
@@ -11127,6 +11145,14 @@ class FolderBrowser:
                 if old_path in self._selected_files:
                     self._selected_files.discard(old_path)
                     self._selected_files.add(new_path)
+                    # Sostituisce nella STESSA posizione, non in fondo:
+                    # il file non e' stato ri-cliccato, ha solo cambiato
+                    # percorso (conversione formato).
+                    if old_path in self._selection_order:
+                        self._selection_order[
+                            self._selection_order.index(old_path)] = new_path
+                    else:
+                        self._selection_order.append(new_path)
                     self._set_cell_selected(cell, True)
             except Exception:
                 continue
@@ -11607,6 +11633,7 @@ class FolderBrowser:
                 cell = self._cell_refs.get(fp)
                 if cell:
                     self._selected_files.add(fp)
+                    self._selection_order.append(fp)
                     self._set_cell_selected(cell, True)
         self._update_sel_bar()
         self._focus_file = filepath
@@ -11617,6 +11644,7 @@ class FolderBrowser:
         for fpath, cell in self._cell_refs.items():
             if fpath not in self._selected_files:
                 self._selected_files.add(fpath)
+                self._selection_order.append(fpath)
                 self._set_cell_selected(cell, True)
         self._update_sel_bar()
         self._update_status_selection()
@@ -11679,9 +11707,12 @@ class FolderBrowser:
             self._clear_action_btns()
         if fpath in self._selected_files:
             self._selected_files.discard(fpath)
+            if fpath in self._selection_order:
+                self._selection_order.remove(fpath)
             self._set_cell_selected(cell, False)
         else:
             self._selected_files.add(fpath)
+            self._selection_order.append(fpath)
             self._set_cell_selected(cell, True)
             # L'ULTIMO file aggiunto alla selezione va in anteprima: con
             # piu' file selezionati (Ctrl+click) _update_preview_pane usa
@@ -11787,6 +11818,7 @@ class FolderBrowser:
         cell = self._cell_refs.get(new_fp)
         if cell:
             self._selected_files.add(new_fp)
+            self._selection_order.append(new_fp)
             self._set_cell_selected(cell, True)
         self._last_clicked = new_fp
         self._focus_file = new_fp
@@ -11840,14 +11872,20 @@ class FolderBrowser:
         new_hi = max(anchor_idx, new_idx)
         old_set = set(files[old_lo:old_hi+1])
         new_set = set(files[new_lo:new_hi+1])
-        # Solo le celle che cambiano stato (aggiunta o rimossa)
-        for fp in old_set - new_set:
+        # Solo le celle che cambiano stato (aggiunta o rimossa) — ordinate
+        # per posizione in griglia (non l'ordine arbitrario di un set)
+        # cosi' _selection_order resta una sequenza sensata anche
+        # estendendo la selezione da tastiera.
+        for fp in sorted(old_set - new_set, key=files.index):
             self._selected_files.discard(fp)
+            if fp in self._selection_order:
+                self._selection_order.remove(fp)
             cell = self._cell_refs.get(fp)
             if cell:
                 self._set_cell_selected(cell, False)
-        for fp in new_set - old_set:
+        for fp in sorted(new_set - old_set, key=files.index):
             self._selected_files.add(fp)
+            self._selection_order.append(fp)
             cell = self._cell_refs.get(fp)
             if cell:
                 self._set_cell_selected(cell, True)
@@ -12165,6 +12203,7 @@ class FolderBrowser:
             if cell and cell.winfo_exists():
                 self._set_cell_selected(cell, False)
         self._selected_files.clear()
+        self._selection_order.clear()
 
     def _sel_clear(self):
         """Deseleziona tutti i file."""
@@ -12173,6 +12212,7 @@ class FolderBrowser:
             if cell and cell.winfo_exists():
                 self._set_cell_selected(cell, False)
         self._selected_files.clear()
+        self._selection_order.clear()
         self._update_sel_bar()
 
     def _bind_cell_dots(self, cv, fpath, cell):
@@ -13491,6 +13531,28 @@ class FolderBrowser:
         if not multi:
             menu.add_command(label="Apri",
                              command=lambda: self._open_or_play(filepath))
+        else:
+            # Playlist sequenziale sui video selezionati, nell'ORDINE DI
+            # CLIC (_selection_order — vedi _toggle_select/_shift_select),
+            # non l'ordine alfabetico di 'targets': richiesto da Carlo.
+            # I file selezionati ma non tracciati nell'ordine (es. dalla
+            # vista ad albero interna, un widget con multi-selezione
+            # nativa propria) restano in coda invece di sparire dalla
+            # playlist.
+            _order = [f for f in self._selection_order if f in self._selected_files]
+            _missing = [f for f in targets if f not in _order]
+            _final_order = _order + sorted(_missing)
+            _video_targets = [f for f in _final_order if is_video(f)]
+            if len(_video_targets) >= 2:
+                def _play_seq(t=list(_video_targets)):
+                    if not _launch_video_player(t):
+                        self.sorter._hud_alert("Player mancante",
+                            "Nessun player video trovato.\n"
+                            "Installa mpv o vlc: sudo apt install mpv",
+                            parent=self.win)
+                menu.add_command(
+                    label=f"Riproduci in sequenza ({len(_video_targets)} video)",
+                    command=_play_seq)
         if not multi:
             menu.add_command(label="Rinomina...",
                              command=lambda: self._rename_file_popup(filepath))
