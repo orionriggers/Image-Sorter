@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.2"
+VERSION = "1.46.3"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -8296,7 +8296,7 @@ class FolderBrowser:
                       if self._preview_current_path else None)
         self._preview_label.bind(
             "<Double-Button-1>",
-            lambda e: self._open_image(self._preview_current_path)
+            lambda e: self._open_or_play(self._preview_current_path)
                       if self._preview_current_path else None)
         # Riga UNICA sotto l'anteprima con stelle, nome file e pallino
         # colore insieme (richiesto da Carlo — prima il nome stava da
@@ -9692,7 +9692,7 @@ class FolderBrowser:
                     clk = _make_list_click(fpath, cell_frame)
                     for w in [cell_frame, lbl, info_frame] + list(info_frame.winfo_children()):
                         w.bind("<Button-1>",        clk)
-                        w.bind("<Double-Button-1>", lambda e, p=fpath: self._open_image(p))
+                        w.bind("<Double-Button-1>", lambda e, p=fpath: self._open_or_play(p))
                         w.bind("<Button-3>",        lambda e, p=fpath: self._thumb_context_menu(e, p))
                 except Exception:
                     pass
@@ -9875,7 +9875,7 @@ class FolderBrowser:
                 else:
                     self._navigate_to(iid)
             elif os.path.isfile(iid):
-                self._open_image(iid)
+                self._open_or_play(iid)
 
         def _on_tv_select(e):
             sel = set(tv.selection())
@@ -10882,7 +10882,7 @@ class FolderBrowser:
                                 self._last_clicked = p
                                 self._focus_file = p
                         def on_double(e):
-                            self._open_image(p)
+                            self._open_or_play(p)
                         return on_click, on_double
                     _oc, _od = _make_click(fpath, cell)
                     # La selezione si aggiorna al RILASCIO, non al premere:
@@ -11085,7 +11085,7 @@ class FolderBrowser:
                             self._last_clicked = p
                             self._focus_file = p
                     def on_double(e):
-                        self._open_image(p)
+                        self._open_or_play(p)
                     return on_click, on_double
                 _oc, _od = _make_click(new_path, cell)
                 btn.bind("<Button-1>", lambda e, o=_oc: (self._thumb_canvas.focus_set(), o(e)))
@@ -11683,6 +11683,13 @@ class FolderBrowser:
         else:
             self._selected_files.add(fpath)
             self._set_cell_selected(cell, True)
+            # L'ULTIMO file aggiunto alla selezione va in anteprima: con
+            # piu' file selezionati (Ctrl+click) _update_preview_pane usa
+            # _focus_file (vedi sotto), che senza questa riga restava
+            # quello del click semplice PRECEDENTE l'inizio della
+            # selezione multipla — segnalato da Carlo, l'anteprima non
+            # seguiva l'ultimo file aggiunto con Ctrl.
+            self._focus_file = fpath
         self._update_sel_bar()
         self._update_status_selection()
         self._update_preview_pane()
@@ -12177,7 +12184,7 @@ class FolderBrowser:
         try:
             cv.bind("<Button-1>", lambda e, p=fpath, c=cell: (
                 self._thumb_canvas.focus_set(), self._cell_click(e, p, c)))
-            cv.bind("<Double-Button-1>", lambda e, p=fpath: self._open_image(p))
+            cv.bind("<Double-Button-1>", lambda e, p=fpath: self._open_or_play(p))
             cv.bind("<Button-3>",
                     lambda e, p=fpath: self._thumb_context_menu(e, p))
         except Exception:
@@ -14212,7 +14219,7 @@ class FolderBrowser:
                   font=("TkFixedFont", 8), bg=SUCCESS, fg="white",
                   relief="flat", padx=6,
                   activebackground=HIGHLIGHT, activeforeground="white",
-                  command=lambda: (self._open_image(filepath),
+                  command=lambda: (self._open_or_play(filepath),
                                    self._clear_action_btns())
                   ).pack(side="left", padx=2, ipady=2)
         tk.Button(af, text="Rinomina",
