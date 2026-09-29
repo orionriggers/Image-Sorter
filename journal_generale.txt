@@ -2066,6 +2066,44 @@ deselezionare e riselezionare un file lo sposta in fondo; selezione
 mista 2 video + 1 immagine → etichetta "(2 video)" e solo i due video
 passati, nell'ordine di clic, immagine esclusa.
 
+v1.46.5 (solo image_sorter.py): CANC su Naviga reso coerente col
+visualizzatore principale — apriva un popup di conferma (_hud_yesno),
+segnalato da Carlo come incoerente col doppio CANC (o CANC+Invio, senza
+popup, avviso inline auto-annullato dopo 3s) che il visualizzatore usa
+da tempo (_delete_current). Nuovo _delete_selected_keyboard() in
+FolderBrowser: stesso schema, ma l'avviso va nella barra di stato
+(_status_msg, stesso rosso #e9455e) invece che su un Canvas — Naviga
+non ha un canvas a schermo intero come il visualizzatore, e la barra di
+stato è già lì con lo spazio riservato. _trash_selection() ha ora
+confirm=False per questo percorso; il menu tasto destro "Sposta nel
+cestino" resta con popup, invariato.
+
+PRINCIPIO GENERALIZZABILE: Naviga tende a reinventare a modo suo
+un'interazione che il visualizzatore principale ha già risolto
+(prima "Apri" su un video, ora CANC — vedi anche _open_or_play in
+v1.46.3). Quando si tocca un gesto UNA delle due finestre, controllare
+sempre come lo fa l'ALTRA prima di decidere come corregerlo — spesso
+la risposta è "copiare lo schema già in uso lì", non inventarne un
+terzo.
+
+Il "CANC in sospeso" (_delete_pending) va annullato ovunque la
+selezione o il contesto cambino sotto di lui, altrimenti un secondo
+CANC premuto per un motivo diverso cestina file che l'utente non
+intendeva più cestinare: agganciato a _toggle_select, _shift_select,
+_on_arrow (frecce), _load_thumbnails (cambio cartella) e _on_close —
+stesso concetto "le frecce annullano" già in KEY LEARNINGS per il
+visualizzatore, esteso qui a "cambiare selezione annulla" perché Naviga
+ha un concetto di selezione multipla che il visualizzatore non ha.
+
+VERIFICA: test funzionale xvfb-run — primo CANC su 2 file selezionati
+non cestina nulla e non mostra popup (_hud_yesno monkeypatchata per
+scoprire se viene chiamata per errore); secondo CANC cestina davvero;
+CANC+Invio su un file singolo come alternativa al secondo CANC;
+cambiare selezione (_toggle_select su un altro file) mentre un CANC è
+in sospeso lo annulla SENZA cestinare, e un CANC successivo riparte
+da capo (primo tocco), non da "secondo" come se il precedente fosse
+ancora valido.
+
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
 ===========================================================================
