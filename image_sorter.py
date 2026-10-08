@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.5"
+VERSION = "1.46.6"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -16414,6 +16414,32 @@ class CropOverlay:
         _popup_pos = None
         if hasattr(self, "_bar_x"):
             _popup_pos = (self._bar_x, self._bar_y)
+        # Salta video e PDF (non ritagliabili): cerca la prossima immagine
+        # nella direzione richiesta, con lo stesso giro ad anello di
+        # _skip/_go_back, e posiziona l'indice in modo che una sola
+        # chiamata ci atterri sopra — cosi' i video intermedi non vengono
+        # nemmeno caricati nell'anteprima.
+        s = self.sorter
+        n = len(s.images)
+        if 0 <= s.current_index < n:
+            step = 1 if direction > 0 else -1
+            target = None
+            for k in range(1, n):
+                i = (s.current_index + step * k) % n
+                p = s.images[i]
+                if not (is_video(p) or is_pdf(p)):
+                    target = (i, k)
+                    break
+            if target is None:
+                s._hud_alert("Ritaglio",
+                    "Nessun'altra immagine da ritagliare nella lista.",
+                    parent=s.root)
+                return
+            i, k = target
+            if k > 1:
+                s.current_index = (i - step) % n
+                if step > 0:
+                    s._view_pos += k - 1
         # Disattiva temporaneamente per permettere _show_image completo
         self._active = False
         self._hide_loupe()
@@ -16429,9 +16455,19 @@ class CropOverlay:
             new_path = self.sorter._current_file()
             if not new_path or not os.path.isfile(new_path):
                 self._active = False; return
+            try:
+                img = Image.open(new_path)
+                iw, ih = img.size
+            except Exception:
+                # File non apribile come immagine (video/PDF nella lista
+                # degli scartati, file corrotto): esci dal ritaglio invece
+                # di restare con l'overlay sull'immagine precedente.
+                self._cleanup()
+                self.sorter._show_image()
+                return
             self.filepath = new_path
-            self.orig_img = Image.open(new_path)
-            self.iw, self.ih = self.orig_img.size
+            self.orig_img = img
+            self.iw, self.ih = iw, ih
             self._edge_cols, self._edge_rows = [], []
             try:
                 self._compute_edge_profile()
