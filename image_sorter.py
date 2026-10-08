@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.11"
+VERSION = "1.46.12"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -16670,8 +16670,17 @@ class CropOverlay:
             return True
         return False
 
-    def _skip_image(self, direction):
-        """Salta alla img successiva/precedente mantenendo il rettangolo."""
+    def _skip_image(self, direction, reinit=False, seeked=False):
+        """Salta alla img successiva/precedente mantenendo il rettangolo.
+
+        reinit=True ("Ritaglia prossimo"): la selezione sull'immagine nuova
+        riparte come in un ritaglio appena aperto (ricordata o intera),
+        invece di riprendere il rettangolo relativo. In entrambi i casi la
+        barra resta la stessa, non viene distrutta e ricreata: prima
+        "Ritaglia prossimo" chiudeva il ritaglio e lo riapriva da zero, e
+        la barra spariva per un attimo ad ogni immagine (segnalato da
+        Carlo). seeked=True: _seek_croppable() gia' chiamata dal
+        chiamante."""
         if not self._active: return
         iw, ih = max(1, self.iw), max(1, self.ih)
         x1 = self.sel[0] / iw
@@ -16682,7 +16691,7 @@ class CropOverlay:
         _popup_pos = None
         if hasattr(self, "_bar_x"):
             _popup_pos = (self._bar_x, self._bar_y)
-        if self._seek_croppable(direction) is False:
+        if not seeked and self._seek_croppable(direction) is False:
             self.sorter._hud_alert("Ritaglio",
                 "Nessun'altra immagine da ritagliare nella lista.",
                 parent=self.sorter.root)
@@ -16721,17 +16730,25 @@ class CropOverlay:
             self.filepath = new_path
             self.orig_img = img
             self.iw, self.ih = iw, ih
+            # Voce "Originale" delle proporzioni: va riferita all'immagine
+            # nuova, non a quella su cui il ritaglio era stato aperto.
+            self._all_ratios[1] = ("Originale", iw, ih)
             self._edge_cols, self._edge_rows = [], []
             try:
                 self._compute_edge_profile()
             except Exception:
                 pass
-            self.sel = [
-                max(0, min(int(x1 * self.iw), self.iw)),
-                max(0, min(int(y1 * self.ih), self.ih)),
-                max(0, min(int(x2 * self.iw), self.iw)),
-                max(0, min(int(y2 * self.ih), self.ih)),
-            ]
+            if reinit:
+                self._aspect_w = self._aspect_h = None
+                self._ratio_var.set("Libero")
+                self._init_selection()
+            else:
+                self.sel = [
+                    max(0, min(int(x1 * self.iw), self.iw)),
+                    max(0, min(int(y1 * self.ih), self.ih)),
+                    max(0, min(int(x2 * self.iw), self.iw)),
+                    max(0, min(int(y2 * self.ih), self.ih)),
+                ]
             if self._auto_photo_var.get():
                 self._apply_photo_rect(quiet=True, redraw=False)
             # Ripristina posizione popup (con overrideredirect è stabile)
@@ -16815,32 +16832,24 @@ class CropOverlay:
                 append_history({"action": "cropped", "files": [self.filepath],
                                 "dest": dest, "backup": backup,
                                 "note": "ritaglio"})
-            # Salva posizione popup prima di cleanup (per riposizionarlo uguale)
-            _popup_pos = None
-            if hasattr(self, "_bar_x"):
-                _popup_pos = (self._bar_x, self._bar_y)
-            self._cleanup()
             if open_next:
                 # Avanza alla prossima immagine ritagliabile (salta video,
-                # PDF e file danneggiati) e riapre subito il crop
-                found = self._seek_croppable(1)
-                self.sorter._skip()
-                if found is not False:
-                    self.sorter._popup_crop_pos = _popup_pos
-                    self.sorter.root.after(150, self._open_crop_on_current)
-            else:
-                self.sorter._show_image()
-                if advance:
+                # PDF e file danneggiati) restando nel ritaglio, con la
+                # stessa barra; se non ce ne sono, chiude il ritaglio e
+                # avanza normalmente.
+                if self._seek_croppable(1) is not False:
+                    self._skip_image(1, reinit=True, seeked=True)
+                else:
+                    self._cleanup()
                     self.sorter._skip()
+                return
+            self._cleanup()
+            self.sorter._show_image()
+            if advance:
+                self.sorter._skip()
         except Exception as ex:
             self.sorter._hud_alert("Errore ritaglio",
                 f"Impossibile salvare:\n{ex}", parent=self.sorter.root)
-
-    def _open_crop_on_current(self):
-        """Riapre il crop overlay sul file corrente (usato da open_next)."""
-        fp = self.sorter._current_file()
-        if fp and os.path.isfile(fp) and not is_video(fp) and not is_pdf(fp):
-            self.sorter._open_crop(fp)
 
     def _ask_save(self, cropped, advance):
         """Chiede se sovrascrivere o salvare con nuovo nome."""
@@ -24239,11 +24248,7 @@ class ImageSorter:
         self._show_image()
 
     def _open_crop_on_current(self):
-        """Apre il ritaglio sul file corrente (tasto K). Stessa logica di
-        CropOverlay._open_crop_on_current (usata per "salva e apri il
-        prossimo"), ma richiamabile direttamente come scorciatoia da
-        tastiera: quella vive dentro CropOverlay e si aspetta un
-        self.sorter, non e' chiamabile da qui."""
+        """Apre il ritaglio sul file corrente (tasto K)."""
         fp = self._current_file()
         if fp and os.path.isfile(fp) and not is_video(fp) and not is_pdf(fp):
             self._open_crop(fp)

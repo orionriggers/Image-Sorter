@@ -2166,6 +2166,15 @@ tarare questo tipo di euristica su esempi veri, non solo sintetici — le
 immagini sintetiche di prova (rumore uniforme) non hanno zone lisce e non
 avrebbero mostrato il problema.
 
+v1.46.12: "Ritaglia prossimo" non chiude e riapre piu' il ritaglio (la
+barra spariva per un attimo ad ogni immagine, segnalato da Carlo): riusa
+lo stesso CropOverlay come le frecce, via _skip_image(1, reinit=True,
+seeked=True). reinit = selezione come in un ritaglio appena aperto
+(_init_selection: ricordata o intera, proporzioni Libero), poi Selezione
+auto se attiva. Rimosso CropOverlay._open_crop_on_current (non piu'
+usato). Corretto anche un difetto preesistente: con frecce/Successiva la
+voce "Originale" delle proporzioni restava riferita alla prima immagine.
+
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
 ===========================================================================
