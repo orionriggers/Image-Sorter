@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.7"
+VERSION = "1.46.8"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -1539,6 +1539,24 @@ def is_video(filepath):
 def is_pdf(filepath):
     t = detect_media_type(filepath)
     return t in PDF_EXTENSIONS
+
+def open_for_crop(filepath):
+    """Apre E decodifica per intero un'immagine da ritagliare; None se non
+    e' ritagliabile (video, PDF, file danneggiato). La decodifica completa
+    (load) serve a scoprire SUBITO i file rotti: Image.open() legge solo
+    l'intestazione, e un PNG con l'intestazione sana ma i dati corrotti
+    ("broken PNG file (chunk ...)") si apriva senza errori, per poi
+    fallire solo al momento del ritaglio vero."""
+    if not filepath or not os.path.isfile(filepath):
+        return None
+    if is_video(filepath) or is_pdf(filepath):
+        return None
+    try:
+        img = Image.open(filepath)
+        img.load()
+        return img
+    except Exception:
+        return None
 
 def _pymupdf_available():
     """Controlla se PyMuPDF (fitz) è installato."""
@@ -15536,7 +15554,12 @@ class CropOverlay:
         if not self.filepath or not os.path.isfile(self.filepath):
             return
 
-        self.orig_img = Image.open(self.filepath)
+        pre = getattr(sorter, "_crop_preloaded", None)
+        sorter._crop_preloaded = None
+        if pre and pre[0] == self.filepath:
+            self.orig_img = pre[1]
+        else:
+            self.orig_img = Image.open(self.filepath)
         self.iw, self.ih = self.orig_img.size
 
         # Voce "Originale": proporzioni identiche all'immagine di
@@ -16441,6 +16464,39 @@ class CropOverlay:
         self.sorter._restore_keybinds()
         self.sorter._crop_overlay = None
 
+    def _seek_croppable(self, direction):
+        """Cerca, nella direzione indicata e con lo stesso giro ad anello
+        di _skip/_go_back, la prossima immagine davvero ritagliabile —
+        salta video, PDF e file danneggiati (open_for_crop). Posiziona
+        l'indice in modo che UNA sola chiamata a _skip/_go_back ci atterri
+        sopra, cosi' i file saltati non passano nemmeno dall'anteprima: un
+        file rotto mostrato dal visualizzatore viene tolto dalla lista in
+        modo asincrono (_advance), mentre il ritaglio intanto si apriva
+        sopra di lui con l'anteprima ferma sull'immagine precedente — il
+        "non cambia l'anteprima" + "broken PNG file" segnalato da Carlo.
+        L'immagine decodificata resta in sorter._crop_preloaded per non
+        rileggerla all'apertura del ritaglio.
+        Ritorna True se trovata, False se nessuna, None se l'indice e'
+        fuori dalla lista principale (navigazione normale)."""
+        s = self.sorter
+        n = len(s.images)
+        if not (0 <= s.current_index < n):
+            return None
+        step = 1 if direction > 0 else -1
+        for k in range(1, n):
+            i = (s.current_index + step * k) % n
+            p = s.images[i]
+            img = open_for_crop(p)
+            if img is None:
+                continue
+            s._crop_preloaded = (p, img)
+            if k > 1:
+                s.current_index = (i - step) % n
+                if step > 0:
+                    s._view_pos += k - 1
+            return True
+        return False
+
     def _skip_image(self, direction):
         """Salta alla img successiva/precedente mantenendo il rettangolo."""
         if not self._active: return
@@ -16453,32 +16509,11 @@ class CropOverlay:
         _popup_pos = None
         if hasattr(self, "_bar_x"):
             _popup_pos = (self._bar_x, self._bar_y)
-        # Salta video e PDF (non ritagliabili): cerca la prossima immagine
-        # nella direzione richiesta, con lo stesso giro ad anello di
-        # _skip/_go_back, e posiziona l'indice in modo che una sola
-        # chiamata ci atterri sopra — cosi' i video intermedi non vengono
-        # nemmeno caricati nell'anteprima.
-        s = self.sorter
-        n = len(s.images)
-        if 0 <= s.current_index < n:
-            step = 1 if direction > 0 else -1
-            target = None
-            for k in range(1, n):
-                i = (s.current_index + step * k) % n
-                p = s.images[i]
-                if not (is_video(p) or is_pdf(p)):
-                    target = (i, k)
-                    break
-            if target is None:
-                s._hud_alert("Ritaglio",
-                    "Nessun'altra immagine da ritagliare nella lista.",
-                    parent=s.root)
-                return
-            i, k = target
-            if k > 1:
-                s.current_index = (i - step) % n
-                if step > 0:
-                    s._view_pos += k - 1
+        if self._seek_croppable(direction) is False:
+            self.sorter._hud_alert("Ritaglio",
+                "Nessun'altra immagine da ritagliare nella lista.",
+                parent=self.sorter.root)
+            return
         # Disattiva temporaneamente per permettere _show_image completo
         self._active = False
         self._hide_loupe()
@@ -16494,8 +16529,14 @@ class CropOverlay:
             new_path = self.sorter._current_file()
             if not new_path or not os.path.isfile(new_path):
                 self._active = False; return
+            pre = getattr(self.sorter, "_crop_preloaded", None)
+            self.sorter._crop_preloaded = None
             try:
-                img = Image.open(new_path)
+                if pre and pre[0] == new_path:
+                    img = pre[1]
+                else:
+                    img = Image.open(new_path)
+                    img.load()
                 iw, ih = img.size
             except Exception:
                 # File non apribile come immagine (video/PDF nella lista
@@ -16605,10 +16646,13 @@ class CropOverlay:
                 _popup_pos = (self._bar_x, self._bar_y)
             self._cleanup()
             if open_next:
-                # Avanza al prossimo file e riapre subito il crop
+                # Avanza alla prossima immagine ritagliabile (salta video,
+                # PDF e file danneggiati) e riapre subito il crop
+                found = self._seek_croppable(1)
                 self.sorter._skip()
-                self.sorter._popup_crop_pos = _popup_pos
-                self.sorter.root.after(150, self._open_crop_on_current)
+                if found is not False:
+                    self.sorter._popup_crop_pos = _popup_pos
+                    self.sorter.root.after(150, self._open_crop_on_current)
             else:
                 self.sorter._show_image()
                 if advance:
@@ -21189,6 +21233,7 @@ class ImageSorter:
         self._total_images     = 0
         self._view_pos         = 0
         self._crop_overlay      = None
+        self._crop_preloaded    = None   # (percorso, immagine decodificata) pronta per il prossimo CropOverlay
         self._pdf_page          = {}   # {filepath: current_page}
         self._pdf_panel         = None  # pannello miniature laterale
         self._pdf_thumb_imgs    = []    # PhotoImage delle miniature
@@ -24694,6 +24739,17 @@ class ImageSorter:
         if hasattr(self, "_crop_overlay") and self._crop_overlay and                 getattr(self._crop_overlay, "_active", False):
             self._crop_overlay._cancel()
             return
+        pre = getattr(self, "_crop_preloaded", None)
+        if not (pre and pre[0] == filepath):
+            img = open_for_crop(filepath)
+            if img is None:
+                self._crop_preloaded = None
+                self._hud_alert("Ritaglio",
+                    "File danneggiato o non leggibile, impossibile "
+                    "ritagliarlo:\n" + os.path.basename(filepath),
+                    parent=self.root)
+                return
+            self._crop_preloaded = (filepath, img)
         self._crop_overlay = CropOverlay(self)
         # Assicura che Esc sia gestito da _on_escape_key (che controlla il crop)
         self.root.bind("<Escape>", self._on_escape_key)
