@@ -2136,6 +2136,33 @@ intestazione sana ma dati rotti si "apre" senza errori e fallisce dopo,
 nel punto meno opportuno. Dove serve sapere SUBITO se un'immagine è
 usabile (prima di aprirci sopra un'interfaccia), chiamare load().
 
+v1.46.9: Impostazioni/Info, riga "Log errori: [Apri file]" (xdg-open sul
+.log, creato vuoto se manca).
+
+v1.46.10 (+ translations.py 1.46.2): ritaglio, "Trova foto" + casella
+"Auto" (config["crop_auto_photo"]). CropOverlay._detect_photo_rect()
+riconosce la foto dentro uno screenshot da cellulare (barre dell'app
+sopra/sotto, foto nel mezzo). Pure PIL, ~0.25s su 1080x2400.
+- Riga "interfaccia" = >=95% dei pixel entro 20 livelli da uno dei colori
+  delle barre, campionati dalle righe estreme (barra di stato e di
+  navigazione). La foto e' la banda piu' alta di righe non-interfaccia;
+  colonne con lo stesso criterio dentro la banda; poi rifinitura a piena
+  risoluzione (primo pixel non-interfaccia entro pochi px).
+- Due bande alte (>=15% ciascuna) separate da <=4% vengono riunite: una
+  fascia nera a tutta larghezza dentro una foto scura altrimenti la
+  spezzava. La fila delle storie (~11%) resta fuori.
+- Tarato sugli 8 esempi reali che Carlo ha messo in
+  "/media/carlo/PortableSSD/NEW INET/ssx screen shoes/esempi/" (feed
+  chiaro, storie scure con angoli arrotondati, fila storie attaccata alla
+  foto, barre a due tonalita'): tutti esatti al pixel.
+
+KEY LEARNING: per separare "interfaccia" da "foto" NON basta l'uniformita'
+della riga: foto sfocate o con zone lisce (soffitto, pavimento, legno)
+hanno righe uniformi, e il primo prototipo sbagliava 4 esempi reali su 8.
+Serve uniformita' + colore uguale a quello delle barre. Lezione generale:
+tarare questo tipo di euristica su esempi veri, non solo sintetici — i
+casi sintetici passavano tutti anche col criterio sbagliato.
+
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
 ===========================================================================

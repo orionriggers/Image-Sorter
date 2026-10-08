@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.9"
+VERSION = "1.46.10"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -2181,7 +2181,8 @@ def load_config():
         "keypad_cols_configured": 3,
         "crop_remember":   False,
         "crop_snap_edges": True,
-        "crop_bar_two_rows": True,    # popup ritaglio: bottoni su seconda riga (doppio clic sul titolo alterna)
+        "crop_bar_two_rows": True,
+        "crop_auto_photo": False,     # ritaglio: "Trova foto" automatico su ogni immagine    # popup ritaglio: bottoni su seconda riga (doppio clic sul titolo alterna)
         "show_images":     True,
         "show_videos":     True,
         "show_pdfs":       True,
@@ -15689,6 +15690,27 @@ class CropOverlay:
                        activeforeground=HUD_CYAN
                        ).pack(side="left", padx=6)
 
+        # Trova foto: riconosce la foto dentro uno screenshot da cellulare
+        # (barre dell'app sopra/sotto) e ci posiziona la selezione.
+        # "Auto" lo applica da solo a ogni immagine aperta nel ritaglio.
+        tk.Button(content, text="Trova foto",
+                  font=("TkFixedFont", 8, "bold"),
+                  bg=ACCENT_COLOR, fg=HUD_CYAN, relief="flat", padx=8,
+                  activebackground=HIGHLIGHT, activeforeground="white",
+                  command=lambda: self._apply_photo_rect(quiet=False)
+                  ).pack(side="left", padx=(6, 2), ipady=1)
+        self._auto_photo_var = tk.BooleanVar(
+            value=sorter.config.get("crop_auto_photo", False))
+        tk.Checkbutton(content, text="Auto",
+                       variable=self._auto_photo_var,
+                       command=self._on_auto_photo_toggle,
+                       font=("TkFixedFont", 8),
+                       bg=PANEL_COLOR, fg=TEXT_COLOR,
+                       selectcolor=ACCENT_COLOR,
+                       activebackground=PANEL_COLOR,
+                       activeforeground=HUD_CYAN
+                       ).pack(side="left", padx=(0, 6))
+
         tk.Button(actions, text="Ritaglia",
                   font=("TkFixedFont", 8, "bold"),
                   bg=SUCCESS, fg="white", relief="flat", padx=8,
@@ -15772,6 +15794,8 @@ class CropOverlay:
 
         # Inizializza selezione e disegna
         self._init_selection()
+        if self._auto_photo_var.get():
+            self._apply_photo_rect(quiet=True, redraw=False)
         self._draw()
 
     def _apply_bar_layout(self):
@@ -15935,6 +15959,153 @@ class CropOverlay:
                     continue
             i += 1
         return [round(p * scale) for p in peaks]
+
+    def _detect_photo_rect(self):
+        """Riconosce la foto dentro uno screenshot da cellulare: barre
+        dell'interfaccia sopra e sotto (barra di stato, intestazione,
+        commenti, navigazione) e la foto nel mezzo. Ritorna
+        (x1, y1, x2, y2) in pixel dell'immagine originale, oppure None se
+        non c'e' una foto riconoscibile.
+
+        Una riga e' "interfaccia" se quasi tutti i suoi pixel hanno uno dei
+        colori delle barre, campionati dalle righe estreme dell'immagine
+        (prima/ultima: barra di stato e barra di navigazione). NON basta
+        che la riga sia uniforme: le foto sfocate o con zone lisce
+        (soffitto, pavimento, legno) hanno righe uniformi anche loro, e il
+        solo criterio di uniformita' le tagliava via (provato sugli esempi
+        reali di Carlo: 4 su 8 sbagliati). Le righe con testo, avatar o la
+        fila delle storie non sono "interfaccia" pura e formano bande
+        brevi, staccate dalla foto da righe di sfondo: la foto e' la banda
+        piu' alta. La posizione trovata sulla copia ridotta viene poi
+        rifinita a piena risoluzione, per avere il bordo esatto al pixel."""
+        TOL, FLAT = 20, 0.95
+        img = self.orig_img
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        W, H = img.size
+        if W < 16 or H < 16:
+            return None
+        sw = min(270, W)
+        sh = max(1, round(H * sw / W))
+        sx, sy = W / sw, H / sh
+        px = img.resize((sw, sh), Image.BILINEAR).load()
+
+        def close(p, c):
+            return (abs(p[0] - c[0]) <= TOL and abs(p[1] - c[1]) <= TOL
+                    and abs(p[2] - c[2]) <= TOL)
+
+        def median(pts):
+            n = len(pts)
+            return tuple(sorted(p[ch] for p in pts)[n // 2] for ch in range(3))
+
+        ui = []
+        for y in (0, 1, sh - 2, sh - 1):
+            m = median([px[x, y] for x in range(sw)])
+            if not any(close(m, c) for c in ui):
+                ui.append(m)
+
+        def is_ui(pts):
+            ok = sum(1 for p in pts if any(close(p, c) for c in ui))
+            return ok >= FLAT * len(pts)
+
+        # Bande di righe non-interfaccia
+        flags = [is_ui([px[x, y] for x in range(sw)]) for y in range(sh)]
+        bands, i = [], 0
+        while i < sh:
+            if flags[i]:
+                i += 1
+                continue
+            j = i
+            while j < sh and not flags[j]:
+                j += 1
+            bands.append([i, j])
+            i = j
+        if not bands:
+            return None
+        # Una fascia a tutta larghezza del colore delle barre DENTRO la foto
+        # (es. zona nera in una foto scura) la spezzerebbe in due: si
+        # riuniscono due bande alte entrambe (>= 15% dell'immagine) separate
+        # da uno spazio breve. Le bande dell'interfaccia (testo, avatar, la
+        # fila delle storie: ~11% nell'esempio piu' alto) restano escluse.
+        big, gap = 0.15 * sh, 0.04 * sh
+        merged = [bands[0]]
+        for b in bands[1:]:
+            a = merged[-1]
+            if (b[0] - a[1] <= gap and a[1] - a[0] >= big
+                    and b[1] - b[0] >= big):
+                a[1] = b[1]
+            else:
+                merged.append(b)
+        y0, y1 = max(merged, key=lambda b: b[1] - b[0])
+        # Colonne: dentro la banda, per foto non a tutta larghezza
+        xs = [x for x in range(sw)
+              if not is_ui([px[x, y] for y in range(y0, y1)])]
+        if not xs:
+            return None
+        x0, x1 = xs[0], xs[-1] + 1
+
+        # Rifinitura a piena risoluzione: dal lato interfaccia verso
+        # l'interno, primo pixel che non e' interfaccia (entro pochi pixel
+        # dalla posizione approssimata).
+        fpx = img.load()
+        r = int(max(sx, sy) * 2) + 2
+        fx0, fx1 = int(x0 * sx), min(W, int(x1 * sx))
+
+        def first_non_ui(lo, hi, test, forward):
+            rng = range(lo, hi) if forward else range(hi - 1, lo - 1, -1)
+            for t in rng:
+                if not test(t):
+                    return t
+            return None
+
+        def row_ui(y):
+            return is_ui([fpx[x, y] for x in range(fx0, fx1, 2)])
+        cy0, cy1 = int(y0 * sy), int(y1 * sy)
+        top = first_non_ui(max(0, cy0 - r), min(H, cy0 + r), row_ui, True)
+        bot = first_non_ui(max(0, cy1 - r), min(H, cy1 + r), row_ui, False)
+        top = cy0 if top is None else top
+        bot = cy1 if bot is None else bot + 1
+
+        def col_ui(x):
+            return is_ui([fpx[x, y] for y in range(top, bot, 4)])
+        left = first_non_ui(max(0, fx0 - r), min(W, fx0 + r), col_ui, True)
+        right = first_non_ui(max(0, fx1 - r), min(W, fx1 + r), col_ui, False)
+        left = fx0 if left is None else left
+        right = fx1 if right is None else right + 1
+
+        if bot - top < 0.15 * H or right - left < 0.15 * W:
+            return None   # troppo piccola: non e' la foto
+        if bot - top > 0.97 * H and right - left > 0.97 * W:
+            return None   # nessuna barra: l'immagine e' gia' solo la foto
+        return (left, top, right, bot)
+
+    def _apply_photo_rect(self, quiet=False, redraw=True):
+        """Posiziona la selezione sulla foto riconosciuta. Le proporzioni
+        passano a "Libero": un rapporto fisso non si adatta alla foto
+        trovata. quiet=True (modalita' Auto): nessun avviso se non trova
+        nulla, la selezione resta quella che c'era."""
+        try:
+            rect = self._detect_photo_rect()
+        except Exception:
+            rect = None
+        if rect is None:
+            if not quiet:
+                self.sorter._show_toast("Nessuna foto riconosciuta",
+                                        color=WARNING, duration=2000)
+            return False
+        self.sel = list(rect)
+        self._aspect_w = self._aspect_h = None
+        self._ratio_var.set("Libero")
+        if redraw:
+            self._draw()
+        return True
+
+    def _on_auto_photo_toggle(self):
+        on = self._auto_photo_var.get()
+        self.sorter.config["crop_auto_photo"] = on
+        save_config(self.sorter.config)
+        if on:
+            self._apply_photo_rect(quiet=False)
 
     def _on_snap_toggle(self):
         self.sorter.config["crop_snap_edges"] = self._snap_var.get()
@@ -16559,6 +16730,8 @@ class CropOverlay:
                 max(0, min(int(x2 * self.iw), self.iw)),
                 max(0, min(int(y2 * self.ih), self.ih)),
             ]
+            if self._auto_photo_var.get():
+                self._apply_photo_rect(quiet=True, redraw=False)
             # Ripristina posizione popup (con overrideredirect è stabile)
             if _popup_pos and hasattr(self, "_bar") and self._bar.winfo_exists():
                 self._bar_x, self._bar_y = _popup_pos
