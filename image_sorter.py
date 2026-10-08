@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.6"
+VERSION = "1.46.7"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -2163,6 +2163,7 @@ def load_config():
         "keypad_cols_configured": 3,
         "crop_remember":   False,
         "crop_snap_edges": True,
+        "crop_bar_two_rows": True,    # popup ritaglio: bottoni su seconda riga (doppio clic sul titolo alterna)
         "show_images":     True,
         "show_videos":     True,
         "show_pdfs":       True,
@@ -15590,7 +15591,7 @@ class CropOverlay:
         # Barra di trascinamento (titolo fake)
         drag_bar = tk.Frame(inner, bg=ACCENT_COLOR, cursor="fleur", height=14)
         drag_bar.pack(fill="x", side="top")
-        tk.Label(drag_bar, text="✂ Ritaglia  [trascina]",
+        tk.Label(drag_bar, text="✂ Ritaglia",
                  font=("TkFixedFont", 7), bg=ACCENT_COLOR,
                  fg=MUTED_COLOR).pack(side="left", padx=4)
 
@@ -15608,8 +15609,20 @@ class CropOverlay:
             w.bind("<ButtonPress-1>",  _drag_start)
             w.bind("<B1-Motion>",      _drag_move)
 
-        content = tk.Frame(inner, bg=PANEL_COLOR)
-        content.pack(fill="x", side="top", pady=(2,0))
+        # Corpo in tre blocchi (opzioni, bottoni d'azione, info dimensioni)
+        # disposti con grid da _apply_bar_layout: su una riga sola oppure
+        # su due (opzioni + info sopra, bottoni sotto — popup largo circa
+        # la metà). Doppio clic sulla barra del titolo alterna i due modi,
+        # la scelta resta in config.
+        body = tk.Frame(inner, bg=PANEL_COLOR)
+        body.pack(fill="x", side="top", pady=(2,0))
+        content = tk.Frame(body, bg=PANEL_COLOR)
+        actions = tk.Frame(body, bg=PANEL_COLOR)
+        info_box = tk.Frame(body, bg=PANEL_COLOR)
+        self._bar_blocks = (content, actions, info_box)
+        drag_bar.bind("<Double-Button-1>", self._toggle_bar_layout)
+        for w in drag_bar.winfo_children():
+            w.bind("<Double-Button-1>", self._toggle_bar_layout)
 
         # Selector proporzioni
         tk.Label(content, text="Proporzioni:",
@@ -15653,35 +15666,35 @@ class CropOverlay:
                        activeforeground=HUD_CYAN
                        ).pack(side="left", padx=6)
 
-        tk.Button(content, text="Ritaglia",
+        tk.Button(actions, text="Ritaglia",
                   font=("TkFixedFont", 8, "bold"),
                   bg=SUCCESS, fg="white", relief="flat", padx=8,
                   activebackground=HUD_CYAN,
                   command=lambda: self._apply(advance=False)
                   ).pack(side="left", padx=4, ipady=3)
 
-        tk.Button(content, text="Ritaglia e avanza",
+        tk.Button(actions, text="Ritaglia e avanza",
                   font=("TkFixedFont", 8, "bold"),
                   bg=HUD_CYAN, fg="#0a1a2e", relief="flat", padx=8,
                   activebackground=SUCCESS,
                   command=lambda: self._apply(advance=True)
                   ).pack(side="left", padx=4, ipady=3)
 
-        tk.Button(content, text="Ritaglia prossimo",
+        tk.Button(actions, text="Ritaglia prossimo",
                   font=("TkFixedFont", 8, "bold"),
                   bg="#2a6a3a", fg="white", relief="flat", padx=8,
                   activebackground=SUCCESS,
                   command=lambda: self._apply(advance=True, open_next=True)
                   ).pack(side="left", padx=4, ipady=3)
 
-        tk.Button(content, text="Successiva",
+        tk.Button(actions, text="Successiva",
                   font=("TkFixedFont", 8, "bold"),
                   bg="#555555", fg="white", relief="flat", padx=8,
                   activebackground=HIGHLIGHT,
                   command=lambda: self._skip_image(1)
                   ).pack(side="left", padx=4, ipady=3)
 
-        tk.Button(content, text="Annulla",
+        tk.Button(actions, text="Annulla",
                   font=("TkFixedFont", 8),
                   bg=ACCENT_COLOR, fg=TEXT_COLOR, relief="flat", padx=8,
                   activebackground=HIGHLIGHT,
@@ -15689,10 +15702,11 @@ class CropOverlay:
                   ).pack(side="left", padx=4, ipady=3)
 
         # Info dimensioni/ratio — larghezza fissa per non ridimensionare il popup
-        self._info = tk.Label(content, text="", font=("TkFixedFont", 8),
+        self._info = tk.Label(info_box, text="", font=("TkFixedFont", 8),
                               bg=PANEL_COLOR, fg=HUD_CYAN,
                               width=28, anchor="w")
         self._info.pack(side="left", padx=10)
+        self._apply_bar_layout()
 
         # Posiziona il popup DOPO aver aggiunto tutti i widget (dimensione stabile)
         sorter.root.update_idletasks()
@@ -15736,6 +15750,31 @@ class CropOverlay:
         # Inizializza selezione e disegna
         self._init_selection()
         self._draw()
+
+    def _apply_bar_layout(self):
+        """Dispone i blocchi del popup su una o due righe secondo
+        config["crop_bar_two_rows"] (predefinito: due righe)."""
+        content, actions, info_box = self._bar_blocks
+        for w in self._bar_blocks:
+            w.grid_forget()
+        if self.sorter.config.get("crop_bar_two_rows", True):
+            content.grid(row=0, column=0, sticky="w")
+            info_box.grid(row=0, column=1, sticky="w")
+            actions.grid(row=1, column=0, columnspan=2, sticky="w",
+                         pady=(4, 0))
+        else:
+            content.grid(row=0, column=0, sticky="w")
+            actions.grid(row=0, column=1, sticky="w")
+            info_box.grid(row=0, column=2, sticky="w")
+
+    def _toggle_bar_layout(self, e=None):
+        cfg = self.sorter.config
+        cfg["crop_bar_two_rows"] = not cfg.get("crop_bar_two_rows", True)
+        self._apply_bar_layout()
+        try:
+            save_config(cfg)
+        except Exception:
+            pass
 
     def _compute_edge_profile(self):
         """Calcola le linee di bordo netto (verticali/orizzontali) usate dal
