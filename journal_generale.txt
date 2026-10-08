@@ -2104,6 +2104,38 @@ in sospeso lo annulla SENZA cestinare, e un CANC successivo riparte
 da capo (primo tocco), non da "secondo" come se il precedente fosse
 ancora valido.
 
+v1.46.6-v1.46.8 (solo image_sorter.py, + translations.py 1.46.1):
+ritaglio.
+- v1.46.6: frecce nel ritaglio su un video -> UnidentifiedImageError in
+  _after_nav. Ora la navigazione nel ritaglio salta video/PDF.
+- v1.46.7: popup Ritaglia su due righe (opzioni + dimensioni sopra, 5
+  bottoni sotto); doppio clic sul titolo alterna con la riga unica,
+  config["crop_bar_two_rows"]. Titolo senza "[trascina]".
+- v1.46.8: "Ritaglia prossimo" su cartella con PNG danneggiati (SSD
+  esterno fuseblk, 108 file su ~248 rotti GIA' sul disco, mtime
+  originali — non causati dal programma): anteprima ferma sul file
+  precedente + "broken PNG file (chunk ...)" al ritaglio successivo.
+  Causa: corsa fra due percorsi asincroni. Il visualizzatore scopre il
+  file rotto solo nel thread di caricamento e lo toglie dalla lista con
+  _advance(); intanto (after 150ms) il ritaglio si era già aperto sul
+  file rotto, e con il crop attivo _show_image() ridisegna solo la
+  selezione -> anteprima ferma. Su disco lento la decodifica supera i
+  150ms, in xvfb no (il test "normale" passava anche col codice
+  vecchio: serve simulare un disco lento ritardando Image.open nei
+  thread non principali). Peggio: col codice vecchio il secondo
+  ritaglio sul file rotto poteva RIUSCIRE e sovrascriverlo.
+  Correzione: open_for_crop() decodifica per intero (load()) prima di
+  aprire il crop; CropOverlay._seek_croppable() cerca la prossima
+  immagine davvero ritagliabile (salta video/PDF/rotti) e posiziona
+  l'indice prima di _skip/_go_back, cosi' i file saltati non passano
+  dall'anteprima; immagine decodificata passata al CropOverlay via
+  sorter._crop_preloaded (niente doppia lettura).
+
+KEY LEARNING: Image.open() legge solo l'intestazione. Un file con
+intestazione sana ma dati rotti si "apre" senza errori e fallisce dopo,
+nel punto meno opportuno. Dove serve sapere SUBITO se un'immagine è
+usabile (prima di aprirci sopra un'interfaccia), chiamare load().
+
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
 ===========================================================================
