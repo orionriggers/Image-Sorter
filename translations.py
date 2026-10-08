@@ -1,5 +1,5 @@
 # translations.py — Testi e traduzioni IT/EN
-VERSION = "1.46.2"
+VERSION = "1.46.3"
 #
 # COME AGGIUNGERE UNA NUOVA LINGUA
 # 1. Aggiungi un blocco in LANG:  "xx": { "lang_name": "Nome", "app_name": "Image Sorter", ... }
@@ -683,6 +683,7 @@ _IT_EN = {
     "Ritaglia": "Crop",
     "Magnete": "Magnet",
     "Trova foto": "Find photo",
+    "Selezione auto": "Auto select",
     "Nessuna foto riconosciuta": "No photo detected",
     "✂ Ritaglia": "✂ Crop",
     "Come vuoi salvare l'immagine ritagliata?": "How to save the cropped image?",

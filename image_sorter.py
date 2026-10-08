@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.10"
+VERSION = "1.46.11"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -15691,17 +15691,19 @@ class CropOverlay:
                        ).pack(side="left", padx=6)
 
         # Trova foto: riconosce la foto dentro uno screenshot da cellulare
-        # (barre dell'app sopra/sotto) e ci posiziona la selezione.
-        # "Auto" lo applica da solo a ogni immagine aperta nel ritaglio.
-        tk.Button(content, text="Trova foto",
+        # (barre dell'app sopra/sotto) e ci posiziona la selezione. Il
+        # bottone sta in testa alla riga dei bottoni d'azione (prima di
+        # "Ritaglia"), la spunta "Selezione auto" resta accanto a Magnete:
+        # la applica da sola a ogni immagine aperta nel ritaglio.
+        tk.Button(actions, text="Trova foto",
                   font=("TkFixedFont", 8, "bold"),
                   bg=ACCENT_COLOR, fg=HUD_CYAN, relief="flat", padx=8,
                   activebackground=HIGHLIGHT, activeforeground="white",
                   command=lambda: self._apply_photo_rect(quiet=False)
-                  ).pack(side="left", padx=(6, 2), ipady=1)
+                  ).pack(side="left", padx=4, ipady=3)
         self._auto_photo_var = tk.BooleanVar(
             value=sorter.config.get("crop_auto_photo", False))
-        tk.Checkbutton(content, text="Auto",
+        tk.Checkbutton(content, text="Selezione auto",
                        variable=self._auto_photo_var,
                        command=self._on_auto_photo_toggle,
                        font=("TkFixedFont", 8),
