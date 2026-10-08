@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.8"
+VERSION = "1.46.9"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -21074,6 +21074,32 @@ class SettingsDialog:
                   activebackground=HIGHLIGHT, activeforeground="white",
                   command=lambda: self._switch_tab("private")
                   ).pack(side="left", ipady=2)
+        # Riga 4: Log errori — apre il file .log con l'editor predefinito
+        fr_row4 = tk.Frame(fr_cfg, bg=BG_COLOR)
+        fr_row4.pack(fill="x", pady=(4,0))
+        tk.Label(fr_row4, text="Log errori:",
+                 font=("TkFixedFont",7), bg=BG_COLOR,
+                 fg=MUTED_COLOR, width=12, anchor="w").pack(side="left")
+        tk.Button(fr_row4, text="Apri file",
+                  font=("TkFixedFont",8), bg=ACCENT_COLOR, fg=TEXT_COLOR,
+                  relief="flat", padx=8,
+                  activebackground=HIGHLIGHT, activeforeground="white",
+                  command=self._open_error_log_file
+                  ).pack(side="left", ipady=2)
+
+    def _open_error_log_file(self):
+        """Apre image_sorter_error.log con l'applicazione predefinita.
+        Se il file non esiste ancora (nessun errore mai registrato) lo crea
+        vuoto, altrimenti xdg-open fallirebbe in silenzio senza aprire
+        nulla."""
+        try:
+            if not os.path.isfile(ERROR_LOG_FILE):
+                open(ERROR_LOG_FILE, "a").close()
+            subprocess.Popen(["xdg-open", ERROR_LOG_FILE],
+                             stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+        except Exception as ex:
+            self.sorter._hud_alert("Log errori", str(ex), parent=self.win)
 
     def _export_config(self, presets_only=False):
         """Esporta impostazioni (tutte o solo preset) in un file JSON scelto."""
