@@ -2160,8 +2160,9 @@ KEY LEARNING: per separare "interfaccia" da "foto" NON basta l'uniformita'
 della riga: foto sfocate o con zone lisce (soffitto, pavimento, legno)
 hanno righe uniformi, e il primo prototipo sbagliava 4 esempi reali su 8.
 Serve uniformita' + colore uguale a quello delle barre. Lezione generale:
-tarare questo tipo di euristica su esempi veri, non solo sintetici — i
-casi sintetici passavano tutti anche col criterio sbagliato.
+tarare questo tipo di euristica su esempi veri, non solo sintetici — le
+immagini sintetiche di prova (rumore uniforme) non hanno zone lisce e non
+avrebbero mostrato il problema.
 
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
