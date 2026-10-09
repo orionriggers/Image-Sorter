@@ -552,8 +552,9 @@ KEY LEARNINGS & PRINCIPI CODIFICATI (validi per TUTTO il progetto)
     appena cambiato prima che quest'ultimo sia stato completato
     (esempio: cambiare tipo di azione non salva subito se il nuovo
     tipo richiede un parametro non ancora scritto)
-  - Popup senza grab_set() (scelta deliberata in tutto il progetto, per
-    non bloccare altri programmi): focus_set() sul campo NON basta con
+  - Finestre di lavoro senza grab_set() (blocca tutte le finestre di
+    Image Sorter, non gli altri programmi; ammesso nei dialoghi brevi di
+    conferma, precisato in v1.46.18): focus_set() sul campo NON basta con
     un vero window manager, che spesso impedisce apposta a una finestra
     appena aperta di rubare il fuoco da sola - serve focus_force() sul
     widget, non solo sulla finestra

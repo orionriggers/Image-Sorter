@@ -119,8 +119,15 @@ cleanup successivo su di esso.
 
 ## Convenzioni di codice non ovvie (causa di bug reali, non teoria)
 
-- **Mai `grab_set()`** nei popup: bloccherebbe altri programmi. Di
-  conseguenza, `entry.focus_set()` NON basta per garantire il fuoco reale
+- **Niente `grab_set()` nelle finestre di lavoro** (Naviga, Impostazioni,
+  editor, popup che restano aperti mentre si usa il resto): blocca tutte
+  le altre finestre di Image Sorter finché è aperta, e se finisce dietro
+  un'altra finestra il programma sembra bloccato. Gli altri programmi
+  NON vengono bloccati (quello sarebbe `grab_set_global()`, mai usato).
+  **Ammesso nei dialoghi brevi di conferma** (`_hud_yesno`, "Svuotare il
+  cestino?" alla chiusura e simili), dove bloccare il resto finché non
+  si risponde è proprio lo scopo — è già così in tutto il codice. Senza
+  grab, `entry.focus_set()` NON basta per garantire il fuoco reale
   sotto un vero window manager (che spesso impedisce a una finestra appena
   aperta di rubarlo da sola) — serve `entry.focus_force()`.
 - **`Entry.bind("<Return>", handler)` senza `return "break"`**: l'evento si
