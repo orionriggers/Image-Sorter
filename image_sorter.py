@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.14"
+VERSION = "1.46.15"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -16854,8 +16854,42 @@ class CropOverlay:
             self._apply(advance=True, open_next=True)
 
     def _on_return_key(self, e=None):
+        # CANC + Invio: con l'avviso di eliminazione a video, Invio
+        # conferma il cestino (bind_all di _delete_current), non ritaglia.
+        if getattr(self.sorter, "_delete_pending", False):
+            return None
         self.crop_next()
         return "break"
+
+    def _after_trash(self):
+        """Il file sotto il ritaglio e' appena stato cestinato
+        (_do_trash): la lista e' gia' aggiornata e current_index punta al
+        file che seguiva. Resta nel ritaglio passando a quel file (o alla
+        prossima immagine ritagliabile), come "Successiva". Senza questo,
+        _show_image() ridisegnava solo il crop e il ritaglio restava
+        sull'immagine eliminata (segnalato da Carlo)."""
+        s = self.sorter
+        if not s.images:
+            self._cleanup()
+            s._show_image()
+            return
+        n = len(s.images)
+        s.current_index %= n
+        target = s.current_index
+        # Un passo indietro, cosi' _seek_croppable/_skip ripartono
+        # esattamente dal file che seguiva quello cestinato. _skip()
+        # incrementa _view_pos: lo si compensa, come per una
+        # eliminazione fuori dal ritaglio (che non lo tocca).
+        s.current_index = (target - 1) % n
+        if n > 1 and self._seek_croppable(1) is not False:
+            s._view_pos -= 1
+            self._skip_image(1, seeked=True)
+        else:
+            # Nessun'altra immagine ritagliabile: esce dal ritaglio e
+            # mostra normalmente il file che seguiva.
+            s.current_index = target
+            self._cleanup()
+            s._show_image()
 
     def _apply(self, advance=False, open_next=False):
         x1,y1,x2,y2 = [int(v) for v in self.sel]
@@ -24371,6 +24405,10 @@ class ImageSorter:
         if not self.images and self.source_folder:
             self.images = [f for f in self._load_images() if f != filepath]
             self.current_index = 0
+        crop = self._crop_overlay
+        if crop and crop._active:
+            crop._after_trash()
+            return
         self._show_image()
 
     def _open_crop_on_current(self):

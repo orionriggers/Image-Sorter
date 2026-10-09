@@ -2192,6 +2192,18 @@ la mediana delle colonne vicine), rifinito a piena risoluzione con
 _refine_edge(span=...). Su rumore puro non aggancia nulla; ~5 ms per
 movimento su 12 MP.
 
+v1.46.15: CANC+CANC durante il ritaglio cestinava il file ma il ritaglio
+restava sull'immagine eliminata (_do_trash -> _show_image(), che a crop
+attivo ridisegna solo il crop). Ora _do_trash chiama
+CropOverlay._after_trash(): indice un passo indietro + _seek_croppable +
+_skip_image(1, seeked=True), _view_pos compensato; se non resta nulla di
+ritagliabile esce dal ritaglio. Invio con l'avviso CANC a video conferma
+il cestino invece di ritagliare (_on_return_key lascia passare l'evento).
+KEY LEARNING (test): la cartella di transito del cestino e' ASSOLUTA
+(~/.local/share/image_sorter/cestino_transito), non segue la cartella
+isolata del test: impostare config["trash_transit_dir"] su una tmpdir
+in ogni test che cestina file.
+
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
 ===========================================================================
