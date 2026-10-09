@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.13"
+VERSION = "1.46.14"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -15589,6 +15589,7 @@ class CropOverlay:
         # di errore (es. immagine non decodificabile in modalità 'L').
         self._edge_cols = []   # coordinate immagine (x) dei bordi verticali forti
         self._edge_rows = []   # coordinate immagine (y) dei bordi orizzontali forti
+        self._edge_small = None  # mappa bordi ridotta, per il magnete locale
         try:
             self._compute_edge_profile()
         except Exception:
@@ -15850,6 +15851,9 @@ class CropOverlay:
 
         edges = small.filter(ImageFilter.FIND_EDGES)
         data = edges.tobytes()  # 1 byte per pixel, riga per riga
+        # Tenuta per _local_edges(): bordi presenti solo in un tratto
+        # dell'immagine, cercati al momento lungo il lato trascinato.
+        self._edge_small = (data, w, h, sx, sy)
 
         # Forza del bordo per colonna/riga: somma dell'intensità del
         # gradiente lungo tutta l'altezza/larghezza. Un bordo netto e lungo
@@ -15896,7 +15900,7 @@ class CropOverlay:
                            if margin_y < r < self.ih - margin_y]
         self._edge_rows += [0, self.ih]
 
-    def _refine_edge(self, axis, candidate, window):
+    def _refine_edge(self, axis, candidate, window, span=None):
         """Cerca il gradiente massimo reale in una striscia sottile
         dell'immagine ORIGINALE (larga 'window'*2+1 px) centrata sul
         candidato approssimato, per ottenere la posizione esatta del bordo
@@ -15909,15 +15913,20 @@ class CropOverlay:
         filtro crea un falso bordo netto esattamente sul confine del
         ritaglio stesso (assenza di pixel oltre il bordo), che altrimenti
         vincerebbe sempre come massimo artificiale. Il margine viene poi
-        escluso dalla ricerca del massimo."""
+        escluso dalla ricerca del massimo.
+
+        span=(a0, a1): limita la striscia a quel tratto dell'asse
+        perpendicolare (bordo parziale, vedi _local_edges), invece di
+        tutta l'altezza/larghezza dell'immagine."""
         pad = 3
         try:
             if axis == "x":
+                s0, s1 = span if span else (0, self.ih)
                 x0 = max(0, candidate - window - pad)
                 x1 = min(self.iw, candidate + window + pad + 1)
                 if x1 - x0 < 2 * pad + 2:
                     return candidate
-                strip = self.orig_img.crop((x0, 0, x1, self.ih)).convert("L")
+                strip = self.orig_img.crop((x0, s0, x1, s1)).convert("L")
                 strip = strip.filter(ImageFilter.FIND_EDGES)
                 data = strip.tobytes()
                 w = strip.size[0]
@@ -15926,11 +15935,12 @@ class CropOverlay:
                 best = lo + max(range(len(strengths)), key=lambda k: strengths[k])
                 return x0 + best
             else:
+                s0, s1 = span if span else (0, self.iw)
                 y0 = max(0, candidate - window - pad)
                 y1 = min(self.ih, candidate + window + pad + 1)
                 if y1 - y0 < 2 * pad + 2:
                     return candidate
-                strip = self.orig_img.crop((0, y0, self.iw, y1)).convert("L")
+                strip = self.orig_img.crop((s0, y0, s1, y1)).convert("L")
                 strip = strip.filter(ImageFilter.FIND_EDGES)
                 data = strip.tobytes()
                 w, h = strip.size
@@ -16167,6 +16177,57 @@ class CropOverlay:
         return best_new_a1
 
     _SNAP_RADIUS_PX = 10  # raggio di aggancio in pixel schermo
+
+    def _local_edges(self, axis, pos, a0, a1, scale):
+        """Bordi netti vicino a 'pos' cercati SOLO nel tratto a0..a1
+        dell'asse perpendicolare — quello coperto dal lato trascinato.
+        I bordi di _edge_cols/_edge_rows sono sommati su tutta l'altezza/
+        larghezza dell'immagine: un bordo lungo solo una parte (es. il
+        lato di una foto dentro uno screenshot pieno d'altro) resta
+        sommerso dal resto e il magnete non lo vede (segnalato da Carlo).
+        Qui la forza e' la media del gradiente lungo il tratto, confrontata
+        con le colonne/righe vicine: conta il contrasto locale, non quello
+        di tutta l'immagine. axis="x": pos e' una x, a0..a1 sono y."""
+        es = self._edge_small
+        if not es:
+            return []
+        data, w, h, sx, sy = es
+        k, ks = (sx, sy) if axis == "x" else (sy, sx)
+        n_axis, n_perp = (w, h) if axis == "x" else (h, w)
+        p0 = max(0, int(min(a0, a1) / ks))
+        p1 = min(n_perp, int(max(a0, a1) / ks) + 1)
+        if p1 - p0 < 4:
+            return []
+        tol = self._SNAP_RADIUS_PX / max(scale, 0.0001) / k
+        c = pos / k
+        reach = max(10, int(3 * tol) + 2)
+        # Esclusi i 2 px del margine: FIND_EDGES vi crea un falso bordo
+        # (il bordo vero dell'immagine e' gia' tra i candidati fissi).
+        i0 = max(2, int(c - reach))
+        i1 = min(n_axis - 2, int(c + reach) + 1)
+        if i1 - i0 < 5:
+            return []
+        span = p1 - p0
+        prof = {}
+        for i in range(i0, i1):
+            if axis == "x":
+                prof[i] = sum(data[p0 * w + i: p1 * w: w]) / span
+            else:
+                prof[i] = sum(data[i * w + p0: i * w + p1]) / span
+        base = sorted(prof.values())[len(prof) // 2]
+        out = []
+        for i in range(max(i0 + 1, int(c - tol) - 1),
+                       min(i1 - 1, int(c + tol) + 2)):
+            v = prof[i]
+            if (v >= self._LOCAL_EDGE_MIN and v >= 2.5 * base
+                    and v >= prof[i - 1] and v >= prof[i + 1]):
+                out.append(self._refine_edge(
+                    axis, round(i * k), max(6, int(round(k)) + 3),
+                    span=(round(p0 * ks), min(round(p1 * ks),
+                          self.ih if axis == "x" else self.iw))))
+        return out
+
+    _LOCAL_EDGE_MIN = 20  # gradiente medio minimo (0-255) lungo il tratto
 
     # --- Lente d'ingrandimento -------------------------------------------
     # LOUPE_PX multiplo esatto di LOUPE_SAMPLE: ogni pixel immagine occupa
@@ -16571,16 +16632,26 @@ class CropOverlay:
             # Magnete bordi: solo in modalità libera (senza proporzioni
             # vincolate, per non entrare in conflitto col ratio fisso) e solo
             # sul/sui lato/i effettivamente trascinato/i.
+            # Oltre ai bordi lunghi quanto l'immagine, anche quelli
+            # presenti solo nel tratto coperto dal lato trascinato
+            # (_local_edges): il tratto e' quello del rettangolo attuale,
+            # prima dell'aggancio.
             if aw is None and self._snap_enabled(e):
                 _, _, scale = self._get_offset()
+                cols, rows = self._edge_cols, self._edge_rows
+                ox1, oy1, ox2, oy2 = nx1, ny1, nx2, ny2
                 if "l" in d:
-                    nx1 = self._snap_axis(nx1, self._edge_cols, scale)
+                    nx1 = self._snap_axis(nx1, cols + self._local_edges(
+                        "x", ox1, oy1, oy2, scale), scale)
                 if "r" in d:
-                    nx2 = self._snap_axis(nx2, self._edge_cols, scale)
+                    nx2 = self._snap_axis(nx2, cols + self._local_edges(
+                        "x", ox2, oy1, oy2, scale), scale)
                 if "t" in d:
-                    ny1 = self._snap_axis(ny1, self._edge_rows, scale)
+                    ny1 = self._snap_axis(ny1, rows + self._local_edges(
+                        "y", oy1, ox1, ox2, scale), scale)
                 if "b" in d:
-                    ny2 = self._snap_axis(ny2, self._edge_rows, scale)
+                    ny2 = self._snap_axis(ny2, rows + self._local_edges(
+                        "y", oy2, ox1, ox2, scale), scale)
                 # Ri-applica il minimo spazio tra i lati: un bordo agganciato
                 # troppo vicino al lato opposto non deve invertire o
                 # schiacciare la selezione.
@@ -16745,6 +16816,7 @@ class CropOverlay:
             # nuova, non a quella su cui il ritaglio era stato aperto.
             self._all_ratios[1] = ("Originale", iw, ih)
             self._edge_cols, self._edge_rows = [], []
+            self._edge_small = None
             try:
                 self._compute_edge_profile()
             except Exception:

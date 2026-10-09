@@ -2175,6 +2175,23 @@ auto se attiva. Rimosso CropOverlay._open_crop_on_current (non piu'
 usato). Corretto anche un difetto preesistente: con frecce/Successiva la
 voce "Originale" delle proporzioni restava riferita alla prima immagine.
 
+v1.46.13: durante il ritaglio Invio = "Ritaglia prossimo" (bind sulla
+root + sulla barra con "break", tolti in _cleanup, cosi' Invio torna allo
+schermo intero). Comandi deck crop_next/crop_skip (DECK_COMMANDS +
+deck_core.DECK_COMMAND_IDS): "next_file" durante il ritaglio NON va bene,
+_skip() cambia indice ma _show_image() ridisegna solo il crop
+sull'immagine vecchia — si passa sempre da CropOverlay._skip_image().
+
+v1.46.14: magnete locale sui lati (CropOverlay._local_edges). Il magnete
+agganciava gia' lati e spigoli, ma solo ai bordi di _edge_cols/_edge_rows,
+sommati su TUTTA l'altezza/larghezza: un bordo lungo solo una parte
+dell'immagine restava sommerso (segnalato da Carlo). Ora, per ogni lato
+trascinato, si cerca anche un bordo vicino nel solo tratto coperto da quel
+lato (media del gradiente sulla mappa ridotta _edge_small, >= 20 e >= 2.5x
+la mediana delle colonne vicine), rifinito a piena risoluzione con
+_refine_edge(span=...). Su rumore puro non aggancia nulla; ~5 ms per
+movimento su 12 MP.
+
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
 ===========================================================================
