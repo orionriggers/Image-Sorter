@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.16"
+VERSION = "1.46.17"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -19817,6 +19817,14 @@ class SettingsDialog:
                 _refresh_key_preview(pi, ki, preview)
             img_var.trace_add("write", lambda *_a: _live_preview())
 
+            # Colore: sulla stessa riga di Image (prima aveva una riga
+            # sua). Con l'elenco delle azioni cresciuto, la riga del
+            # parametro (comando, percorso, ...) finiva nascosta in fondo
+            # alla finestra — segnalato da Carlo.
+            color_val = slot.get("color", [15, 20, 40])
+            color_var = tk.StringVar(value=",".join(str(x) for x in color_val))
+            vars_["color"] = color_var
+
             def _mk_image(r):
                 fr = tk.Frame(editor_fr, bg=BG_COLOR)
                 fr.grid(row=r, column=1, columnspan=2, sticky="ew")
@@ -19845,29 +19853,19 @@ class SettingsDialog:
                           relief="flat",
                           command=lambda: (img_var.set(""), _save_key())
                           ).grid(row=0, column=2, padx=(2,0), ipady=2)
-                return fr
-            _field_row(1, "Image:", _mk_image)
-
-            # ── Colore ───────────────────────────────────────────────────────
-            color_val = slot.get("color", [15, 20, 40])
-            color_var = tk.StringVar(value=",".join(str(x) for x in color_val))
-            vars_["color"] = color_var
-            def _mk_color(r):
-                fr = tk.Frame(editor_fr, bg=BG_COLOR)
-                fr.grid(row=r, column=1, columnspan=2, sticky="ew")
+                tk.Label(fr, text="Colore R,G,B:",
+                         font=("TkFixedFont", 8), bg=BG_COLOR,
+                         fg=MUTED_COLOR).grid(row=0, column=3, padx=(12,4))
                 color_entry = tk.Entry(fr, textvariable=color_var,
-                         font=("TkFixedFont", 9), width=12,
+                         font=("TkFixedFont", 9), width=11,
                          bg=ACCENT_COLOR, fg=TEXT_COLOR,
                          insertbackground=TEXT_COLOR,
                          relief="flat", bd=3)
-                color_entry.pack(side="left", ipady=3)
+                color_entry.grid(row=0, column=4, ipady=2)
                 color_entry.bind("<FocusOut>", lambda ev: _save_key())
                 color_entry.bind("<Return>",   lambda ev: _save_key())
-                tk.Label(fr, text="  (0-255 per R,G,B)",
-                         font=("TkFixedFont", 7), bg=BG_COLOR,
-                         fg=MUTED_COLOR).pack(side="left")
                 return fr
-            _field_row(2, "Colore R,G,B:", _mk_color)
+            _field_row(1, "Image:", _mk_image)
 
             # Separatore
             tk.Frame(editor_fr, bg=ACCENT_COLOR, height=1
