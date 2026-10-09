@@ -1,5 +1,5 @@
 # translations.py — Testi e traduzioni IT/EN
-VERSION = "1.46.3"
+VERSION = "1.46.4"
 #
 # COME AGGIUNGERE UNA NUOVA LINGUA
 # 1. Aggiungi un blocco in LANG:  "xx": { "lang_name": "Nome", "app_name": "Image Sorter", ... }
@@ -271,6 +271,7 @@ SHORTCUTS = {
             ("A",                                  "Ruota 90\u00b0 antiorario (Anticlockwise)"),
             ("K",                                  "Ritaglia (Krop)"),
             ("\u2192 / \u2190  durante crop",      "Immagine successiva / precedente"),
+            ("Invio  durante crop",               "Ritaglia prossimo"),
             ("Ctrl + Z",                           "Annulla ultimo crop"),
             ("Ctrl + X  o  Ctrl + \u2190",         "Annulla ultimo spostamento"),
         ]),
@@ -397,6 +398,9 @@ SHORTCUTS = {
         ("Image editing", [
             ("C",                                  "Rotate 90\u00b0 clockwise"),
             ("A",                                  "Rotate 90\u00b0 anticlockwise"),
+            ("K",                                  "Crop"),
+            ("\u2192 / \u2190  during crop",       "Next / previous image"),
+            ("Enter  during crop",                "Crop next"),
             ("Ctrl + Z",                           "Undo last crop"),
             ("Ctrl + X  or  Ctrl + \u2190",        "Undo last move"),
         ]),

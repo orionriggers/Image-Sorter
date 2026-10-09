@@ -29,7 +29,7 @@
 # VERSION = "1.36.9" — allineata a image_sorter.py al momento
 # dell'estrazione; da qui in poi le due versioni possono divergere sul
 # terzo numero se si corregge solo uno dei due file.
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 
 import os
 import sys
@@ -261,6 +261,8 @@ DECK_COMMAND_IDS = [
     ("prev_preset",       "Preset precedente"),
     ("send_to_editor",    "Invia a modifica (programma configurato)"),
     ("open_resize",       "Ridimensiona... (apre il popup)"),
+    ("crop_next",         "Ritaglia prossimo (durante il ritaglio)"),
+    ("crop_skip",         "Successiva (anche durante il ritaglio)"),
 ]
 DECK_COMMAND_LABELS = {cid: lbl for cid, lbl in DECK_COMMAND_IDS}
 

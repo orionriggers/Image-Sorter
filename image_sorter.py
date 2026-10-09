@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.12"
+VERSION = "1.46.13"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -15793,6 +15793,13 @@ class CropOverlay:
              self.canvas.bind("<Motion>", self._on_motion, add=True)))
         sorter.root.bind("<Right>",  lambda e: self._skip_image(1))
         sorter.root.bind("<Left>",   lambda e: self._skip_image(-1))
+        # Invio = "Ritaglia prossimo". Bind sulla root (non bind_all): il
+        # "break" ferma il bind_all di Invio = schermo intero, che
+        # altrimenti scatterebbe subito dopo. Anche sulla barra, nel caso
+        # sia lei ad avere il fuoco. Tolti in _cleanup().
+        for _w in (sorter.root, self._bar):
+            _w.bind("<Return>",   self._on_return_key)
+            _w.bind("<KP_Enter>", self._on_return_key)
 
         # Inizializza selezione e disegna
         self._init_selection()
@@ -16634,6 +16641,10 @@ class CropOverlay:
         except Exception:
             pass
         self._loupe = None
+        # Invio torna allo schermo intero (bind_all, rimesso da
+        # _restore_keybinds): il bind sulla root lo coprirebbe ancora.
+        self.sorter.root.unbind("<Return>")
+        self.sorter.root.unbind("<KP_Enter>")
         self.sorter._restore_keybinds()
         self.sorter._crop_overlay = None
 
@@ -16761,6 +16772,18 @@ class CropOverlay:
     def _cancel(self):
         self._cleanup()
         self.sorter._show_image()
+
+    def crop_next(self):
+        """Ritaglia prossimo da tasto (Invio o Stream Deck). Ignorato
+        mentre _skip_image() sta caricando l'immagine nuova (_active
+        False per ~150 ms): con Invio tenuto premuto o una doppia
+        pressione si salverebbe due volte."""
+        if self._active:
+            self._apply(advance=True, open_next=True)
+
+    def _on_return_key(self, e=None):
+        self.crop_next()
+        return "break"
 
     def _apply(self, advance=False, open_next=False):
         x1,y1,x2,y2 = [int(v) for v in self.sel]
@@ -17124,6 +17147,32 @@ def _deck_cmd_open_resize(sorter):
         return
     sorter._open_resize(fp)
 
+def _deck_active_crop(sorter):
+    crop = getattr(sorter, "_crop_overlay", None)
+    if crop and getattr(crop, "_active", False):
+        return crop
+    return None
+
+def _deck_cmd_crop_next(sorter):
+    """Ritaglia prossimo: solo a ritaglio gia' aperto (selezione gia'
+    decisa a schermo). Fuori dal ritaglio non fa nulla — niente
+    salvataggi a sorpresa su un file che non si stava ritagliando."""
+    crop = _deck_active_crop(sorter)
+    if crop:
+        crop.crop_next()
+
+def _deck_cmd_crop_skip(sorter):
+    """Successiva: durante il ritaglio passa all'immagine dopo restando
+    nel ritaglio (come il bottone "Successiva" della barra); fuori dal
+    ritaglio e' un normale "File successivo". "next_file" da solo non
+    basta durante il ritaglio: _skip() cambia indice ma _show_image()
+    ridisegna solo il crop sull'immagine vecchia."""
+    crop = _deck_active_crop(sorter)
+    if crop:
+        crop._skip_image(1)
+    else:
+        sorter._skip()
+
 # Comandi diretti richiamabili da un tasto idle con action="command". Ogni
 # voce e' (id salvato nel config, etichetta mostrata nel menu a tendina
 # dell'editor, funzione che riceve il sorter). A differenza di "hotkey"
@@ -17141,6 +17190,9 @@ def _deck_cmd_open_resize(sorter):
 # un'interazione ben piu' lunga: trascinamento, aspetto, conferma) o di
 # Modifica con... (che ha gia' la sua alternativa a un tasto solo, vedi
 # "send_to_editor" qui sotto).
+# "Ritaglia prossimo"/"Successiva" (crop_next/crop_skip) invece si':
+# agiscono su un ritaglio GIA' aperto, a selezione decisa, senza dialoghi
+# — e' proprio il passo ripetitivo del ritaglio in serie.
 # Restano QUI (non in deck_core.py) perche' ogni funzione chiama un
 # metodo dell'interfaccia grafica — richiedono per forza un'istanza di
 # ImageSorter viva. deck_core.py ha pero' la stessa lista di id ed
@@ -17179,6 +17231,8 @@ DECK_COMMANDS = [
     ("prev_preset",       "Preset precedente",               lambda s: s._prev_preset()),
     ("send_to_editor",    "Invia a modifica (programma configurato)", _deck_cmd_send_to_editor),
     ("open_resize",       "Ridimensiona... (apre il popup)", _deck_cmd_open_resize),
+    ("crop_next",         "Ritaglia prossimo (durante il ritaglio)", _deck_cmd_crop_next),
+    ("crop_skip",         "Successiva (anche durante il ritaglio)",  _deck_cmd_crop_skip),
 ]
 DECK_COMMAND_LABELS = {cid: lbl for cid, lbl, _fn in DECK_COMMANDS}
 DECK_COMMAND_FUNCS  = {cid: fn for cid, _lbl, fn in DECK_COMMANDS}
