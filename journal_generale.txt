@@ -2229,6 +2229,20 @@ chiedere piu'" non viene salvata. La domanda ora e' la PRIMA cosa in
 _quit: prima veniva dopo la chiusura di Naviga/Deep browser, che con
 Annulla sarebbero rimasti chiusi. Esc/X prima valevano "Lascia li'".
 
+APERTO (09/10/2026) - Naviga con cartelle grandi (1592 screenshot PNG):
+griglia vuota oltre circa un terzo, barra di scorrimento minuscola,
+caricamento lento a ogni apertura. Cause riprodotte con xvfb:
+(1) tutte le celle stanno in un unico frame _thumb_inner dentro il
+canvas, alto 91657 px; X11 non disegna oltre 32767 px, quindi le celle
+sotto il limite restano invisibili mentre la scrollregion (reqheight)
+resta enorme; (2) _THUMB_CACHE_MAX = 200, cache solo in RAM: ogni
+apertura rigenera quasi tutte le miniature. Proposta: alzare il limite
+della cache (eventualmente cache su disco), poi griglia virtualizzata
+(solo righe visibili, o una canvas window per riga a coordinate
+assolute). Bug minore: i PNG a 16 bit (mode "I") non hanno miniatura.
+KEY LEARNING: nessun widget/frame Tk deve superare 32767 px di altezza
+(limite X11): liste lunghe dentro un canvas vanno virtualizzate.
+
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
 ===========================================================================
