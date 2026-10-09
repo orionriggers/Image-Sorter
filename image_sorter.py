@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.17"
+VERSION = "1.46.18"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -27252,6 +27252,37 @@ class ImageSorter:
                     self.folder_browser.win.winfo_exists()) else None))
 
     def _quit(self):
+        # Se ci sono file nella cartella di transito (cestinati in questa
+        # sessione, non ancora inviati al cestino di sistema), chiedi se
+        # svuotarla ora. La domanda viene PRIMA di ogni altra cosa: con
+        # "Annulla" l'uscita si ferma e il programma deve restare
+        # esattamente com'era (Naviga/Timeline ancora aperte, stessa
+        # immagine), quindi niente va chiuso prima della risposta.
+        try:
+            pending = _transit_dir_files(self.config)
+            # "Oggi non chiedere piu'": vale solo per la giornata in corso,
+            # quindi si confronta la data salvata con quella odierna invece
+            # di usare un semplice interruttore permanente (che e' gia'
+            # trash_transit_ask_on_quit, nelle Impostazioni).
+            _skip_today = (self.config.get("trash_transit_skip_date", "") ==
+                           _datetime.date.today().isoformat())
+            if (pending and not _skip_today
+                    and self.config.get("trash_transit_ask_on_quit", True)):
+                n = len(pending)
+                answer = self._ask_empty_transit(
+                    n, _get_transit_dir(self.config))
+                if answer is None:
+                    # Annulla: niente uscita, si resta sull'immagine aperta
+                    return
+                if answer:
+                    done, errors = empty_transit_dir(self.config)
+                    if errors:
+                        print(f"[Cestino] {done} inviati al cestino, "
+                              f"{len(errors)} errori")
+                    else:
+                        print(f"[Cestino] {done} file inviati al cestino di sistema")
+        except Exception:
+            pass
         # Salva lo stato (proporzioni divisori) delle finestre secondarie
         # ancora aperte, PRIMA di ogni altra cosa: chiudendo l'intera app
         # (invece di chiudere singolarmente Naviga/Timeline con la loro X)
@@ -27271,29 +27302,6 @@ class ImageSorter:
                     db._close()
             except Exception:
                 pass
-        # Se ci sono file nella cartella di transito (cestinati in questa
-        # sessione, non ancora inviati al cestino di sistema), chiedi se
-        # svuotarla ora.
-        try:
-            pending = _transit_dir_files(self.config)
-            # "Oggi non chiedere piu'": vale solo per la giornata in corso,
-            # quindi si confronta la data salvata con quella odierna invece
-            # di usare un semplice interruttore permanente (che e' gia'
-            # trash_transit_ask_on_quit, nelle Impostazioni).
-            _skip_today = (self.config.get("trash_transit_skip_date", "") ==
-                           _datetime.date.today().isoformat())
-            if (pending and not _skip_today
-                    and self.config.get("trash_transit_ask_on_quit", True)):
-                n = len(pending)
-                if self._ask_empty_transit(n, _get_transit_dir(self.config)):
-                    done, errors = empty_transit_dir(self.config)
-                    if errors:
-                        print(f"[Cestino] {done} inviati al cestino, "
-                              f"{len(errors)} errori")
-                    else:
-                        print(f"[Cestino] {done} file inviati al cestino di sistema")
-        except Exception:
-            pass
         # Pulizia backup crop della cartella corrente
         if getattr(self, 'source_folder', None):
             self._cleanup_crop_backups(self.source_folder)
@@ -28594,10 +28602,12 @@ class ImageSorter:
         cosa c'e' dentro prima di decidere — il dialogo resta aperto) e
         una spunta "Oggi non chiedere piu'", che salva la data odierna
         in config e sopprime la domanda fino a mezzanotte.
-        Restituisce True se l'utente ha scelto di svuotare.
+        Restituisce True se l'utente ha scelto di svuotare, False per
+        "Lascia li'", None per "Annulla" (anche Esc o la X della
+        finestra): l'uscita dal programma si ferma.
         """
         parent = self.root
-        result = [False]
+        result = [None]
         dlg = tk.Toplevel(parent)
         dlg.withdraw()
         dlg.title("Svuotare il cestino?")
@@ -28605,7 +28615,7 @@ class ImageSorter:
         dlg.resizable(False, False)
         dlg.transient(parent)
         hud_apply(dlg)
-        dlg.bind("<Escape>", lambda e: dlg.destroy())
+        dlg.bind("<Escape>", lambda e: _finish(None))
 
         tk.Label(dlg, text="Svuotare il cestino?",
                  font=("TkFixedFont", 10, "bold"),
@@ -28628,7 +28638,9 @@ class ImageSorter:
 
         def _finish(val):
             result[0] = val
-            if skip_var.get():
+            # Con "Annulla" non si e' deciso nulla: la spunta "Oggi non
+            # chiedere piu'" non viene salvata.
+            if val is not None and skip_var.get():
                 try:
                     self.config["trash_transit_skip_date"] = \
                         _datetime.date.today().isoformat()
@@ -28654,9 +28666,13 @@ class ImageSorter:
                   ).pack(side="left", padx=(0, 8), ipady=3)
         tk.Button(bf, text="Lascia li'", font=("TkFixedFont", 9),
                   bg=ACCENT_COLOR, fg=TEXT_COLOR, relief="flat", padx=12,
-                  command=lambda: _finish(False)).pack(side="left", ipady=3)
+                  command=lambda: _finish(False)
+                  ).pack(side="left", padx=(0, 8), ipady=3)
+        tk.Button(bf, text="Annulla", font=("TkFixedFont", 9),
+                  bg=ACCENT_COLOR, fg=TEXT_COLOR, relief="flat", padx=12,
+                  command=lambda: _finish(None)).pack(side="left", ipady=3)
 
-        dlg.protocol("WM_DELETE_WINDOW", lambda: _finish(False))
+        dlg.protocol("WM_DELETE_WINDOW", lambda: _finish(None))
         dlg.update_idletasks()
         pw, ph = parent.winfo_width(), parent.winfo_height()
         px, py = parent.winfo_rootx(), parent.winfo_rooty()

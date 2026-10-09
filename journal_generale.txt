@@ -2221,6 +2221,13 @@ _flush_editor() salva esplicitamente (solo se il fuoco e' in un campo
 dell'editor) prima di spostare/selezionare. Test con eventi sintetici
 non avrebbero mostrato nessuno dei due problemi: usare xdotool.
 
+v1.46.18: domanda "Svuotare il cestino?" alla chiusura con pulsante
+"Annulla" (anche Esc e la X del dialogo): _ask_empty_transit restituisce
+None e _quit si ferma, restando sull'immagine aperta; la spunta "Oggi non
+chiedere piu'" non viene salvata. La domanda ora e' la PRIMA cosa in
+_quit: prima veniva dopo la chiusura di Naviga/Deep browser, che con
+Annulla sarebbero rimasti chiusi. Esc/X prima valevano "Lascia li'".
+
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
 ===========================================================================
