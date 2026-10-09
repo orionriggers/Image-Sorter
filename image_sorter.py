@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.15"
+VERSION = "1.46.16"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -19245,6 +19245,7 @@ class SettingsDialog:
         self._deck_page_btns = []
         self._deck_sel_key   = [None]   # [page_idx, key_idx] selezionato
         self._deck_key_cells = {}       # {key_idx: widget} — per l'anteprima live dell'icona
+        self._deck_drag      = None     # trascinamento in corso (vedi _drag_press)
 
         def _page_empty(pi):
             return 0 <= pi < len(pages) and all(s is None for s in pages[pi])
@@ -19314,10 +19315,11 @@ class SettingsDialog:
                               command=lambda p=pi: _switch_page(p))
                 b.pack(side="left")
                 self._deck_page_btns.append(b)
-            tk.Button(page_tab_fr, text="+ Pag.",
-                      font=("TkFixedFont", 8), bg=PANEL_COLOR, fg=MUTED_COLOR,
-                      relief="flat", padx=6,
-                      command=_add_page).pack(side="left", padx=6)
+            self._deck_addpage_btn = tk.Button(
+                page_tab_fr, text="+ Pag.",
+                font=("TkFixedFont", 8), bg=PANEL_COLOR, fg=MUTED_COLOR,
+                relief="flat", padx=6, command=_add_page)
+            self._deck_addpage_btn.pack(side="left", padx=6)
             # Indicatore del tasto selezionato: prima era un titolo dentro
             # l'editor del tasto (riga 0), qui accanto alla modalita' fa
             # risparmiare quella riga nella zona dei campi, dove lo spazio
@@ -19425,9 +19427,12 @@ class SettingsDialog:
                      bg=bg_hex, fg=lbl_col).pack()
 
             if not is_nav:
+                # Clic = seleziona (al rilascio), trascinamento = sposta
+                # o scambia il tasto: vedi _drag_press. Movimento e
+                # rilascio sono legati alla finestra intera (piu' sotto).
                 for w in [cell, inner] + inner.winfo_children():
-                    w.bind("<Button-1>",
-                           lambda e, p=pi, k=ki: _select_key(p, k))
+                    w.bind("<ButtonPress-1>",
+                           lambda e, p=pi, k=ki, c=cell: _drag_press(e, p, k, c))
             return cell
 
         def _refresh_key_preview(pi, ki, preview_slot):
@@ -19474,12 +19479,226 @@ class SettingsDialog:
             _rebuild_grid(pi)
             _show_editor(pi, ki)
 
+        # ── Trascinamento dei tasti ──────────────────────────────────────────
+        # Un tasto trascinato su una cella vuota ci si sposta, su una cella
+        # occupata si scambia con quel tasto. Sostando ~0,4 s su una scheda
+        # di pagina si cambia pagina senza interrompere il trascinamento;
+        # su "+ Pag." se ne crea una nuova. I dati si spostano solo al
+        # rilascio: fino ad allora la pagina di origine resta intatta.
+        _DRAG_SOGLIA = 6     # px prima che un clic diventi trascinamento
+        _DRAG_SOSTA  = 400   # ms di sosta su una scheda per cambiare pagina
+
+        def _drag_press(e, pi, ki, cell):
+            self._deck_drag = {"src": (pi, ki), "cell": cell,
+                               "x0": e.x_root, "y0": e.y_root,
+                               "started": False, "ghost": None,
+                               "hover": None, "tab": None, "timer": None}
+
+        def _drag_cell_at(w):
+            """Indice della cella (pagina attuale) che contiene il widget w."""
+            celle = {id(c): k for k, c in self._deck_key_cells.items()}
+            while w is not None:
+                if id(w) in celle:
+                    return celle[id(w)]
+                if w is grid_fr:
+                    return None
+                w = getattr(w, "master", None)
+            return None
+
+        def _drag_tab_at(w):
+            """Scheda sotto il puntatore: indice pagina, "add" per
+            "+ Pag.", None altrimenti."""
+            for i, b in enumerate(self._deck_page_btns):
+                if w is b:
+                    return i
+            if w is not None and w is getattr(self, "_deck_addpage_btn", None):
+                return "add"
+            return None
+
+        def _drag_paint_hover(ki):
+            d = self._deck_drag
+            vecchia = d["hover"]
+            if vecchia == ki:
+                return
+            d["hover"] = ki
+            for k in (vecchia, ki):
+                c = self._deck_key_cells.get(k)
+                if c is None:
+                    continue
+                try:
+                    if k == ki:
+                        c.config(bg=SUCCESS)
+                    elif c is d["cell"]:
+                        c.config(bg=MUTED_COLOR)   # resta "in partenza"
+                    else:
+                        slot = pages[self._deck_page_idx][k] or {}
+                        c.config(bg=HUD_CYAN if self._deck_sel_key[0] == k
+                                 else (PANEL_COLOR if slot.get("label")
+                                       else ACCENT_COLOR))
+                except Exception:
+                    pass
+
+        def _drag_cancel_timer():
+            d = self._deck_drag
+            if d and d["timer"]:
+                try:
+                    self.win.after_cancel(d["timer"])
+                except Exception:
+                    pass
+                d["timer"] = None
+            if d:
+                d["tab"] = None
+
+        def _drag_tab_fire(target):
+            d = self._deck_drag
+            if not d:
+                return
+            d["timer"] = None
+            d["hover"] = None
+            if target == "add":
+                _add_page()
+            elif target != self._deck_page_idx:
+                _switch_page(target)
+
+        def _flush_editor():
+            """Salva subito il campo dell'editor che si sta modificando.
+            Di solito si salva da solo perdendo il fuoco (<FocusOut>), ma
+            quell'evento arriva quando il campo e' gia' stato distrutto
+            dalla ricostruzione dell'editor: la modifica andava persa
+            (verificato con un vero trascinamento). Solo se il fuoco e'
+            davvero in un campo dell'editor — lo stesso caso in cui
+            scatterebbe il salvataggio automatico — cosi' un tasto vuoto
+            soltanto guardato non diventa un tasto "configurato" vuoto."""
+            save = getattr(self, "_deck_editor_save", None)
+            if not save:
+                return
+            try:
+                fw = self.win.focus_get()
+            except Exception:
+                fw = None
+            if fw is not None and str(fw).startswith(str(editor_fr) + "."):
+                save()
+                try:
+                    self.win.focus_set()
+                except Exception:
+                    pass
+
+        def _drag_start(d):
+            d["started"] = True
+            # Prima che i tasti cambino posto: un salvataggio successivo
+            # riscriverebbe il form sulla posizione di un altro tasto.
+            _flush_editor()
+            self._deck_sel_key[0] = None
+            _clear_editor()
+            pi, ki = d["src"]
+            slot = pages[pi][ki] or {}
+            color = tuple(slot.get("color", [15, 20, 40]))
+            bg_hex = "#{:02x}{:02x}{:02x}".format(*[
+                max(0, min(255, int(x))) for x in color])
+            g = tk.Toplevel(self.win)
+            g.wm_overrideredirect(True)
+            g.attributes("-topmost", True)
+            g.configure(bg=HUD_CYAN)
+            lbl = slot.get("label", "") or "-"
+            tk.Label(g, text=(lbl[:9] + "...") if len(lbl) > 9 else lbl,
+                     font=("TkFixedFont", 7, "bold"), bg=bg_hex,
+                     fg=TEXT_COLOR, width=10, height=3
+                     ).pack(padx=2, pady=2)
+            d["ghost"] = g
+            try:
+                d["cell"].config(bg=MUTED_COLOR)
+                self.win.config(cursor="fleur")
+            except Exception:
+                pass
+
+        def _drag_motion(e):
+            d = self._deck_drag
+            if not d:
+                return
+            if not d["started"]:
+                if (abs(e.x_root - d["x0"]) < _DRAG_SOGLIA and
+                        abs(e.y_root - d["y0"]) < _DRAG_SOGLIA):
+                    return
+                _drag_start(d)
+            g = d["ghost"]
+            if g is not None:
+                g.geometry(f"+{e.x_root + 12}+{e.y_root + 8}")
+            w = self.win.winfo_containing(e.x_root, e.y_root)
+            tab = _drag_tab_at(w)
+            if tab is not None and tab != self._deck_page_idx:
+                _drag_paint_hover(None)
+                if d["tab"] != tab:
+                    _drag_cancel_timer()
+                    d["tab"] = tab
+                    d["timer"] = self.win.after(
+                        _DRAG_SOSTA, lambda t=tab: _drag_tab_fire(t))
+                return
+            _drag_cancel_timer()
+            _drag_paint_hover(_drag_cell_at(w))
+
+        def _drag_end():
+            d = self._deck_drag
+            _drag_cancel_timer()
+            self._deck_drag = None
+            if d and d["ghost"] is not None:
+                try:
+                    d["ghost"].destroy()
+                except Exception:
+                    pass
+            try:
+                self.win.config(cursor="")
+            except Exception:
+                pass
+
+        def _drag_release(e):
+            d = self._deck_drag
+            if not d:
+                return
+            if not d["started"]:
+                self._deck_drag = None
+                _flush_editor()
+                _select_key(*d["src"])
+                return
+            w = self.win.winfo_containing(e.x_root, e.y_root)
+            ki_dst = _drag_cell_at(w)
+            _drag_end()
+            pi_src, ki_src = d["src"]
+            pi_dst = self._deck_page_idx
+            if ki_dst is None or (pi_src, ki_src) == (pi_dst, ki_dst):
+                _rebuild_grid(pi_dst)   # annullato: nessuna modifica
+                return
+            pages[pi_src][ki_src], pages[pi_dst][ki_dst] = \
+                pages[pi_dst][ki_dst], pages[pi_src][ki_src]
+            save_config(self.config)
+            if connected:
+                sdk.refresh_all()
+            # La pagina di origine svuotata dallo spostamento sparisce,
+            # come quando la si svuota con "Svuota".
+            if pi_src != pi_dst and _prune_empty_page(pi_src):
+                if pi_src < pi_dst:
+                    pi_dst -= 1
+                _rebuild_tabs()
+                self._deck_page_idx = pi_dst
+                _switch_page(pi_dst, rebuild=False)
+            _select_key(pi_dst, ki_dst)
+
+        # Movimento e rilascio legati alla finestra Impostazioni intera (il
+        # tag del toplevel e' in ogni suo widget), non alla sola cella di
+        # partenza: cambiando pagina a trascinamento in corso la cattura
+        # del puntatore da parte di quella cella si perde (verificato con
+        # un vero trascinamento, anche tenendola mappata) e gli eventi
+        # arrivano al widget sotto il mouse — scheda, altra cella, ecc.
+        # Fuori da un trascinamento i due gestori escono subito.
+        self.win.bind("<B1-Motion>",       _drag_motion)
+        self.win.bind("<ButtonRelease-1>", _drag_release)
+
         # ── Editor inline ─────────────────────────────────────────────────────
         editor_fr = tk.Frame(main, bg=BG_COLOR)
         editor_fr.grid(row=2, column=0, sticky="nsew", padx=8, pady=4)
         editor_fr.columnconfigure(1, weight=1)
 
         def _clear_editor():
+            self._deck_editor_save = None
             for w in editor_fr.winfo_children():
                 w.destroy()
             tk.Label(editor_fr,
@@ -19979,6 +20198,10 @@ class SettingsDialog:
                 if connected:
                     sdk.refresh_all()
                 _rebuild_grid(pi)
+
+            # Per _flush_editor(): salvataggio esplicito prima di spostare
+            # i tasti (vedi li').
+            self._deck_editor_save = _save_key
 
             def _clear_key():
                 page[ki] = None

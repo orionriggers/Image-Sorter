@@ -2204,6 +2204,23 @@ KEY LEARNING (test): la cartella di transito del cestino e' ASSOLUTA
 isolata del test: impostare config["trash_transit_dir"] su una tmpdir
 in ogni test che cestina file.
 
+v1.46.16: Impostazioni / Stream Deck, tasti trascinabili. Cella vuota =
+spostamento, occupata = scambio; sosta 400 ms su una scheda = cambio
+pagina (trascinamento continua), su "+ Pag." = pagina nuova. I dati si
+spostano solo al rilascio; la pagina di origine svuotata viene tolta con
+_prune_empty_page (che corregge i parametri "page"). Clic = selezione al
+RILASCIO (prima alla pressione: _select_key ricostruisce la griglia).
+KEY LEARNING (Tk, verificato con xdotool sotto Xvfb): ricostruendo la
+griglia a trascinamento in corso la cattura implicita del puntatore da
+parte del widget premuto si PERDE, anche tenendolo vivo e mappato
+(grid_forget+place fuori vista): gli eventi vanno al widget sotto il
+mouse. Soluzione: <B1-Motion>/<ButtonRelease-1> legati al toplevel
+(self.win.bind), non al widget di partenza. Inoltre il salvataggio
+dell'editor su <FocusOut> arriva quando il campo e' gia' distrutto:
+_flush_editor() salva esplicitamente (solo se il fuoco e' in un campo
+dell'editor) prima di spostare/selezionare. Test con eventi sintetici
+non avrebbero mostrato nessuno dei due problemi: usare xdotool.
+
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
 ===========================================================================
