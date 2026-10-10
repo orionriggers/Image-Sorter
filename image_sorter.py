@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.18"
+VERSION = "1.46.19"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -894,7 +894,14 @@ def play_sound(sound_type="move"):
 _icon_cache    = {}
 from collections import OrderedDict as _OD
 _thumb_cache   = _OD()  # {(filepath, mtime, size): PhotoImage} — LRU
-_THUMB_CACHE_MAX = 200   # max thumbnail in memoria
+# Limite della cache in byte di pixel, non in numero di miniature: con
+# 200 voci una cartella di 1592 screenshot rigenerava quasi tutto ad ogni
+# apertura di Naviga. 400 MB = circa 3000-4000 miniature L, molte di piu'
+# in S/M. _thumb_cache_bytes e' una stima: altri punti del programma
+# cancellano voci direttamente, quindi la si ricalcola davvero solo
+# quando sembra superare il limite (_thumb_cache_trim).
+_THUMB_CACHE_MAX_BYTES = 400 * 1024 * 1024
+_thumb_cache_bytes = [0]
 # La cache viene ora letta dal thread principale (peek_thumbnail) e scritta
 # anche da thread di lavoro (generazione miniature in background): le
 # operazioni di riordino/espulsione LRU non sono atomiche, serve un lock.
@@ -1099,6 +1106,37 @@ def pillow_safe(text, maxlen=None):
     return result
 
 
+def _thumb_img_bytes(img):
+    try:
+        return img.width * img.height * max(1, len(img.getbands()))
+    except Exception:
+        return 0
+
+
+def _thumb_cache_trim():
+    """Espelle le miniature meno recenti oltre il limite. Chiamare col lock."""
+    if _thumb_cache_bytes[0] <= _THUMB_CACHE_MAX_BYTES:
+        return
+    _thumb_cache_bytes[0] = sum(_thumb_img_bytes(i) for i in _thumb_cache.values())
+    while _thumb_cache and _thumb_cache_bytes[0] > _THUMB_CACHE_MAX_BYTES:
+        _k, _old = _thumb_cache.popitem(last=False)  # il meno recente
+        _thumb_cache_bytes[0] -= _thumb_img_bytes(_old)
+
+
+def _to_8bit_gray(img):
+    """Immagine a 16 bit/float (mode I, I;16*, F) -> grigi 8 bit (mode L)."""
+    if img.mode != "F":
+        img = img.convert("I")
+    lo, hi = img.getextrema()
+    if hi <= 1.0 and img.mode == "F":
+        scale = 255.0              # float normalizzato 0..1
+    elif hi > 255:
+        scale = 1.0 / 256          # 16 bit pieni 0..65535
+    else:
+        scale = 1.0                # gia' nel range 0..255
+    return img.point(lambda v: v * scale).convert("L")
+
+
 def load_thumbnail(filepath, size):
     """Carica thumbnail con cache, draft mode per JPEG, timeout per video/PDF."""
     try:
@@ -1125,6 +1163,11 @@ def load_thumbnail(filepath, size):
             img = add_pdf_overlay(img)
         else:
             img = Image.open(filepath)
+            # PNG/TIFF a 16 bit o in virgola mobile (mode I/I;16/F): il
+            # ridimensionamento LANCZOS li rifiuta ("image has wrong mode")
+            # e la cella restava vuota. Si riportano a 8 bit grigi.
+            if img.mode in ("I", "F") or img.mode.startswith("I;16"):
+                img = _to_8bit_gray(img)
             # Draft mode: molto più veloce per JPEG grandi
             if hasattr(img, "draft") and ext in (".jpg", ".jpeg"):
                 img.draft("RGB", (size * 2, size * 2))
@@ -1141,8 +1184,8 @@ def load_thumbnail(filepath, size):
                 _thumb_cache.move_to_end(key)
             else:
                 _thumb_cache[key] = img
-                if len(_thumb_cache) > _THUMB_CACHE_MAX:
-                    _thumb_cache.popitem(last=False)  # rimuovi il meno recente
+                _thumb_cache_bytes[0] += _thumb_img_bytes(img)
+                _thumb_cache_trim()
         return img
     except Exception:
         return None
