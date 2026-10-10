@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.23"
+VERSION = "1.46.24"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -11209,6 +11209,24 @@ class FolderBrowser:
                     return          # finestra chiusa
         threading.Thread(target=_run, daemon=True).start()
 
+    def _refresh_file_visual(self, fpath):
+        """Ridisegna miniatura e anteprima di un file appena modificato,
+        senza ricaricare la griglia. Se il file e' nuovo nella cartella
+        mostrata (ritaglio salvato con nuovo nome) serve invece una cella
+        in piu': si ricarica la cartella."""
+        with _thumb_cache_lock:
+            for k in [k for k in _thumb_cache if k[0] == fpath]:
+                del _thumb_cache[k]
+        if fpath in self._cell_refs:
+            self._start_thumb_worker([fpath], self._thumb_size,
+                                     getattr(self, "_thumb_gen", 0))
+        elif (self._current_folder and self._search_results is None and
+              os.path.dirname(fpath) == os.path.normpath(self._current_folder)):
+            self._request_thumb_reload()
+        if (getattr(self, "_preview_visible", False)
+                and fpath == getattr(self, "_preview_current_path", None)):
+            self._update_preview_pane(force=True)
+
     def _apply_thumb(self, gen, fpath, img):
         """Applica alla cella una miniatura generata in background.
 
@@ -12775,15 +12793,12 @@ class FolderBrowser:
         """
         if not paths:
             return
-        pending = {"n": len(paths)}
+        # Il ridisegno di ogni file lo fa gia' _rotate_done (tramite
+        # _notify_browser_file_changed -> _refresh_file_visual), cella per
+        # cella: niente piu' ricaricamento dell'intera cartella, pesante
+        # con migliaia di file.
         def _done(_fp=None):
-            pending["n"] -= 1
-            if pending["n"] <= 0:
-                try:
-                    if self.win.winfo_exists() and self._current_folder:
-                        self._load_thumbnails(self._current_folder)
-                except Exception:
-                    pass
+            pass
         for fp in paths:
             try:
                 self.sorter._rotate_image(fp, degrees, on_done=_done)
@@ -17195,6 +17210,9 @@ class CropOverlay:
                 # basta eliminarla come un file qualunque.
                 backup = None
             cropped.save(dest, format=fmt, **kw)
+            # Naviga aperta: miniatura e anteprima del file si aggiornano
+            # subito (o compare la cella del file salvato con nuovo nome).
+            self.sorter._notify_browser_file_changed(dest)
             remember = self._remember_var.get()
             self.sorter.config["crop_remember"] = remember
             if remember:
@@ -24701,6 +24719,7 @@ class ImageSorter:
                     fmt = img.format or "JPEG"
                     kw = {"quality": 95, "subsampling": 0} if fmt in ("JPEG","JPG") else {}
                     img.rotate(degrees, expand=True).save(filepath, format=fmt, **kw)
+                    self._notify_browser_file_changed(filepath)
                     play_sound("undo")
                 except Exception:
                     pass
@@ -24721,6 +24740,7 @@ class ImageSorter:
                     keys_to_del = [k for k in _thumb_cache if k[0] == filepath]
                     for k in keys_to_del:
                         del _thumb_cache[k]
+                    self._notify_browser_file_changed(filepath)
                     self._loading_filepath = None
                     self._show_toast(
                         "Crop annullato" if _was_crop else "Ridimensionamento annullato",
@@ -25194,11 +25214,11 @@ class ImageSorter:
                         except Exception:
                             pass
                 elif action in ("cropped", "resized"):
-                    # Aggiorna solo la thumbnail del file modificato
+                    # Aggiorna solo la miniatura (e l'anteprima) del file
+                    # ripristinato, senza ricaricare tutta la cartella.
                     orig = files[0] if files else ""
-                    if orig and fb._current_folder == os.path.dirname(orig):
-                        self.root.after(150, lambda:
-                            fb._load_thumbnails(fb._current_folder))
+                    if orig:
+                        self._notify_browser_file_changed(orig)
             # Aggiorna Timeline se aperta
             db = getattr(self, "_deep_browser_instance", None)
             if db and hasattr(db, "win") and db.win.winfo_exists():
@@ -25842,6 +25862,7 @@ class ImageSorter:
             keys_to_del = [k for k in _thumb_cache if k[0] == fp]
             for k in keys_to_del:
                 del _thumb_cache[k]
+            self._notify_browser_file_changed(fp)
             if backup:
                 self.history.append(("resized", fp, backup))
                 append_history({"action": "resized", "files": [fp],
@@ -26443,7 +26464,21 @@ class ImageSorter:
         self.history.append(("rotated", filepath, degrees))
         append_history({"action": "rotated", "files": [filepath],
                         "dest": "", "note": f"{degrees}°"})
+        self._notify_browser_file_changed(filepath)
         self._show_image()
+
+    def _notify_browser_file_changed(self, filepath):
+        """Un file e' stato modificato sul disco (ritaglio, rotazione,
+        ridimensionamento, annulla...): se Naviga e' aperta aggiorna
+        subito la sua miniatura e l'anteprima ingrandita. Prima nessuno
+        la avvisava e restava l'immagine vecchia fino al ricaricamento
+        della cartella (segnalato da Carlo)."""
+        fb = getattr(self, "folder_browser", None)
+        try:
+            if fb and fb.win.winfo_exists():
+                fb._refresh_file_visual(filepath)
+        except Exception:
+            pass
 
     def _open_rename_current(self, e=None):
         """Ctrl+R: apre il rinomina inline sul file corrente."""

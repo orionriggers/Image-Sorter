@@ -1,5 +1,5 @@
 # timeline.py — Timeline, mappa GPS, scansione ricorsiva
-VERSION = "1.46.0"
+VERSION = "1.46.1"
 # Visualizzazione profonda: scansione ricorsiva, timeline per data/luogo, mappa GPS
 # Dipendenze: reverse_geocode, folium (pip install reverse-geocode folium)
 
@@ -3509,6 +3509,10 @@ class DeepBrowser:
                 # Invalida cache e ricarica thumbnail
                 key = (item["path"], self._tw(), self._th())
                 _thumb_cache.pop(key, None)
+                # Anche Naviga, se aperta, ridisegna subito quel file
+                _notify = getattr(self.sorter, "_notify_browser_file_changed", None)
+                if _notify:
+                    self.win.after(0, lambda p=item["path"]: _notify(p))
                 cell = item.get("_cell")
                 if cell:
                     for w in cell.winfo_children():
