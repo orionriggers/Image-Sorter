@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.22"
+VERSION = "1.46.23"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -14739,7 +14739,62 @@ class FolderBrowser:
         except Exception:
             pass
         self.sorter.folder_browser = None
-        self.win.destroy()
+        # La finestra sparisce SUBITO, le celle si distruggono dopo a
+        # piccoli lotti. Distruggere in un colpo tutti i widget di una
+        # cartella grande (oltre 27.000 con 1592 file e la riga stelle
+        # accesa) teneva la finestra visibile e svuotata a meta' per
+        # qualche istante (segnalato da Carlo), e bloccava anche la
+        # finestra principale per secondi.
+        self._thumb_gen = getattr(self, "_thumb_gen", 0) + 1  # ferma i thread miniature
+        win = self.win
+        # Ferma anche la creazione a lotti delle celle, se la cartella
+        # era ancora in caricamento: altrimenti continuava a crearne di
+        # nuove, tutte poi distrutte in blocco alla fine (3 s fermi).
+        for _job in ("_thumb_job", "_thumb_reload_debounce_job"):
+            try:
+                if getattr(self, _job, None):
+                    win.after_cancel(getattr(self, _job))
+            except Exception:
+                pass
+
+        def _remaining_cells():
+            try:
+                return [c for fr, _ in self._thumb_chunks
+                        for c in fr.winfo_children()]
+            except Exception:
+                return []
+        try:
+            win.withdraw()
+        except Exception:
+            pass
+        cells = _remaining_cells()
+
+        def _step(i=0):
+            # Lotti a TEMPO, non a numero fisso: una cella con la riga
+            # stelle costa qualche ms, 40 alla volta bloccavano fino a
+            # quasi un secondo.
+            try:
+                t_end = time.monotonic() + 0.015
+                while i < len(cells) and time.monotonic() < t_end:
+                    # Comando Tcl diretto: il destroy() Python di ogni
+                    # cella rifarebbe la pulizia uno per uno; la fa una
+                    # volta sola win.destroy() alla fine.
+                    cells[i].tk.call("destroy", cells[i]._w)
+                    i += 1
+                if i >= len(cells):
+                    # celle create nel frattempo (rete di sicurezza)
+                    cells[:] = _remaining_cells()
+                    i = 0
+                if cells:
+                    win.after(1, lambda: _step(i))
+                    return
+            except Exception:
+                pass
+            try:
+                win.destroy()
+            except Exception:
+                pass
+        _step()
 
 class KeypadPopup:
     """
