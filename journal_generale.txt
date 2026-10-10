@@ -2258,6 +2258,17 @@ tagliata, strisce sopra le miniature, s1012 in cima a scorrimento 0).
 Posizione di una cella nel contenuto: _cell_content_y(cell), non
 winfo_y() (relativo al blocco); altezza totale: _thumb_content_h().
 Test: xvfb + winfo_containing a 0/30/60/97% di scorrimento, Fine/Home.
+v1.46.21-22: "Anteprima" spenta tornava accesa (il precaricamento in
+_load_thumbnails apriva il pannello senza guardare _preview_var) e
+togliere/rimettere Anteprima o Albero spostava gli altri divisori (Tk
+ridistribuisce lo spazio coi pesi dei pannelli: salvare e riapplicare
+le posizioni assolute dopo insert/forget).
+v1.46.23: chiudere Naviga con 1592 celle (27.000 widget con la riga
+stelle) teneva la finestra svuotata a meta' e bloccava il programma per
+secondi. KEY LEARNING: finestre con migliaia di widget -> withdraw()
+subito, poi distruzione con "destroy" Tcl diretto a lotti A TEMPO
+(~15 ms per giro, after(1)), annullando prima i job after() che
+creano altre celle; win.destroy() Python solo alla fine.
 
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
