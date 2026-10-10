@@ -2295,6 +2295,33 @@ famiglia della regola highlightthickness: dimensione fissa, cambia solo
 l'aspetto. KEY LEARNING 2: ogni nuovo helper di image_sorter usato da
 timeline.py va anche INIETTATO in _db_mod dopo la definizione (come
 attach_rating_overlay): l'import "per valore" puo' ricadere sullo stub.
+v1.46.27: Naviga sorveglia la cartella mostrata. ARCHITETTURA:
+- _folder_watch_tick ogni 2 s (after, avviato in __init__, fermato in
+  _on_close): legge solo os.stat(cartella).st_mtime_ns; se cambia,
+  _scan_folder (estratta da _load_thumbnails: scandir, nascosti,
+  ordinamento, ricerca, filtri; restituisce anche {nome:(mtime,size)}).
+  Saltato durante caricamento (_watch_ready False), ricerca, vista
+  Albero, trascinamento, CANC in sospeso, riassegnazione in corso.
+- Griglia: ogni cella e' un "posto" fisso (_grid_slots, in ordine). Il
+  file mostrato sta in cell._fpath e TUTTI i gestori (miniatura, stelle,
+  pallini colore) lo leggono al momento dell'evento: _bind_cell cambia il
+  file di un posto senza ricollegare nulla. Necessario perche' Tk non
+  sposta un widget in un altro blocco (_thumb_chunk). _apply_folder_diff:
+  riassegna i posti cambiati (prima i visibili, lotti a tempo da 15 ms),
+  crea/distrugge posti in fondo, ricostruisce _cell_refs in ordine,
+  pulisce selezione/focus/anteprima dei file spariti.
+- Ricaricamento completo solo se: vista Lista, cambiano le sottocartelle,
+  la cartella si svuota, o cambiano davvero (aggiunti+tolti, NON i posti
+  che scorrono) piu' di max(200, meta') dei file.
+- File comparsi da poco ricontrollati per 10 s (copia in corso: la fine
+  della copia non cambia la data della cartella). File esistenti
+  modificati da fuori: visti solo se la cartella cambia data (salvataggio
+  via file temporaneo + rinomina, come fa la maggior parte dei
+  programmi); una scrittura diretta sul file non viene vista.
+Misure (1592 file, xvfb): inserimento in cima -> compare in 0,6 s,
+tutti i posti aggiornati in 1,4 s, blocco massimo 165 ms.
+REGOLA: nuovi gestori su una cella della griglia devono leggere
+cell._fpath, MAI catturare il percorso alla creazione.
 
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
