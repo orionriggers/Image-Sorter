@@ -2286,6 +2286,15 @@ per cella+anteprima, _build_tag_row se il file e' selezionato. In
 timeline.py il punto unico e' DeepBrowser._refresh_rating_row (chiamata
 solo dopo una modifica) + _notify_naviga_meta. REGOLA: ogni nuovo punto
 che scrive rating/colori/tag fuori da Naviga chiama la notifica.
+v1.46.26: bottoni tag che passano a grassetto quando attivi spingevano
+gli altri di 3-9 px. KEY LEARNING: ("TkFixedFont", 8) come tupla NON e'
+monospaziato (Tk lo risolve in DejaVu Sans) e il grassetto e' piu'
+largo. Soluzione: fix_tag_button_width(btn, text) -> immagine 1x1 +
+compound="center" (width in pixel) = larghezza del grassetto. Stessa
+famiglia della regola highlightthickness: dimensione fissa, cambia solo
+l'aspetto. KEY LEARNING 2: ogni nuovo helper di image_sorter usato da
+timeline.py va anche INIETTATO in _db_mod dopo la definizione (come
+attach_rating_overlay): l'import "per valore" puo' ricadere sullo stub.
 
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
