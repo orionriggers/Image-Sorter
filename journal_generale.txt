@@ -2243,6 +2243,22 @@ assolute). Bug minore: i PNG a 16 bit (mode "I") non hanno miniatura.
 KEY LEARNING: nessun widget/frame Tk deve superare 32767 px di altezza
 (limite X11): liste lunghe dentro un canvas vanno virtualizzate.
 
+RISOLTO (10/10/2026) - v1.46.19: cache miniature limitata in byte
+(_THUMB_CACHE_MAX_BYTES = 400 MB, ricalcolo reale solo oltre il limite
+perche' altri punti cancellano voci direttamente) + PNG 16 bit/float
+convertiti a grigi 8 bit (_to_8bit_gray). v1.46.20: le celle file della
+griglia e della vista Lista non stanno piu' in _thumb_inner ma in
+"blocchi" (_thumb_chunk) alti al massimo _THUMB_CHUNK_MAX_H = 20000 px,
+ciascuno una finestra del canvas a coordinate assolute, riposizionati
+da _update_thumb_scrollregion sotto _thumb_inner (che tiene solo
+cartelle/intestazioni). Il sintomo vero oltre il limite non era solo
+"vuoto": le posizioni X11 si riavvolgono a 16 bit, quindi le righe
+~65536 px piu' in basso venivano disegnate SOPRA le prime (prima fila
+tagliata, strisce sopra le miniature, s1012 in cima a scorrimento 0).
+Posizione di una cella nel contenuto: _cell_content_y(cell), non
+winfo_y() (relativo al blocco); altezza totale: _thumb_content_h().
+Test: xvfb + winfo_containing a 0/30/60/97% di scorrimento, Fine/Home.
+
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
 ===========================================================================

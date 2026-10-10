@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.19"
+VERSION = "1.46.20"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -8506,7 +8506,6 @@ class FolderBrowser:
         for _sk in ("<Shift-Right>","<Shift-Left>","<Shift-Down>","<Shift-Up>",
                     "<Shift-KP_Right>","<Shift-KP_Left>","<Shift-KP_Down>","<Shift-KP_Up>"):
             self._thumb_canvas.bind(_sk, self._on_shift_arrow)
-            self._thumb_inner.bind(_sk, self._on_shift_arrow)
         # Pagina Su/Giu' (Prior/Next nel keysym X11) e Home/Fine: mancavano
         # del tutto, segnalato da Carlo — stessa gestione delle frecce
         # semplici (_on_arrow), solo con un salto diverso (vedi li').
@@ -8515,17 +8514,12 @@ class FolderBrowser:
                     "<Prior>","<Next>","<Home>","<End>",
                     "<KP_Prior>","<KP_Next>","<KP_Home>","<KP_End>"):
             self._thumb_canvas.bind(_ak, self._on_arrow)
-            self._thumb_inner.bind(_ak, self._on_arrow)
-        self._thumb_inner.bind("<Configure>", self._on_thumb_frame_configure)
+        self._bind_thumb_container(self._thumb_inner)
+        # Blocchi di celle file sotto _thumb_inner: vedi _thumb_chunk().
+        self._thumb_chunks      = []     # [(frame, id finestra canvas)]
+        self._thumb_chunk_setup = None   # colonne da dare a ogni blocco nuovo
         self._thumb_canvas.bind("<Configure>", self._on_thumb_canvas_configure)
-        # Tasto destro sullo SFONDO della griglia (fra i file, non su uno
-        # di essi) — richiesto da Carlo: prima funzionava solo sopra una
-        # cella. _thumb_inner e' un Frame, non il Toplevel: le celle
-        # figlie hanno il proprio bind diretto e non passano da qui (un
-        # Frame non e' fra le bindtag di default dei suoi figli, a
-        # differenza del Toplevel), quindi questo scatta SOLO per un
-        # click davvero nello spazio vuoto fra le celle.
-        self._thumb_inner.bind("<Button-3>", self._grid_background_context_menu)
+        # Tasto destro sullo sfondo: vedi anche _bind_thumb_container.
         self._thumb_canvas.bind("<Button-3>", self._grid_background_context_menu)
         # NOTA: la rotella NON viene legata qui al canvas. Il binding e' uno
         # solo, sulla finestra Naviga (vedi sotto): un widget riceve gli
@@ -8775,14 +8769,93 @@ class FolderBrowser:
         if not c.winfo_exists():
             return
         try:
-            w = max(c.winfo_width(), self._thumb_inner.winfo_reqwidth(), 1)
-            h = max(self._thumb_inner.winfo_reqheight(), c.winfo_height(), 1)
+            # I blocchi di celle stanno uno sotto l'altro, subito dopo
+            # _thumb_inner (cartelle): si riposizionano qui, cosi' seguono
+            # ogni cambio di altezza del contenuto.
+            y = self._thumb_inner.winfo_reqheight()
+            w = self._thumb_inner.winfo_reqwidth()
+            for fr, wid in getattr(self, "_thumb_chunks", ()):
+                c.coords(wid, 0, y)
+                y += fr.winfo_reqheight()
+                w = max(w, fr.winfo_reqwidth())
+            self._thumb_content_height = y
+            w = max(c.winfo_width(), w, 1)
+            h = max(y, c.winfo_height(), 1)
             c.configure(scrollregion=(0, 0, w, h))
         except Exception:
             pass
 
     def _on_thumb_frame_configure(self, event):
         self._update_thumb_scrollregion()
+
+    # ── Blocchi di celle ─────────────────────────────────────────────────
+    # X11 usa coordinate a 16 bit: una finestra non puo' essere alta piu'
+    # di 32767 px e oltre quel limite le posizioni "si riavvolgono". Con
+    # tutte le celle in un unico frame (_thumb_inner) una cartella di 1592
+    # screenshot faceva una griglia alta 91657 px: le righe oltre il
+    # limite venivano disegnate SOPRA le prime (prima fila tagliata,
+    # strisce sopra le miniature) e il resto restava vuoto. Le celle dei
+    # file vanno quindi in blocchi alti al massimo _THUMB_CHUNK_MAX_H,
+    # ciascuno una finestra a se' nel canvas a coordinate assolute (le
+    # coordinate del canvas non hanno quel limite).
+    _THUMB_CHUNK_MAX_H = 20000
+
+    def _bind_thumb_container(self, w):
+        """Frecce, tasto destro sullo sfondo e ridimensionamento: uguali
+        per _thumb_inner e per ogni blocco di celle."""
+        for _sk in ("<Shift-Right>","<Shift-Left>","<Shift-Down>","<Shift-Up>",
+                    "<Shift-KP_Right>","<Shift-KP_Left>","<Shift-KP_Down>","<Shift-KP_Up>"):
+            w.bind(_sk, self._on_shift_arrow)
+        for _ak in ("<Right>","<Left>","<Down>","<Up>",
+                    "<KP_Right>","<KP_Left>","<KP_Down>","<KP_Up>",
+                    "<Prior>","<Next>","<Home>","<End>",
+                    "<KP_Prior>","<KP_Next>","<KP_Home>","<KP_End>"):
+            w.bind(_ak, self._on_arrow)
+        w.bind("<Configure>", self._on_thumb_frame_configure)
+        # Tasto destro sullo SFONDO della griglia (fra i file, non su uno
+        # di essi) — richiesto da Carlo: prima funzionava solo sopra una
+        # cella. Un Frame non e' fra le bindtag di default dei suoi figli
+        # (a differenza del Toplevel), quindi questo scatta SOLO per un
+        # click davvero nello spazio vuoto fra le celle.
+        w.bind("<Button-3>", self._grid_background_context_menu)
+
+    def _thumb_chunk(self, idx):
+        """Blocco di celle numero idx, creato al primo uso."""
+        c = self._thumb_canvas
+        while len(self._thumb_chunks) <= idx:
+            fr = tk.Frame(c, bg=PANEL_COLOR)
+            wid = c.create_window(0, 0, window=fr, anchor="nw",
+                                  width=max(1, c.winfo_width()))
+            self._bind_thumb_container(fr)
+            if self._thumb_chunk_setup:
+                self._thumb_chunk_setup(fr)
+            self._thumb_chunks.append((fr, wid))
+        return self._thumb_chunks[idx][0]
+
+    def _clear_thumb_chunks(self):
+        for fr, wid in self._thumb_chunks:
+            try:
+                self._thumb_canvas.delete(wid)
+                fr.destroy()
+            except Exception:
+                pass
+        self._thumb_chunks = []
+        self._thumb_chunk_setup = None
+
+    def _thumb_content_h(self):
+        """Altezza totale del contenuto scorrevole (cartelle + blocchi)."""
+        return max(1, getattr(self, "_thumb_content_height", 0)
+                   or self._thumb_inner.winfo_height())
+
+    def _cell_content_y(self, cell):
+        """Posizione verticale di una cella nel contenuto scorrevole.
+        winfo_y() e' relativo al blocco che la contiene, non al canvas."""
+        y = cell.winfo_y()
+        m = cell.master
+        for fr, wid in self._thumb_chunks:
+            if fr is m:
+                return int(self._thumb_canvas.coords(wid)[1]) + y
+        return y
 
     def _request_thumb_reload(self, delay=150):
         """Richiede un ricaricamento della griglia con un breve ritardo
@@ -8808,6 +8881,8 @@ class FolderBrowser:
     def _on_thumb_canvas_configure(self, event):
         self._thumb_canvas.itemconfig(
             self._thumb_win_id, width=event.width)
+        for _fr, _wid in self._thumb_chunks:
+            self._thumb_canvas.itemconfig(_wid, width=event.width)
         # Cambia l'altezza della vista: l'area scorrevole va riallineata
         # (il suo minimo e' proprio l'altezza del canvas).
         self._update_thumb_scrollregion()
@@ -9361,7 +9436,10 @@ class FolderBrowser:
     def _highlight_file(self, filepath):
         """Evidenzia la cella corrispondente al file nella vista corrente."""
         fname = os.path.basename(filepath)
-        for cell in self._thumb_inner.winfo_children():
+        _cells = list(self._thumb_inner.winfo_children())
+        for _fr, _wid in self._thumb_chunks:
+            _cells.extend(_fr.winfo_children())
+        for cell in _cells:
             try:
                 # Cerca label con testo uguale al nome del file
                 for w in cell.winfo_children():
@@ -9370,9 +9448,9 @@ class FolderBrowser:
                                     highlightthickness=2)
                         # Scrolla verso la cella
                         self._thumb_inner.update_idletasks()
-                        y = cell.winfo_y()
+                        y = self._cell_content_y(cell)
                         ch = self._thumb_canvas.winfo_height()
-                        fh = self._thumb_inner.winfo_height()
+                        fh = self._thumb_content_h()
                         if fh > ch:
                             self._thumb_canvas.yview_moveto(
                                 max(0.0, (y - ch//2) / fh))
@@ -9681,7 +9759,13 @@ class FolderBrowser:
                     w.bind("<Button-3>",
                            lambda e, p=dpath: self._folder_context_menu(e, p))
 
-        dir_offset = len(nav_dirs) + 1
+        # I file vanno nei blocchi di celle (vedi _thumb_chunk): con
+        # migliaia di righe un unico frame supera il limite X11.
+        def _chunk_cols(fr):
+            fr.columnconfigure(0, weight=0)
+            fr.columnconfigure(1, weight=1)
+        self._thumb_chunk_setup = _chunk_cols
+        _rows_per_chunk = max(1, self._THUMB_CHUNK_MAX_H // (THUMB + 20))
 
         def load_batch(idx):
             for _ in range(30):
@@ -9689,7 +9773,8 @@ class FolderBrowser:
                     return
                 fname = files[idx]
                 fpath = os.path.join(folder, fname)
-                row_i = idx + dir_offset
+                _chunk = self._thumb_chunk(idx // _rows_per_chunk)
+                row_i  = idx % _rows_per_chunk
                 bg = PANEL_COLOR if idx % 2 == 0 else BG_COLOR
                 try:
                     img = load_thumbnail(fpath, THUMB)
@@ -9700,7 +9785,7 @@ class FolderBrowser:
                     self._thumb_images.append(photo)
 
                     # Cella contenitore: thumbnail + info nella stessa riga
-                    cell_frame = tk.Frame(inner, bg=bg)
+                    cell_frame = tk.Frame(_chunk, bg=bg)
                     cell_frame.grid(row=row_i, column=0, columnspan=2,
                                     sticky="ew", padx=2, pady=1)
                     cell_frame.columnconfigure(1, weight=1)
@@ -10633,6 +10718,7 @@ class FolderBrowser:
             self._update_sel_bar()
         for w in self._thumb_inner.winfo_children():
             w.destroy()
+        self._clear_thumb_chunks()
         self._thumb_images.clear()
         # Resetta il minsize di TUTTE le righe possibili, non solo quelle
         # tracciate come "usate" dalla cartella precedente: rowconfigure è
@@ -10833,6 +10919,15 @@ class FolderBrowser:
             # colonna della cella cliccata.
             self._thumb_inner.columnconfigure(ci, weight=1, minsize=cell_w)
         self._thumb_max_col = max(self._thumb_max_col, COLS - 1)
+        # Stesse colonne su ogni blocco di celle (vedi _thumb_chunk): i
+        # blocchi sono larghi quanto il canvas, quindi le colonne restano
+        # allineate fra un blocco e l'altro.
+        def _chunk_cols(fr, _n=COLS, _w=cell_w):
+            for _ci in range(_n):
+                fr.columnconfigure(_ci, weight=1, minsize=_w)
+        self._thumb_chunk_setup = _chunk_cols
+        _row_h = THUMB_SIZE + 22 + _RATING_ROW_H + 6
+        _rows_per_chunk = max(1, self._THUMB_CHUNK_MAX_H // _row_h)
 
         # Segnaposto 1x1 del colore del pannello: la Label che ospita la
         # miniatura ha SEMPRE un'immagine, quindi width/height vengono
@@ -10860,9 +10955,10 @@ class FolderBrowser:
                     break
                 fname = files[idx]
                 fpath = os.path.join(folder, fname)
-                dir_rows = getattr(self, '_grid_dir_rows', 1)
-                row_i = dir_rows + idx // COLS
-                col_i = idx % COLS
+                _frow  = idx // COLS
+                _chunk = self._thumb_chunk(_frow // _rows_per_chunk)
+                row_i  = _frow % _rows_per_chunk
+                col_i  = idx % COLS
                 try:
                     img = peek_thumbnail(fpath, THUMB_SIZE)  # solo cache
                     if img is not None:
@@ -10872,7 +10968,7 @@ class FolderBrowser:
                         photo = self._thumb_ph_photo
                         _pending.append(fpath)
 
-                    cell = tk.Frame(self._thumb_inner, bg=PANEL_COLOR,
+                    cell = tk.Frame(_chunk, bg=PANEL_COLOR,
                                     width=THUMB_SIZE+6, height=THUMB_SIZE+22+_RATING_ROW_H)
                     cell.grid(row=row_i, column=col_i,
                               padx=3, pady=3, sticky="nsew")
@@ -10883,9 +10979,7 @@ class FolderBrowser:
                     # widget che non rispetta perfettamente il proprio
                     # propagate), la riga non si allarga né si restringe
                     # — le righe sotto restano ferme al loro posto.
-                    self._thumb_inner.rowconfigure(row_i,
-                                                    minsize=THUMB_SIZE+22+_RATING_ROW_H+6)
-                    self._thumb_max_row = max(self._thumb_max_row, row_i)
+                    _chunk.rowconfigure(row_i, minsize=_row_h)
 
                     btn = tk.Label(cell, image=photo, bg=PANEL_COLOR,
                                    cursor="hand2", bd=0,
@@ -11903,10 +11997,10 @@ class FolderBrowser:
             if not c: return
             try:
                 canvas = self._thumb_canvas
-                inner_h = self._thumb_inner.winfo_height()
+                inner_h = self._thumb_content_h()
                 canvas_h = canvas.winfo_height()
                 if inner_h <= canvas_h: return
-                cell_y = c.winfo_y()
+                cell_y = self._cell_content_y(c)
                 cell_h = c.winfo_height()
                 view_top = canvas.yview()[0] * inner_h
                 view_bot = view_top + canvas_h
@@ -11972,10 +12066,10 @@ class FolderBrowser:
             def _do_scroll(c=cell_to_show):
                 try:
                     canvas   = self._thumb_canvas
-                    inner_h  = self._thumb_inner.winfo_height()
+                    inner_h  = self._thumb_content_h()
                     canvas_h = canvas.winfo_height()
                     if inner_h <= canvas_h: return
-                    cell_y   = c.winfo_y()
+                    cell_y   = self._cell_content_y(c)
                     cell_h   = c.winfo_height()
                     view_top = canvas.yview()[0] * inner_h
                     view_bot = view_top + canvas_h
