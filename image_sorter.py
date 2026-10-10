@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.20"
+VERSION = "1.46.21"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -8924,16 +8924,46 @@ class FolderBrowser:
         ricordato in config tra una sessione e l'altra, come "Anteprima"
         e "Ratings" — prima non lo era, segnalato da Carlo."""
         show = self._show_tree_var.get()
+        cfg = self.sorter.config
+        # Il divisore anteprima resta alla stessa posizione assoluta
+        # (nav_preview_sash ha lo stesso significato con e senza albero):
+        # l'anteprima tiene la sua larghezza, le miniature si allargano o
+        # si stringono. Prima, riaccendendo l'albero, Tk ridistribuiva lo
+        # spazio coi pesi: albero largo quasi tutta la finestra e colonna
+        # miniature di pochi pixel, larghezza dell'albero dimenticata.
+        prev_pos = None
+        if getattr(self, '_preview_visible', False):
+            try:
+                prev_pos = self._paned.sashpos(self._preview_sash_index())
+            except Exception:
+                pass
         try:
             if show:
                 self._paned.insert(0, self._tree_frame, weight=2)
             else:
+                cfg["nav_tree_width"] = self._paned.sashpos(0)
                 self._paned.forget(self._tree_frame)
         except Exception:
             pass
-        cfg = self.sorter.config
         cfg["nav_show_tree"] = show
         save_config(cfg)
+
+        def _restore():
+            try:
+                self._paned.update_idletasks()
+                if show:
+                    tree_w = cfg.get("nav_tree_width") or self._paned.winfo_width() // 3
+                    if prev_pos:
+                        # almeno 150 px di miniature fra albero e anteprima
+                        tree_w = min(tree_w, prev_pos - 150)
+                    if tree_w > 50:
+                        self._paned.sashpos(0, tree_w)
+                if prev_pos:
+                    self._paned.sashpos(self._preview_sash_index(), prev_pos)
+            except Exception:
+                pass
+        _restore()
+        self.win.after(50, _restore)
 
     def _toggle_tree_filter(self, attr, var):
         setattr(self, attr, var.get())
@@ -10673,7 +10703,13 @@ class FolderBrowser:
                     _quick_names = []
                 if _quick_names:
                     _preload_target = os.path.join(folder, _quick_names[0])
-            if _preload_target:
+            # Solo con "Anteprima" spuntata: prima il pannello veniva
+            # aperto qui comunque, e la scelta "Anteprima" spenta non
+            # restava mai memorizzata alla riapertura di Naviga
+            # (segnalato da Carlo). Se la spunta e' attiva ma il
+            # ripristino (after_idle in _build) non e' ancora avvenuto,
+            # lo si anticipa qui come prima.
+            if _preload_target and self._preview_var.get():
                 if not self._preview_visible:
                     self._toggle_preview_pane()
                 self._selected_files.add(_preload_target)
