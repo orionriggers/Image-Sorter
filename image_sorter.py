@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.24"
+VERSION = "1.46.25"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -17697,6 +17697,7 @@ def _deck_execute_action(action_dict, sorter=None):
                 cur = metadata_store.get_meta(fp)["rating"]
                 metadata_store.set_rating(fp, 0 if cur == n else n)
                 sorter._draw_rating_overlay(fp)
+                sorter._notify_browser_meta_changed([fp])
                 if getattr(sorter, "_stream_deck", None):
                     sorter._stream_deck.refresh_all()
         return
@@ -17709,6 +17710,7 @@ def _deck_execute_action(action_dict, sorter=None):
             if fp and param:
                 metadata_store.toggle_color(fp, param)
                 sorter._draw_rating_overlay(fp)
+                sorter._notify_browser_meta_changed([fp])
                 if getattr(sorter, "_stream_deck", None):
                     sorter._stream_deck.refresh_all()
         return
@@ -25415,6 +25417,7 @@ class ImageSorter:
                     _w.config(fg=HUD_CYAN if _cur_rating[0] >= _idx else MUTED_COLOR)
             def _set_rating(v, p=filepath):
                 metadata_store.set_rating(p, v)
+                self._notify_browser_meta_changed([p])
                 _cur_rating[0] = v
                 _repaint_stars()
                 if getattr(self, "_show_rating_overlay", False):
@@ -25447,6 +25450,7 @@ class ImageSorter:
             _cur_colors = [set(metadata_store.get_meta(filepath)["colors"])]
             def _click_colorlabel(cid, p=filepath):
                 metadata_store.toggle_color(p, cid)
+                self._notify_browser_meta_changed([p])
                 if cid in _cur_colors[0]:
                     _cur_colors[0].discard(cid)
                 else:
@@ -26056,6 +26060,8 @@ class ImageSorter:
                     metadata_store.remove_tag(state["filepath"], tag)
                 else:
                     metadata_store.add_tag(state["filepath"], tag)
+            self._notify_browser_meta_changed(
+                state["targets"] if is_multi else [state["filepath"]])
             _rebuild_cloud()
 
         def _rebuild_cloud():
@@ -26466,6 +26472,25 @@ class ImageSorter:
                         "dest": "", "note": f"{degrees}°"})
         self._notify_browser_file_changed(filepath)
         self._show_image()
+
+    def _notify_browser_meta_changed(self, paths):
+        """Rating, colori o tag cambiati FUORI da Naviga (menu e overlay
+        del visualizzatore, deck, finestra Tag, Timeline): se Naviga e'
+        aperta ridipinge stelle/pallini delle celle coinvolte e
+        dell'anteprima, e la nuvola tag se riguarda i file selezionati.
+        Prima restavano i valori vecchi fino al ricaricamento della
+        cartella (segnalato da Carlo)."""
+        fb = getattr(self, "folder_browser", None)
+        try:
+            if not (fb and fb.win.winfo_exists()):
+                return
+            paths = list(paths)
+            for p in paths:
+                fb._refresh_rating_row(p)
+            if any(p in fb._selected_files for p in paths):
+                fb._build_tag_row()
+        except Exception:
+            pass
 
     def _notify_browser_file_changed(self, filepath):
         """Un file e' stato modificato sul disco (ritaglio, rotazione,
@@ -27236,6 +27261,7 @@ class ImageSorter:
         principio di toggle usato ovunque nel programma."""
         cur = metadata_store.get_meta(filepath)["rating"]
         metadata_store.set_rating(filepath, 0 if cur == v else v)
+        self._notify_browser_meta_changed([filepath])
         if self._current_file() == filepath:
             self._draw_rating_overlay(filepath)
 
@@ -27243,6 +27269,7 @@ class ImageSorter:
         """Click su un pallino dell'overlay principale: attiva/
         disattiva quel colore sul file corrente."""
         metadata_store.toggle_color(filepath, cid)
+        self._notify_browser_meta_changed([filepath])
         if self._current_file() == filepath:
             self._draw_rating_overlay(filepath)
 

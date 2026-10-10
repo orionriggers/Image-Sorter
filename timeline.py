@@ -1,5 +1,5 @@
 # timeline.py — Timeline, mappa GPS, scansione ricorsiva
-VERSION = "1.46.1"
+VERSION = "1.46.2"
 # Visualizzazione profonda: scansione ricorsiva, timeline per data/luogo, mappa GPS
 # Dipendenze: reverse_geocode, folium (pip install reverse-geocode folium)
 
@@ -1297,6 +1297,7 @@ class DeepBrowser:
         metadata_store.set_rating(path, 0 if cur == i else i)
         self._sync_grid_item(path)
         self._refresh_preview_rating()
+        self._notify_naviga_meta([path])
 
     def _click_preview_colorlabel(self, cid):
         path = self._preview_current_path
@@ -1305,6 +1306,7 @@ class DeepBrowser:
         metadata_store.toggle_color(path, cid)
         self._sync_grid_item(path)
         self._refresh_preview_rating()
+        self._notify_naviga_meta([path])
 
     def _sync_grid_item(self, path):
         """Trova l'item della griglia corrispondente a path (se ancora
@@ -2097,6 +2099,12 @@ class DeepBrowser:
         # Stesso motivo di _click_rating_star qui sopra.
         self._refresh_preview_rating()
 
+    def _notify_naviga_meta(self, paths):
+        """Rating/colori/tag cambiati qui: aggiorna anche Naviga, se aperta."""
+        _notify = getattr(self.sorter, "_notify_browser_meta_changed", None)
+        if _notify:
+            _notify(paths)
+
     def _refresh_rating_row(self, item):
         """Ridipinge SOLO la riga di stelle e pallini della cella indicata
         — chiamata dopo un click diretto sulla griglia e anche dal menu
@@ -2105,6 +2113,9 @@ class DeepBrowser:
         anche nella griglia."""
         if not _METADATA_STORE_AVAILABLE:
             return
+        # Chiamata solo dopo una modifica (griglia, menu, anteprima):
+        # punto unico per avvisare anche Naviga.
+        self._notify_naviga_meta([item["path"]])
         meta = metadata_store.get_meta(item["path"])
         stars = item.get("_rating_stars")
         if stars:
@@ -2616,6 +2627,7 @@ class DeepBrowser:
                     metadata_store.add_tag(cur_targets[0], tag)
             else:
                 metadata_store.bulk_toggle_tag(cur_targets, tag)
+            self._notify_naviga_meta(cur_targets)
             self._update_sel_bar()
 
         sort_mode = self.sorter.config.get("tag_sort_mode", "alpha")
