@@ -2269,6 +2269,16 @@ secondi. KEY LEARNING: finestre con migliaia di widget -> withdraw()
 subito, poi distruzione con "destroy" Tcl diretto a lotti A TEMPO
 (~15 ms per giro, after(1)), annullando prima i job after() che
 creano altre celle; win.destroy() Python solo alla fine.
+v1.46.24: dopo ritaglio/ridimensiona/rotazione/annulla Naviga restava
+con miniatura e anteprima vecchie (nessuno la avvisava; la rotazione da
+Naviga ricaricava tutta la cartella). Ora un solo punto di notifica:
+ImageSorter._notify_browser_file_changed(path) ->
+FolderBrowser._refresh_file_visual(path): rigenera solo quella cella
+(_start_thumb_worker -> _apply_thumb), forza l'anteprima
+(_update_preview_pane(force=True)), ricarica la cartella solo se il file
+e' nuovo (ritaglio "salva con nuovo nome"). REGOLA: ogni nuovo punto
+che riscrive un file immagine sul disco deve chiamare
+_notify_browser_file_changed (come rename_path per i metadati).
 
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
