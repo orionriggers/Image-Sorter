@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.27"
+VERSION = "1.46.28"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -9732,7 +9732,18 @@ class FolderBrowser:
             # file/cartella), quel ricalcolo interno non ha piu' modo di
             # propagarsi in un ridisegno visibile.
             nrows = (len(cells) + cols - 1) // cols
-            row_h = getattr(self, "_dir_cell_h", 106) + 4  # +2*pady
+            # Altezza REALE delle celle, non quella stimata (_dir_cell_h):
+            # la cella dichiara height=cell_h con grid_propagate(False), ma
+            # i suoi figli usano pack, che la riadatta comunque al
+            # contenuto (86 px invece di 106 con miniature L). Con la
+            # stima il riquadro cresceva di ~20 px per riga: con molte
+            # sottocartelle centinaia di px vuoti prima delle miniature
+            # (segnalato da Carlo). update_idletasks: la misura del
+            # packer arriva solo al primo giro idle.
+            holder.update_idletasks()
+            _real_h = max((c.winfo_reqheight() for c in cells
+                           if c.winfo_exists()), default=0)
+            row_h = (_real_h or getattr(self, "_dir_cell_h", 106)) + 4  # +2*pady
             holder.config(width=cols * colw, height=nrows * row_h)
             holder.grid_propagate(False)
         except Exception:
