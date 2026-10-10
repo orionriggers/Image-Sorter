@@ -2279,6 +2279,13 @@ FolderBrowser._refresh_file_visual(path): rigenera solo quella cella
 e' nuovo (ritaglio "salva con nuovo nome"). REGOLA: ogni nuovo punto
 che riscrive un file immagine sul disco deve chiamare
 _notify_browser_file_changed (come rename_path per i metadati).
+v1.46.25: stesso schema per rating/colori/tag cambiati fuori da Naviga
+(overlay e menu del visualizzatore, deck, finestra Tag, Timeline):
+ImageSorter._notify_browser_meta_changed(paths) -> _refresh_rating_row
+per cella+anteprima, _build_tag_row se il file e' selezionato. In
+timeline.py il punto unico e' DeepBrowser._refresh_rating_row (chiamata
+solo dopo una modifica) + _notify_naviga_meta. REGOLA: ogni nuovo punto
+che scrive rating/colori/tag fuori da Naviga chiama la notifica.
 
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
