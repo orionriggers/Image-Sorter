@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.21"
+VERSION = "1.46.22"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -11370,6 +11370,23 @@ class FolderBrowser:
         Stato e proporzioni (posizione del divisore) vengono ricordati in
         config tra una sessione e l'altra."""
         cfg = self.sorter.config
+        # Il divisore albero/miniature resta fermo: togliendo o
+        # rimettendo l'anteprima Tk ridistribuisce lo spazio in base ai
+        # pesi dei pannelli e spostava anche quello (456 -> 688 px in un
+        # test), come se la colonna miniature si ridimensionasse da sola.
+        _tree_pos = None
+        if cfg.get("nav_show_tree", True):
+            try:
+                _tree_pos = self._paned.sashpos(0)
+            except Exception:
+                pass
+
+        def _keep_tree():
+            if _tree_pos:
+                try:
+                    self._paned.sashpos(0, _tree_pos)
+                except Exception:
+                    pass
         if self._preview_visible:
             # Salva la posizione del divisore prima di rimuovere il
             # pannello, così la prossima volta si riapre alla stessa
@@ -11383,6 +11400,9 @@ class FolderBrowser:
             except Exception:
                 pass
             self._preview_visible = False
+            _keep_tree()
+            self.win.after(20, _keep_tree)
+            self.win.after(90, _keep_tree)
         else:
             try:
                 self._paned.add(self._preview_pane, weight=4)
@@ -11390,8 +11410,12 @@ class FolderBrowser:
                 pass
             self._preview_visible = True
             saved_pos = cfg.get("nav_preview_sash")
-            if saved_pos:
+            if not saved_pos:
+                _keep_tree()
+                self.win.after(20, _keep_tree)
+            else:
                 def _restore_sash():
+                    _keep_tree()
                     try:
                         self._paned.sashpos(self._preview_sash_index(), saved_pos)
                     except Exception:
