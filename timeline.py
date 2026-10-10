@@ -1,5 +1,5 @@
 # timeline.py — Timeline, mappa GPS, scansione ricorsiva
-VERSION = "1.46.2"
+VERSION = "1.46.3"
 # Visualizzazione profonda: scansione ricorsiva, timeline per data/luogo, mappa GPS
 # Dipendenze: reverse_geocode, folium (pip install reverse-geocode folium)
 
@@ -39,6 +39,7 @@ try:
                                metadata_store, _METADATA_STORE_AVAILABLE,
                                draw_colorlabel_dots, repaint_colorlabel_dots,
                                timeline_rating_row_sizes, _launch_video_player,
+                               fix_tag_button_width,
                                _os_clipboard_set_files, _os_clipboard_get_files)
     _STANDALONE = False
 except ImportError:
@@ -70,6 +71,8 @@ except ImportError:
         pass
     def timeline_rating_row_sizes(tw):
         return 11, 13, 4, 2, 23
+    def fix_tag_button_width(btn, text, size=8):
+        pass
     def _launch_video_player(filepath):
         try:
             subprocess.Popen(["xdg-open", filepath],
@@ -2646,6 +2649,7 @@ class DeepBrowser:
                           relief="flat", padx=6,
                           activebackground=HIGHLIGHT, activeforeground="white",
                           command=lambda tg=t: _on_tag_click(tg))
+                fix_tag_button_width(btn, t)
                 btn.pack(side="left", padx=2, pady=2, ipady=1)
                 self._tag_btn_refs[t] = btn
 

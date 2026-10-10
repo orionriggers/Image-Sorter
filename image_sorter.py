@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.25"
+VERSION = "1.46.26"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -4180,6 +4180,41 @@ def timeline_rating_row_sizes(tw):
         return 11, 13, 4, 2, 23    # 1x — 149x23 richiesti su ~164 disp.
     else:
         return 18, 22, 6, 4, 34    # 2x — 241x34 richiesti su ~324 disp.
+
+
+_tag_btn_blank = {}   # {id(root): PhotoImage 1x1} per fix_tag_button_width
+_tag_btn_font  = {}   # {(id(root), size): Font grassetto}
+
+
+def fix_tag_button_width(btn, text, size=8):
+    """Larghezza FISSA (in pixel) per un bottone tag, pari a quella del
+    testo in grassetto. Evidenziando un tag il bottone passa al
+    grassetto, che con ("TkFixedFont", 8) non e' monospaziato (Tk lo
+    risolve in DejaVu Sans): 3-9 px in piu' spingevano tutti i tag
+    successivi (segnalato da Carlo). Con un'immagine trasparente 1x1 e
+    compound="center" Tk legge width in pixel invece che in caratteri:
+    normale o grassetto, il bottone resta della stessa misura."""
+    try:
+        root = btn._root()
+        blank = _tag_btn_blank.get(id(root))
+        if blank is None:
+            blank = _tag_btn_blank[id(root)] = tk.PhotoImage(
+                master=root, width=1, height=1)
+        f = _tag_btn_font.get((id(root), size))
+        if f is None:
+            f = _tag_btn_font[(id(root), size)] = tkfont.Font(
+                root=root, font=("TkFixedFont", size, "bold"))
+        btn.config(image=blank, compound="center", width=f.measure(text))
+    except Exception:
+        pass
+
+
+if _DEEP_BROWSER_AVAILABLE:
+    # Stesso motivo dell'iniezione di attach_rating_overlay: l'import "per
+    # valore" in timeline.py avviene con image_sorter caricato solo a meta'
+    # e puo' ricadere sullo stub vuoto (verificato: la barra tag di
+    # Timeline continuava a spostarsi).
+    _db_mod.fix_tag_button_width = fix_tag_button_width
 
 
 def draw_colorlabel_dots(parent, cur_colors, on_pick, size=14, pad=2):
@@ -11590,6 +11625,7 @@ class FolderBrowser:
                           relief="flat", padx=6,
                           activebackground=HIGHLIGHT, activeforeground="white",
                           command=lambda tg=t: _on_tag_click(tg))
+                fix_tag_button_width(btn, t)
                 btn.pack(side="left", padx=2, pady=2, ipady=1)
                 self._tag_btn_refs[t] = btn
 
@@ -19403,6 +19439,7 @@ class SettingsDialog:
                 activebackground=HIGHLIGHT, activeforeground="white",
                 relief="flat", padx=8, pady=3,
                 command=lambda tg=t, g=group: self._tags_toggle_membership(g, tg))
+            fix_tag_button_width(btn, t)
             btn.pack(side="left", padx=2, pady=2)
             used_w += est_w
 
@@ -26095,6 +26132,7 @@ class ImageSorter:
                     activebackground=HIGHLIGHT, activeforeground="white",
                     relief="flat", padx=8, pady=3,
                     command=lambda tg=t: _toggle_tag(tg))
+                fix_tag_button_width(btn, t)
                 btn.pack(side="left", padx=2, pady=2)
                 used_w += est_w
             if not all_tags:
