@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.26"
+VERSION = "1.46.27"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -7944,6 +7944,7 @@ class FolderBrowser:
         # Mostra la finestra subito, poi popola l'albero in background.
         self.win.update_idletasks()
         self.win.after(10, self._deferred_init)
+        self._watch_job = self.win.after(self._WATCH_MS, self._folder_watch_tick)
 
     def _deferred_init(self):
         """Popola l'albero dopo che la finestra è già visibile."""
@@ -9835,6 +9836,7 @@ class FolderBrowser:
         def load_batch(idx):
             for _ in range(30):
                 if idx >= len(files):
+                    self._watch_ready = True
                     return
                 fname = files[idx]
                 fpath = os.path.join(folder, fname)
@@ -9931,6 +9933,8 @@ class FolderBrowser:
             inner.update_idletasks()
             if idx < len(files):
                 self._thumb_job = self.win.after(8, lambda: load_batch(idx))
+            else:
+                self._watch_ready = True
 
         self._thumb_job = self.win.after(10, lambda: load_batch(0))
 
@@ -10619,6 +10623,332 @@ class FolderBrowser:
         win.deiconify()
         win.lift()
 
+    # ── Sorveglianza della cartella mostrata ─────────────────────────────
+    # Ogni 2 s si legge solo la data di modifica della cartella (quasi
+    # gratis, anche su dischi esterni e di rete, nessuna dipendenza come
+    # inotify/watchdog). Se e' cambiata si riscansiona con la stessa
+    # logica della griglia (_scan_folder) e si aggiornano SOLO le celle
+    # coinvolte (_apply_folder_diff): file copiati, cancellati o
+    # modificati da altri programmi compaiono senza ricaricare Naviga
+    # (richiesto da Carlo).
+    _WATCH_MS = 2000
+    _WATCH_RECENT_S = 10   # per quanto ricontrollare un file appena comparso
+
+    def _folder_watch_tick(self):
+        try:
+            if not self.win.winfo_exists():
+                return
+        except Exception:
+            return
+        self._watch_job = self.win.after(self._WATCH_MS, self._folder_watch_tick)
+        try:
+            self._folder_watch_check()
+        except Exception:
+            log_error(traceback.format_exc())
+
+    def _folder_watch_check(self):
+        folder = self._current_folder
+        if (not folder or not getattr(self, "_watch_ready", False)
+                or self._search_results is not None
+                or getattr(self, "_view_mode", "grid") == "tree"
+                or getattr(self, "_drag_active", False)
+                or getattr(self, "_delete_pending", False)
+                or getattr(self, "_bind_job", None)):
+            return
+        self._watch_check_recent(folder)
+        try:
+            sig = os.stat(folder).st_mtime_ns
+        except OSError:
+            return
+        if sig == getattr(self, "_watch_sig", None):
+            return
+        scan = self._scan_folder(folder)
+        if scan is None:
+            return
+        dirs, files, _filtering, _n_dirs, _n_files, stats = scan
+        old_stats = getattr(self, "_watch_stats", {}) or {}
+        self._watch_sig, self._watch_stats = sig, stats
+        if hasattr(self, "_filter_count"):
+            try:
+                self._filter_count.config(
+                    text=(f"{len(dirs) + len(files)}/{_n_dirs + _n_files}"
+                          if _filtering else ""))
+            except Exception:
+                pass
+        try:
+            self._refresh_node_text(folder)
+        except Exception:
+            pass
+        now = time.monotonic()
+        for name, st in stats.items():
+            old = old_stats.get(name)
+            path = os.path.join(folder, name)
+            if old is None:
+                # Appena comparso: potrebbe essere ancora in copia, lo si
+                # ricontrolla per qualche secondo (_watch_check_recent).
+                self._watch_recent[path] = (now, st)
+            elif old != st and path in self._cell_refs:
+                self._refresh_file_visual(path)   # modificato da fuori
+        new_paths = [os.path.join(folder, f) for f in files]
+        # Casi rari: ricaricamento completo (conserva gia' selezione,
+        # anteprima e scorrimento).
+        if (getattr(self, "_view_mode", "grid") != "grid"
+                or list(dirs) != getattr(self, "_watch_dirs", None)
+                or not new_paths or not getattr(self, "_grid_slots", None)):
+            self._load_thumbnails(folder)
+            return
+        old_paths = [getattr(c, "_fpath", None) for c in self._grid_slots]
+        if new_paths == old_paths:
+            return
+        # Conta i file davvero aggiunti/tolti, non i posti che scorrono:
+        # un file inserito a meta' ne sposta centinaia, ma riassegnarli
+        # costa poco. Il ricaricamento completo conviene solo se cambia
+        # davvero gran parte della cartella.
+        _old_set, _new_set = set(old_paths), set(new_paths)
+        changed = len(_new_set - _old_set) + len(_old_set - _new_set)
+        if changed > max(200, len(new_paths) // 2):
+            self._load_thumbnails(folder)
+            return
+        self._apply_folder_diff(new_paths)
+
+    def _watch_check_recent(self, folder):
+        """File comparsi da poco: se dimensione o data cambiano (copia
+        ancora in corso quando sono stati visti la prima volta) si
+        rigenera la miniatura. La fine di una copia non cambia la data
+        della cartella, quindi senza questo controllo resterebbe la
+        miniatura di un file a meta'."""
+        recent = getattr(self, "_watch_recent", None)
+        if not recent:
+            return
+        now = time.monotonic()
+        for path, (t0, st) in list(recent.items()):
+            if now - t0 > self._WATCH_RECENT_S:
+                del recent[path]
+                continue
+            try:
+                _st = os.stat(path)
+                cur = (_st.st_mtime_ns, _st.st_size)
+            except OSError:
+                del recent[path]
+                continue
+            if cur != st:
+                recent[path] = (now, cur)   # ancora in scrittura: riparte
+                if self._watch_stats is not None:
+                    self._watch_stats[os.path.basename(path)] = cur
+                if path in self._cell_refs:
+                    self._refresh_file_visual(path)
+
+    def _apply_folder_diff(self, new_paths):
+        """Porta la griglia all'elenco new_paths senza ricostruirla.
+
+        Le celle sono posti fissi (vedi _make_grid_cell): dove il file
+        cambia si riassegna il posto (_bind_cell), in fondo si creano o
+        si distruggono posti. Lo scorrimento non si muove."""
+        slots = self._grid_slots
+        L = self._grid_layout
+        cols = L["cols"]
+        new_set = set(new_paths)
+        old_paths = [getattr(c, "_fpath", None) for c in slots]
+        gone = set(p for p in old_paths if p) - new_set
+
+        # Stato riferito ai file spariti
+        sel_changed = bool(gone & self._selected_files)
+        self._selected_files -= gone
+        self._selection_order[:] = [p for p in self._selection_order
+                                    if p not in gone]
+        if getattr(self, "_last_clicked", None) in gone:
+            self._last_clicked = None
+        if getattr(self, "_focus_file", None) in gone:
+            self._focus_file = None
+
+        # Posti in eccesso in fondo
+        n_new = len(new_paths)
+        while len(slots) > n_new:
+            idx = len(slots) - 1
+            c = slots.pop()
+            try:
+                if idx % cols == 0:          # la riga resta vuota
+                    _ch, _r, _c = self._grid_slot_pos(idx)
+                    _ch.rowconfigure(_r, minsize=0)
+                c.destroy()
+            except Exception:
+                pass
+        while self._thumb_chunks:            # blocchi rimasti vuoti
+            fr, wid = self._thumb_chunks[-1]
+            try:
+                if fr.winfo_children():
+                    break
+                self._thumb_canvas.delete(wid)
+                fr.destroy()
+            except Exception:
+                pass
+            self._thumb_chunks.pop()
+
+        pending, work = [], []
+        new_refs = {}
+        for i, p in enumerate(new_paths):
+            if i < len(slots):
+                c = slots[i]
+                try:
+                    alive = c.winfo_exists()
+                except Exception:
+                    alive = False
+                if not alive:                # distrutta da fuori: si ricrea
+                    c = slots[i] = self._make_grid_cell(i, p, pending)
+                elif c._fpath != p:
+                    work.append((i, c, p))
+            else:
+                c = self._make_grid_cell(i, p, pending)
+                slots.append(c)
+            new_refs[p] = c
+        self._cell_refs.clear()
+        self._cell_refs.update(new_refs)
+        for _i, c, p in work:
+            c._fpath = p                     # i click vanno subito al file giusto
+
+        # Prima i posti visibili, poi il resto, a lotti a tempo.
+        try:
+            top = self._thumb_canvas.canvasy(0)
+            bot = top + self._thumb_canvas.winfo_height()
+            def _vis(item):
+                y = self._cell_content_y(item[1])
+                return (0 if top - L["row_h"] <= y <= bot else 1, item[0])
+            work.sort(key=_vis)
+        except Exception:
+            pass
+        gen = getattr(self, "_thumb_gen", 0)
+        new_files = [p for p in new_paths if p not in set(old_paths)]
+
+        def _step(i=0):
+            self._bind_job = None
+            t_end = time.monotonic() + 0.015
+            while i < len(work) and time.monotonic() < t_end:
+                _idx, c, p = work[i]
+                i += 1
+                try:
+                    if c.winfo_exists() and c._fpath == p:
+                        self._bind_cell(c, p, pending)
+                except Exception:
+                    pass
+            if i < len(work):
+                self._bind_job = self.win.after(1, lambda: _step(i))
+                return
+            self._start_thumb_worker(list(pending), L["size"], gen)
+            self._start_gps_flags([p for _i, _c, p in work] + new_files, gen)
+            if sel_changed or gone:
+                self._update_preview_pane()
+                self._update_sel_bar()
+                self._update_status_selection()
+        _step()
+        try:
+            self._thumb_inner.update_idletasks()
+            self._update_thumb_scrollregion()
+        except Exception:
+            pass
+
+    def _bind_cell(self, cell, fpath, pending):
+        """Fa mostrare a un posto della griglia il file fpath: miniatura
+        (dalla cache, oppure segnaposto + generazione in sottofondo),
+        nome, stelle/colori, pallini GPS/formato, selezione. I gestori
+        leggono gia' cell._fpath, non serve ricollegarli."""
+        cell._fpath = fpath
+        L = self._grid_layout
+        img = peek_thumbnail(fpath, L["size"])
+        if img is not None:
+            photo = ImageTk.PhotoImage(img)
+        else:
+            photo = self._thumb_ph_photo
+            pending.append(fpath)
+        lbl = cell._thumb_lbl
+        lbl.config(image=photo)
+        lbl._photo = photo
+        cell._name_lbl.config(text=self._cell_short_name(fpath))
+        self._refresh_rating_row(fpath)
+        self._draw_cell_dots(cell, fpath, has_gps=None)
+        self._set_cell_selected(cell, fpath in self._selected_files)
+
+    def _scan_folder(self, folder):
+        """Elenco di cartelle e file come lo mostra la griglia: nascosti,
+        ordinamento scelto, ricerca, filtro per nome e per rating/colore.
+        Usata sia da _load_thumbnails sia dalla sorveglianza della
+        cartella (_folder_watch_tick), cosi' ordine e filtri sono sempre
+        gli stessi. Restituisce (dirs, files, filtering, n_dirs, n_files,
+        stats) oppure None se la cartella non e' leggibile; stats =
+        {nome: (mtime_ns, size)}."""
+        # Raccogli cartelle e immagini con scandir (1 syscall per entry)
+        try:
+            _entries = list(os.scandir(folder))
+            # Checkbox "Nascoste": qui mancava del tutto (a differenza
+            # dell'albero a sinistra, _populate_children, che gia' filtra
+            # con lo stesso _show_hidden) — cartelle e file puntini
+            # restavano sempre visibili nella griglia/lista centrale
+            # indipendentemente dalla spunta. Segnalato da Carlo.
+            if not getattr(self, "_show_hidden", False):
+                _entries = [e for e in _entries if not e.name.startswith(".")]
+            dirs     = sorted([e.name for e in _entries if e.is_dir()],
+                               key=lambda f: f.lower())
+            mode     = getattr(self, '_sort_mode', 'name')
+            all_imgs = [e.name for e in _entries
+                        if e.is_file() and
+                        os.path.splitext(e.name)[1].lower() in MEDIA_EXTENSIONS]
+            if mode == "size":
+                # stat() già nella DirEntry — nessuna syscall aggiuntiva
+                _stat_map = {e.name: e.stat().st_size for e in _entries if e.is_file()}
+                all_imgs.sort(key=lambda f: _stat_map.get(f, 0), reverse=True)
+            elif mode == "date":
+                _stat_map = {e.name: e.stat().st_mtime for e in _entries if e.is_file()}
+                all_imgs.sort(key=lambda f: _stat_map.get(f, 0), reverse=True)
+            elif mode == "exif":
+                def _exif_ts(fname, _folder=folder):
+                    fp = os.path.join(_folder, fname)
+                    try:
+                        from PIL import Image
+                        img = Image.open(fp)
+                        raw = img.getexif().get(0x9003) or img.getexif().get(0x0132)
+                        if raw:
+                            import datetime
+                            return datetime.datetime.strptime(
+                                str(raw)[:19], "%Y:%m:%d %H:%M:%S").timestamp()
+                    except Exception: pass
+                    return os.path.getmtime(fp) if os.path.isfile(fp) else 0
+                all_imgs.sort(key=_exif_ts, reverse=True)
+            else:
+                all_imgs.sort(key=lambda f: f.lower(),
+                              reverse=getattr(self, "_sort_reverse", False))
+            files = all_imgs
+            # Firma dei file per la sorveglianza della cartella
+            # (_folder_watch_tick): mtime e dimensione di ciascuno.
+            stats = {}
+            for e in _entries:
+                if e.is_file():
+                    try:
+                        st = e.stat()
+                        stats[e.name] = (st.st_mtime_ns, st.st_size)
+                    except OSError:
+                        pass
+        except OSError:
+            return None
+
+        if self._search_results is not None:
+            # In ricerca non si mostrano sottocartelle: i risultati
+            # arrivano da tutto l'albero, elencarle confonderebbe.
+            dirs  = []
+            files = list(self._search_results)
+
+        # Filtro rapido per nome: si applica DOPO l'ordinamento, cosi'
+        # l'ordine scelto (nome, dimensione, data, EXIF) resta quello.
+        _n_dirs, _n_files = len(dirs), len(files)
+        if self._search_results is not None:
+            _filtering = False      # il testo cercato ha gia' fatto da filtro
+        else:
+            dirs, files, _filtering = self._apply_name_filter(dirs, files)
+        # Filtro per valutazione/colore: si SOMMA al filtro testuale (non
+        # lo sostituisce), quindi si applica sempre, anche durante una
+        # ricerca ricorsiva.
+        files, _mfiltering = self._apply_metadata_filter(folder, files)
+        _filtering = _filtering or _mfiltering
+        return dirs, files, _filtering, _n_dirs, _n_files, stats
+
     def _load_thumbnails(self, folder):
         """Carica le thumbnail della cartella nel pannello, in modo lazy.
 
@@ -10695,6 +11025,7 @@ class FolderBrowser:
         self._selected_files.clear()
         self._selection_order.clear()
         self._cell_refs.clear()
+        self._grid_slots = []
         self._dir_cell_refs.clear()
         self._last_clicked = None   # per Shift+click range
         self._focus_file = None
@@ -10816,68 +11147,27 @@ class FolderBrowser:
             self._thumb_inner.columnconfigure(_ci, weight=0, minsize=0)
         self._thumb_max_col = 0
 
-        # Raccogli cartelle e immagini con scandir (1 syscall per entry)
+        # Sorveglianza cartella (_folder_watch_tick): firma letta PRIMA
+        # della scansione, cosi' un cambiamento avvenuto durante il
+        # caricamento viene comunque visto al giro successivo.
+        self._watch_ready = False
+        if getattr(self, "_bind_job", None):    # riassegnazione in corso: superata
+            try:
+                self.win.after_cancel(self._bind_job)
+            except Exception:
+                pass
+            self._bind_job = None
         try:
-            _entries = list(os.scandir(folder))
-            # Checkbox "Nascoste": qui mancava del tutto (a differenza
-            # dell'albero a sinistra, _populate_children, che gia' filtra
-            # con lo stesso _show_hidden) — cartelle e file puntini
-            # restavano sempre visibili nella griglia/lista centrale
-            # indipendentemente dalla spunta. Segnalato da Carlo.
-            if not getattr(self, "_show_hidden", False):
-                _entries = [e for e in _entries if not e.name.startswith(".")]
-            dirs     = sorted([e.name for e in _entries if e.is_dir()],
-                               key=lambda f: f.lower())
-            mode     = getattr(self, '_sort_mode', 'name')
-            all_imgs = [e.name for e in _entries
-                        if e.is_file() and
-                        os.path.splitext(e.name)[1].lower() in MEDIA_EXTENSIONS]
-            if mode == "size":
-                # stat() già nella DirEntry — nessuna syscall aggiuntiva
-                _stat_map = {e.name: e.stat().st_size for e in _entries if e.is_file()}
-                all_imgs.sort(key=lambda f: _stat_map.get(f, 0), reverse=True)
-            elif mode == "date":
-                _stat_map = {e.name: e.stat().st_mtime for e in _entries if e.is_file()}
-                all_imgs.sort(key=lambda f: _stat_map.get(f, 0), reverse=True)
-            elif mode == "exif":
-                def _exif_ts(fname, _folder=folder):
-                    fp = os.path.join(_folder, fname)
-                    try:
-                        from PIL import Image
-                        img = Image.open(fp)
-                        raw = img.getexif().get(0x9003) or img.getexif().get(0x0132)
-                        if raw:
-                            import datetime
-                            return datetime.datetime.strptime(
-                                str(raw)[:19], "%Y:%m:%d %H:%M:%S").timestamp()
-                    except Exception: pass
-                    return os.path.getmtime(fp) if os.path.isfile(fp) else 0
-                all_imgs.sort(key=_exif_ts, reverse=True)
-            else:
-                all_imgs.sort(key=lambda f: f.lower(),
-                              reverse=getattr(self, "_sort_reverse", False))
-            files = all_imgs
+            self._watch_sig = os.stat(folder).st_mtime_ns
         except OSError:
+            self._watch_sig = None
+        _scan = self._scan_folder(folder)
+        if _scan is None:
             return
-
-        if self._search_results is not None:
-            # In ricerca non si mostrano sottocartelle: i risultati
-            # arrivano da tutto l'albero, elencarle confonderebbe.
-            dirs  = []
-            files = list(self._search_results)
-
-        # Filtro rapido per nome: si applica DOPO l'ordinamento, cosi'
-        # l'ordine scelto (nome, dimensione, data, EXIF) resta quello.
-        _n_dirs, _n_files = len(dirs), len(files)
-        if self._search_results is not None:
-            _filtering = False      # il testo cercato ha gia' fatto da filtro
-        else:
-            dirs, files, _filtering = self._apply_name_filter(dirs, files)
-        # Filtro per valutazione/colore: si SOMMA al filtro testuale (non
-        # lo sostituisce), quindi si applica sempre, anche durante una
-        # ricerca ricorsiva.
-        files, _mfiltering = self._apply_metadata_filter(folder, files)
-        _filtering = _filtering or _mfiltering
+        dirs, files, _filtering, _n_dirs, _n_files, _stats = _scan
+        self._watch_stats = _stats
+        self._watch_dirs  = list(dirs)
+        self._watch_recent = {}
         if hasattr(self, "_filter_count"):
             try:
                 self._filter_count.config(
@@ -10919,6 +11209,7 @@ class FolderBrowser:
             self._thumb_inner.update_idletasks()
             self._update_thumb_scrollregion()
             self._thumb_canvas.yview_moveto(0)
+            self._watch_ready = True
             return
 
         view = getattr(self, '_view_mode', 'grid')
@@ -10999,6 +11290,12 @@ class FolderBrowser:
         self._thumb_chunk_setup = _chunk_cols
         _row_h = THUMB_SIZE + 22 + _RATING_ROW_H + 6
         _rows_per_chunk = max(1, self._THUMB_CHUNK_MAX_H // _row_h)
+        # Disposizione memorizzata per _make_grid_cell: serve anche dopo,
+        # quando la sorveglianza della cartella aggiunge/toglie posti.
+        self._grid_layout = {"cols": COLS, "rows_per_chunk": _rows_per_chunk,
+                             "row_h": _row_h, "size": THUMB_SIZE,
+                             "rating_h": _RATING_ROW_H}
+        self._grid_slots = []
 
         # Segnaposto 1x1 del colore del pannello: la Label che ospita la
         # miniatura ha SEMPRE un'immagine, quindi width/height vengono
@@ -11026,127 +11323,9 @@ class FolderBrowser:
                     break
                 fname = files[idx]
                 fpath = os.path.join(folder, fname)
-                _frow  = idx // COLS
-                _chunk = self._thumb_chunk(_frow // _rows_per_chunk)
-                row_i  = _frow % _rows_per_chunk
-                col_i  = idx % COLS
                 try:
-                    img = peek_thumbnail(fpath, THUMB_SIZE)  # solo cache
-                    if img is not None:
-                        photo = ImageTk.PhotoImage(img)
-                        self._thumb_images.append(photo)
-                    else:
-                        photo = self._thumb_ph_photo
-                        _pending.append(fpath)
-
-                    cell = tk.Frame(_chunk, bg=PANEL_COLOR,
-                                    width=THUMB_SIZE+6, height=THUMB_SIZE+22+_RATING_ROW_H)
-                    cell.grid(row=row_i, column=col_i,
-                              padx=3, pady=3, sticky="nsew")
-                    cell.grid_propagate(False)
-                    # Blocca esplicitamente l'altezza minima della riga:
-                    # anche se il contenuto di una cella dovesse cambiare
-                    # leggermente dimensione per qualsiasi motivo (es. un
-                    # widget che non rispetta perfettamente il proprio
-                    # propagate), la riga non si allarga né si restringe
-                    # — le righe sotto restano ferme al loro posto.
-                    _chunk.rowconfigure(row_i, minsize=_row_h)
-
-                    btn = tk.Label(cell, image=photo, bg=PANEL_COLOR,
-                                   cursor="hand2", bd=0,
-                                   # highlightthickness=3 fin da SUBITO
-                                   # (non 0): _set_cell_selected() lo
-                                   # tiene sempre a 3, cambiando solo il
-                                   # colore — ma la primissima selezione
-                                   # di una cella APPENA creata partiva
-                                   # da 0, causando un salto di 3px per
-                                   # lato (6px totali) proprio alla
-                                   # prima selezione, che poi non si
-                                   # ripeteva piu' per QUELLA cella
-                                   # specifica (gia' a 3), ma tornava ad
-                                   # ogni nuovo caricamento cartella,
-                                   # quindi quasi sempre — segnalato da
-                                   # Carlo.
-                                   highlightthickness=3,
-                                   highlightbackground=PANEL_COLOR,
-                                   highlightcolor=PANEL_COLOR,
-                                   width=THUMB_SIZE, height=THUMB_SIZE)
-                    btn.pack()
-                    # Indicatori GPS (verde) e formato non-JPEG (ambra),
-                    # come nel visualizzatore e in Timeline. Qui la
-                    # miniatura e' una Label e non un Canvas, quindi i
-                    # pallini vanno su un piccolo Canvas sovrapposto con
-                    # place(): cosi' non si tocca l'immagine in cache, che
-                    # e' condivisa con le altre viste.
-                    # Il formato si sa dall'estensione ed e' immediato; il
-                    # GPS richiede di leggere l'EXIF e arriva dopo, dal
-                    # thread di lavoro.
-                    # Nome file troncato
-                    # In ricerca "fname" e' un percorso relativo: si mostra
-                    # solo il nome del file, non tutto il ramo di cartelle.
-                    _base = os.path.basename(fname)
-                    short = tk_safe((_base[:12] + "...") if len(_base) > 14 else _base)
-                    tk.Label(cell, text=short,
-                             font=("TkFixedFont", 8), bg=PANEL_COLOR,
-                             fg=MUTED_COLOR).pack()
-                    # Riga di stelle (rating): dentro un Frame, non una
-                    # Label diretta, cosi' il codice che altrove scandisce
-                    # winfo_children() cercando "prima Label con immagine
-                    # = miniatura, prima Label senza = nome" continua a
-                    # funzionare senza modifiche (un Frame viene ignorato
-                    # da quel filtro isinstance(_w, tk.Label)).
-                    if _METADATA_STORE_AVAILABLE and getattr(self, "_show_ratings", True):
-                        self._build_rating_row(cell, fpath)
-                    # I pallini si creano PER ULTIMI di proposito:
-                    # winfo_children() restituisce i figli in ordine di
-                    # creazione e piu' punti del codice contano su
-                    # children[0]=miniatura e children[1]=nome. Creandoli
-                    # prima dell'etichetta, il Canvas dei pallini finiva in
-                    # posizione 1 e veniva scambiato per il nome.
-                    self._draw_cell_dots(cell, fpath, has_gps=None)
-
-                    # Registra riferimento cella per highlight selezione
-                    self._cell_refs[fpath] = cell
-
-                    # Click singolo -> apre immagine (se nessuna selezione attiva)
-                    #   o deseleziona tutto e apre
-                    # Ctrl+Click -> toggle selezione multipla
-                    # Doppio click -> apre sempre
-                    def _make_click(p, c):
-                        def on_click(e):
-                            if e.state & 0x0101:   # Shift: selezione a range (0x0001 o 0x0100)
-                                self._shift_select(p)
-                            elif e.state & 0x0004:   # Ctrl: toggle singolo
-                                self._toggle_select(p, c)
-                                self._last_clicked = p
-                            else:
-                                # _sel_clear_silent: vedi nota nella vista
-                                # lista sopra. Evita che un click normale
-                                # ricostruisca la barra destinazione due
-                                # volte di seguito (svuota poi ricrea).
-                                self._sel_clear_silent()
-                                self._toggle_select(p, c)
-                                self._last_clicked = p
-                                self._focus_file = p
-                        def on_double(e):
-                            self._open_or_play(p)
-                        return on_click, on_double
-                    _oc, _od = _make_click(fpath, cell)
-                    # La selezione si aggiorna al RILASCIO, non al premere:
-                    # premendo su un file gia' selezionato per trascinare
-                    # il gruppo, applicare subito il click lo toglieva
-                    # dalla selezione (con Ctrl) o azzerava tutto il resto
-                    # (senza), rendendo impossibile trascinare piu' file.
-                    # Se invece parte un trascinamento, il click non viene
-                    # applicato affatto.
-                    btn.bind("<Button-1>", lambda e, o=_oc, p=fpath: (
-                        self._thumb_canvas.focus_set(),
-                        self._drag_start(e, p, o)))
-                    btn.bind("<B1-Motion>", self._drag_motion)
-                    btn.bind("<ButtonRelease-1>", self._drag_release)
-                    btn.bind("<Double-Button-1>", _od)
-                    btn.bind("<Button-3>",
-                             lambda e, p=fpath: self._thumb_context_menu(e, p))
+                    self._grid_slots.append(
+                        self._make_grid_cell(idx, fpath, _pending))
                 except Exception:
                     pass
                 idx += 1
@@ -11154,6 +11333,7 @@ class FolderBrowser:
             if idx < len(files):
                 self._thumb_job = self.win.after(8, lambda: load_batch(idx))
             else:
+                self._watch_ready = True
                 self._start_thumb_worker(list(_pending), THUMB_SIZE, _gen)
                 # Pallini GPS: su TUTTI i file, non solo su quelli la cui
                 # miniatura va ancora generata.
@@ -11225,6 +11405,108 @@ class FolderBrowser:
                         self._toggle_select(_default_path, _default_cell)
 
         self._thumb_job = self.win.after(10, lambda: load_batch(0))
+
+    def _grid_slot_pos(self, idx):
+        """(blocco, riga, colonna) del posto numero idx della griglia."""
+        L = self._grid_layout
+        frow = idx // L["cols"]
+        return (self._thumb_chunk(frow // L["rows_per_chunk"]),
+                frow % L["rows_per_chunk"], idx % L["cols"])
+
+    def _make_grid_cell(self, idx, fpath, pending):
+        """Crea la cella del posto idx per il file fpath.
+
+        La cella e' un "posto" fisso della griglia: il file che mostra
+        sta in cell._fpath e TUTTI i gestori (click, doppio click, tasto
+        destro, trascinamento, stelle, pallini colore) lo leggono al
+        momento dell'evento invece di catturarlo alla creazione. Cosi'
+        la sorveglianza della cartella puo' far scorrere i file da un
+        posto all'altro (_bind_cell) senza ricreare celle ne' ricollegare
+        gestori. pending: lista a cui aggiungere i file la cui miniatura
+        non e' ancora in cache."""
+        L = self._grid_layout
+        THUMB_SIZE, _RATING_ROW_H, _row_h = L["size"], L["rating_h"], L["row_h"]
+        _chunk, row_i, col_i = self._grid_slot_pos(idx)
+        img = peek_thumbnail(fpath, THUMB_SIZE)  # solo cache
+        if img is not None:
+            photo = ImageTk.PhotoImage(img)
+        else:
+            photo = self._thumb_ph_photo
+            pending.append(fpath)
+
+        cell = tk.Frame(_chunk, bg=PANEL_COLOR,
+                        width=THUMB_SIZE+6, height=THUMB_SIZE+22+_RATING_ROW_H)
+        cell._fpath = fpath
+        cell.grid(row=row_i, column=col_i,
+                  padx=3, pady=3, sticky="nsew")
+        cell.grid_propagate(False)
+        # Blocca esplicitamente l'altezza minima della riga:
+        # anche se il contenuto di una cella dovesse cambiare
+        # leggermente dimensione per qualsiasi motivo (es. un
+        # widget che non rispetta perfettamente il proprio
+        # propagate), la riga non si allarga né si restringe
+        # — le righe sotto restano ferme al loro posto.
+        _chunk.rowconfigure(row_i, minsize=_row_h)
+
+        btn = tk.Label(cell, image=photo, bg=PANEL_COLOR,
+                       cursor="hand2", bd=0,
+                       # highlightthickness=3 fin da SUBITO (non 0):
+                       # _set_cell_selected() lo tiene sempre a 3,
+                       # cambiando solo il colore — partendo da 0 la
+                       # prima selezione di ogni cella appena creata
+                       # saltava di 3px per lato (segnalato da Carlo).
+                       highlightthickness=3,
+                       highlightbackground=PANEL_COLOR,
+                       highlightcolor=PANEL_COLOR,
+                       width=THUMB_SIZE, height=THUMB_SIZE)
+        btn._photo = photo   # riferimento: la PhotoImage vive con la Label
+        btn.pack()
+        cell._thumb_lbl = btn
+        # Nome file troncato. In ricerca fpath viene da un percorso
+        # relativo: si mostra solo il nome del file, non tutto il ramo.
+        cell._name_lbl = tk.Label(cell, text=self._cell_short_name(fpath),
+                                  font=("TkFixedFont", 8), bg=PANEL_COLOR,
+                                  fg=MUTED_COLOR)
+        cell._name_lbl.pack()
+        # Riga di stelle (rating): dentro un Frame, non una Label
+        # diretta, cosi' il codice che altrove scandisce winfo_children()
+        # cercando "prima Label con immagine = miniatura, prima Label
+        # senza = nome" continua a funzionare (un Frame viene ignorato
+        # da quel filtro isinstance(_w, tk.Label)).
+        if _METADATA_STORE_AVAILABLE and getattr(self, "_show_ratings", True):
+            self._build_rating_row(cell, fpath)
+        # Indicatori GPS (verde) e formato non-JPEG (ambra) su un piccolo
+        # Canvas sovrapposto. Creati PER ULTIMI di proposito:
+        # winfo_children() restituisce i figli in ordine di creazione e
+        # piu' punti del codice contano su children[0]=miniatura e
+        # children[1]=nome.
+        self._draw_cell_dots(cell, fpath, has_gps=None)
+
+        # Registra riferimento cella per highlight selezione
+        self._cell_refs[fpath] = cell
+
+        # La selezione si aggiorna al RILASCIO, non al premere: premendo
+        # su un file gia' selezionato per trascinare il gruppo, applicare
+        # subito il click lo toglieva dalla selezione (con Ctrl) o
+        # azzerava tutto il resto (senza). Se parte un trascinamento il
+        # click non viene applicato affatto (vedi _drag_start).
+        # Click normale / Ctrl / Shift: stessa logica di _cell_click.
+        btn.bind("<Button-1>", lambda e, c=cell: (
+            self._thumb_canvas.focus_set(),
+            self._drag_start(e, c._fpath,
+                             lambda ev, c=c: self._cell_click(ev, c._fpath, c))))
+        btn.bind("<B1-Motion>", self._drag_motion)
+        btn.bind("<ButtonRelease-1>", self._drag_release)
+        btn.bind("<Double-Button-1>",
+                 lambda e, c=cell: self._open_or_play(c._fpath))
+        btn.bind("<Button-3>",
+                 lambda e, c=cell: self._thumb_context_menu(e, c._fpath))
+        return cell
+
+    @staticmethod
+    def _cell_short_name(fpath):
+        _base = os.path.basename(fpath)
+        return tk_safe((_base[:12] + "...") if len(_base) > 14 else _base)
 
     def _start_thumb_worker(self, pending, size, gen):
         """Genera in background le miniature non ancora in cache."""
@@ -11336,31 +11618,24 @@ class FolderBrowser:
                 short = tk_safe((fname[:12] + "...") if len(fname) > 14 else fname)
                 name_lbl.config(text=short)
 
-                # Ricollega i gestori click al nuovo percorso
-                def _make_click(p, c):
-                    def on_click(e):
-                        if e.state & 0x0101:
-                            self._shift_select(p)
-                        elif e.state & 0x0004:
-                            self._toggle_select(p, c)
-                            self._last_clicked = p
-                        else:
-                            self._sel_clear_silent()
-                            self._toggle_select(p, c)
-                            self._last_clicked = p
-                            self._focus_file = p
-                    def on_double(e):
-                        self._open_or_play(p)
-                    return on_click, on_double
-                _oc, _od = _make_click(new_path, cell)
-                btn.bind("<Button-1>", lambda e, o=_oc: (self._thumb_canvas.focus_set(), o(e)))
-                btn.bind("<Double-Button-1>", _od)
-                btn.bind("<Button-3>",
-                         lambda e, p=new_path: self._thumb_context_menu(e, p))
+                # I gestori della cella leggono cell._fpath al momento
+                # dell'evento (vedi _make_grid_cell): basta aggiornarlo.
+                # Prima qui si ricollegavano a mano, perdendo per strada
+                # il trascinamento sulla cella convertita.
+                cell._fpath = new_path
 
-                # Aggiorna i riferimenti: il file ha un percorso nuovo
+                # Aggiorna i riferimenti: il file ha un percorso nuovo.
+                # Ricostruiti nell'ordine dei posti della griglia: con
+                # del + aggiunta il file finiva in fondo al dizionario e
+                # frecce/Shift+clic (che ne seguono l'ordine) saltavano.
                 del self._cell_refs[old_path]
                 self._cell_refs[new_path] = cell
+                _slots = [c for c in getattr(self, "_grid_slots", [])
+                          if c.winfo_exists() and getattr(c, "_fpath", None) in self._cell_refs]
+                if len(_slots) == len(self._cell_refs):
+                    _ordered = {c._fpath: c for c in _slots}
+                    self._cell_refs.clear()
+                    self._cell_refs.update(_ordered)
                 # Rating/colore/tag erano salvati sotto il percorso
                 # vecchio (metadata_store indicizza per percorso assoluto,
                 # vedi il limite noto nel suo docstring): senza questo
@@ -12618,8 +12893,11 @@ class FolderBrowser:
             _star = tk.Label(stars_f, text="*", font=("TkFixedFont", _star_fs, "bold"),
                              bg=PANEL_COLOR, fg=_fg, cursor="hand2")
             _star.pack(side="left")
+            # Il file si legge da cell._fpath al momento del click: la
+            # cella puo' passare a un altro file (sorveglianza cartella).
             _star.bind("<Button-1>",
-                       lambda e, i=_i, p=fpath: self._click_rating_star(p, i))
+                       lambda e, i=_i, c=cell, p=fpath:
+                           self._click_rating_star(getattr(c, "_fpath", p), i))
             cell._rating_stars.append(_star)
 
         dots_f = tk.Frame(row, bg=PANEL_COLOR)
@@ -12627,7 +12905,8 @@ class FolderBrowser:
         cur_colors = metadata_store.get_meta(fpath)["colors"]
         cell._color_dots = draw_colorlabel_dots(
             dots_f, cur_colors,
-            lambda cid, p=fpath: self._click_colorlabel_dot(p, cid),
+            lambda cid, c=cell, p=fpath:
+                self._click_colorlabel_dot(getattr(c, "_fpath", p), cid),
             size=_dot_sz, pad=_dot_pad)
         cell._rating_dot_size = _dot_sz   # per il repaint in _refresh_rating_row
 
@@ -14801,7 +15080,8 @@ class FolderBrowser:
         # Ferma anche la creazione a lotti delle celle, se la cartella
         # era ancora in caricamento: altrimenti continuava a crearne di
         # nuove, tutte poi distrutte in blocco alla fine (3 s fermi).
-        for _job in ("_thumb_job", "_thumb_reload_debounce_job"):
+        for _job in ("_thumb_job", "_thumb_reload_debounce_job",
+                     "_watch_job", "_bind_job"):
             try:
                 if getattr(self, _job, None):
                     win.after_cancel(getattr(self, _job))
