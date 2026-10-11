@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.30"
+VERSION = "1.46.31"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -2127,27 +2127,52 @@ def preset_color(config, preset_name, fallback=None):
 HUD_DIM      = "#1a3a5a"
 
 def _tooltip(widget, text):
-    """Mostra un tooltip al passaggio del mouse."""
+    """Suggerimento al passaggio del mouse, centrato sotto il widget.
+
+    `text` puo' essere una stringa o una funzione senza argomenti che la
+    restituisce (testo calcolato al momento, per bottoni che cambiano
+    stato). Unico punto per tutti i suggerimenti: prima c'era una copia
+    locale nella barra della main e questa, generica, mai usata.
+    Bind con add=True: non sostituisce <Enter>/<Leave> gia' presenti."""
     tip = [None]
-    def _show(e):
+    def show(e):
         if tip[0] and tip[0].winfo_exists():
             return
-        t = tk.Toplevel(widget)
-        t.wm_overrideredirect(True)
-        t.configure(bg=PANEL_COLOR)
-        tk.Label(t, text=text, font=("TkFixedFont", 7),
-                 bg=PANEL_COLOR, fg=TEXT_COLOR,
-                 padx=6, pady=3).pack()
-        x = widget.winfo_rootx() + 20
+        try:
+            txt = text() if callable(text) else text
+        except Exception:
+            return
+        if not txt:
+            return
+        tip[0] = tk.Toplevel(widget)
+        tip[0].withdraw()
+        tip[0].overrideredirect(True)
+        tk.Label(tip[0], text=tk_safe(txt),
+                 font=("TkFixedFont", 8),
+                 bg=HUD_DIM, fg=HUD_CYAN,
+                 relief="flat", padx=6, pady=3).pack()
+        tip[0].update_idletasks()
+        x = widget.winfo_rootx() + widget.winfo_width()//2 - tip[0].winfo_width()//2
         y = widget.winfo_rooty() + widget.winfo_height() + 2
-        t.wm_geometry(f"+{x}+{y}")
-        tip[0] = t
-    def _hide(e):
+        tip[0].geometry(f"+{x}+{y}")
+        tip[0].deiconify()
+    def hide(e=None):
+        # <ButtonPress> (sotto) intercetta QUALUNQUE tasto del
+        # mouse, tasto destro compreso — su S-Deck il destro ha
+        # un suo gestore (apre le Impostazioni sulla tab Deck).
+        # Escluso esplicitamente qui, invece di fidarsi
+        # dell'ordine con cui Tk esegue piu' binding sullo
+        # stesso widget per pattern diversi: cosi' questo
+        # gestore non puo' MAI interferire col tasto destro,
+        # qualunque sia quell'ordine.
+        if e is not None and getattr(e, "num", None) == 3:
+            return
         if tip[0] and tip[0].winfo_exists():
             tip[0].destroy()
         tip[0] = None
-    widget.bind("<Enter>", _show, add=True)
-    widget.bind("<Leave>", _hide, add=True)
+    widget.bind("<Enter>", show, add=True)
+    widget.bind("<Leave>", hide, add=True)
+    widget.bind("<ButtonPress>", hide, add=True)
 
 
 def hud_apply(win, color=None):
@@ -8115,6 +8140,10 @@ class FolderBrowser:
                        activebackground=HIGHLIGHT, activeforeground="white",
                        command=self._toggle_favorite)
         self._fav_star_btn.pack(side="left")
+        _tooltip(self._fav_star_btn, lambda: (
+            "Togli la cartella corrente dai preferiti"
+            if getattr(self, '_current_folder', None) in self._fav_folders
+            else "Aggiungi la cartella corrente ai preferiti (max 3)"))
         self._fav_frame = tk.Frame(qf_top, bg=BG_COLOR)
         self._fav_frame.pack(side="left")
         self._refresh_fav_btns()
@@ -8138,6 +8167,7 @@ class FolderBrowser:
             bg=ACCENT_COLOR, fg=MUTED_COLOR,
             activebackground=HIGHLIGHT, activeforeground="white",
             command=self._clear_filter)
+        _tooltip(self._filter_clear_btn, "Cancella il filtro per nome")
         self._filter_clear_btn.pack(side="left", ipady=2)
         self._filter_count = tk.Label(qf_top, text="", font=("TkFixedFont", 9, "bold"),
                                       bg=BG_COLOR, fg=HUD_CYAN)
@@ -8190,6 +8220,8 @@ class FolderBrowser:
                            activebackground=HIGHLIGHT, activeforeground="white",
                            command=lambda s=_sz: self._set_thumb_size(s))
             _b.pack(side="left", padx=1)
+            _tooltip(_b, {90: "Anteprime piccole", 130: "Anteprime medie",
+                          200: "Anteprime grandi"}[_sz])
             self._size_btns[_sz] = _b
         self._refresh_size_btns()
 
@@ -8203,6 +8235,10 @@ class FolderBrowser:
                             activebackground=HIGHLIGHT, activeforeground="white",
                             command=lambda m=_mode: self._set_sort_mode(m))
             _sb.pack(side="left", padx=1)
+            _tooltip(_sb, {"name": "Ordina per nome",
+                           "size": "Ordina per dimensione",
+                           "date": "Ordina per data di modifica",
+                           "exif": "Ordina per data di scatto (EXIF)"}[_mode])
             self._sort_btns[_mode] = _sb
         self._refresh_sort_btns()
 
@@ -8223,6 +8259,8 @@ class FolderBrowser:
                 activebackground=HIGHLIGHT, activeforeground="white",
                 command=self._open_metadata_filter_popup)
             self._meta_filter_btn.pack(side="left", padx=(6,1))
+            _tooltip(self._meta_filter_btn,
+                     "Filtra per valutazione, colore e tag")
 
         # Spunta mostra/nascondi albero cartelle
         tk.Label(qf, text=" | ",
@@ -8247,6 +8285,7 @@ class FolderBrowser:
                                    activebackground=HIGHLIGHT, activeforeground="white",
                                    command=self._toggle_view_mode)
         self._view_btn.pack(side="left", padx=1)
+        _tooltip(self._view_btn, "Cambia vista: griglia / lista")
 
 
         # Checkbox cartelle nascoste
@@ -9210,6 +9249,7 @@ class FolderBrowser:
                           relief="flat", padx=6,
                           activebackground=HIGHLIGHT, activeforeground="white",
                           command=lambda p=folder: self._load_thumbnails(p))
+                _tooltip(btn, folder)
                 self._nav_hist_btns[folder] = btn
             else:
                 # Un secondo pack() su un widget gia' impacchettato NON
@@ -9248,6 +9288,7 @@ class FolderBrowser:
                       command=lambda p=folder: self._navigate_to(p))
             btn.pack(side="left", padx=2, pady=2, ipady=2)
             btn.bind("<Button-3>", lambda e, p=folder: self._remove_favorite(p))
+            _tooltip(btn, f"{folder}  |  destro: togli dai preferiti")
         self._update_fav_star()
 
     def _toggle_favorite(self):
@@ -22892,40 +22933,6 @@ class ImageSorter:
         ]
         _btn_list = [(e, "right") for e in _btn_right] + [(e, "left") for e in _btn_left]
 
-        def _make_tooltip(widget, text):
-            tip = [None]
-            def show(e):
-                if tip[0] and tip[0].winfo_exists():
-                    return
-                tip[0] = tk.Toplevel(widget)
-                tip[0].withdraw()
-                tip[0].overrideredirect(True)
-                tk.Label(tip[0], text=text,
-                         font=("TkFixedFont", 8),
-                         bg="#1a3a5a", fg=HUD_CYAN,
-                         relief="flat", padx=6, pady=3).pack()
-                tip[0].update_idletasks()
-                x = widget.winfo_rootx() + widget.winfo_width()//2 - tip[0].winfo_width()//2
-                y = widget.winfo_rooty() + widget.winfo_height() + 2
-                tip[0].geometry(f"+{x}+{y}")
-                tip[0].deiconify()
-            def hide(e=None):
-                # <ButtonPress> (sotto) intercetta QUALUNQUE tasto del
-                # mouse, tasto destro compreso — su S-Deck il destro ha
-                # un suo gestore (apre le Impostazioni sulla tab Deck).
-                # Escluso esplicitamente qui, invece di fidarsi
-                # dell'ordine con cui Tk esegue piu' binding sullo
-                # stesso widget per pattern diversi: cosi' questo
-                # gestore non puo' MAI interferire col tasto destro,
-                # qualunque sia quell'ordine.
-                if e is not None and getattr(e, "num", None) == 3:
-                    return
-                if tip[0] and tip[0].winfo_exists():
-                    tip[0].destroy()
-                tip[0] = None
-            widget.bind("<Enter>", show)
-            widget.bind("<Leave>", hide)
-            widget.bind("<ButtonPress>", hide)
 
         for (txt, cmd, col, key_hint), side in _btn_list:
             if txt is None:
@@ -22968,7 +22975,7 @@ class ImageSorter:
             _tip_txt = f"Tasto: {key_hint}" if key_hint else txt
             if cmd == self._toggle_deck_preset_mode:
                 _tip_txt += "  |  destro: impostazioni Deck"
-            _make_tooltip(b, _tip_txt)
+            _tooltip(b, _tip_txt)
             # Riferimenti usano cmd per non dipendere dal testo tradotto
             if cmd == self._toggle_info:
                 self._info_btn_ref = b
@@ -22993,7 +23000,7 @@ class ImageSorter:
                 # quella secondaria sullo stesso elemento.
                 b.bind("<Button-3>",
                        lambda e: self._open_settings(tab="deck"))
-        _make_tooltip(self._pdf_thumbs_btn, "Tasto: M")
+        _tooltip(self._pdf_thumbs_btn, "Tasto: M")
         self.preset_label = tk.Label(hdr, text="",
                                      font=("TkFixedFont", 9, "bold"),
                                      bg=PANEL_COLOR, fg=WARNING)
