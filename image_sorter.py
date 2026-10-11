@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.33"
+VERSION = "1.46.34"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -8406,6 +8406,18 @@ class FolderBrowser:
         for _tk in ("<KeyPress-Up>", "<KeyPress-Down>",
                     "<KeyPress-Left>", "<KeyPress-Right>"):
             self.tree.bind(_tk, self._on_tree_key)
+        # Frecce del tastierino numerico (NumLock spento): ttk non le
+        # gestisce affatto. E frecce premute con il fuoco sulla finestra
+        # stessa (appena aperta, o dopo un click su un bottone): vanno
+        # all'albero — vedi _on_win_arrow
+        for _kp, _dir in (("<KP_Up>", "up"), ("<KP_Down>", "down"),
+                          ("<KP_Left>", "left"), ("<KP_Right>", "right")):
+            self.tree.bind(_kp, lambda e, d=_dir: self._tree_keynav(d))
+        for _k, _dir in (("<Up>", "up"), ("<Down>", "down"),
+                         ("<Left>", "left"), ("<Right>", "right"),
+                         ("<KP_Up>", "up"), ("<KP_Down>", "down"),
+                         ("<KP_Left>", "left"), ("<KP_Right>", "right")):
+            self.win.bind(_k, lambda e, d=_dir: self._on_win_arrow(e, d))
         self.tree.bind("<Double-Button-1>", self._on_double_click)
         self.tree.bind("<Button-3>",        self._on_tree_right_click)
         # Tag per il colore cartella personalizzato (vedi
@@ -14069,6 +14081,8 @@ class FolderBrowser:
 
         if cur:
             self.tree.selection_set(cur)
+            # Anche nodo attivo: le frecce partono da li' (vedi _sync_tree_focus)
+            self.tree.focus(cur)
             self.tree.see(cur)
             self._path_var.set(target)
             # Carica subito le anteprime della cartella selezionata —
@@ -14135,6 +14149,37 @@ class FolderBrowser:
             return   # solo apertura/chiusura nodo, vedi _on_tree_press
         self._show_tree_folder(self.tree.focus())
 
+    def _on_win_arrow(self, event, direction):
+        """Freccia con il fuoco sulla finestra Naviga in se' (nessun campo,
+        griglia o albero attivo): la si passa all'albero. Il binding di
+        finestra scatta anche per le frecce premute dentro un campo di
+        testo o sulla griglia (bindtag del toplevel): li' si ignora."""
+        if event.widget is not self.win:
+            return None
+        return self._tree_keynav(direction)
+
+    def _tree_keynav(self, direction):
+        """Muove la selezione dell'albero come le frecce di ttk e fa
+        seguire la griglia (stesso ritardo di _on_tree_key)."""
+        try:
+            if not self.tree.winfo_ismapped():
+                return None   # albero nascosto (spunta "Albero" tolta)
+            self.tree.focus_set()
+            self._sync_tree_focus()
+            self.tree.tk.call("ttk::treeview::Keynav", self.tree, direction)
+        except tk.TclError:
+            return None
+        self._on_tree_key(None)
+        return "break"
+
+    def _sync_tree_focus(self):
+        """Nodo attivo dell'albero = nodo selezionato. Le frecce di ttk
+        partono dal nodo attivo (tree.focus()), che non coincide per forza
+        con quello evidenziato: se e' vuoto non si muovono affatto."""
+        sel = self.tree.selection()
+        if sel and self.tree.focus() != sel[0]:
+            self.tree.focus(sel[0])
+
     def _on_tree_key(self, event):
         """Freccia nell'albero: la griglia mostra la cartella selezionata.
 
@@ -14142,6 +14187,8 @@ class FolderBrowser:
         davvero la selezione, quindi il nodo nuovo si legge dopo. Ritardo
         di 250 ms ripartito ad ogni tasto: tenendo premuta la freccia non
         si carica ogni cartella attraversata, solo quella dove ci si ferma."""
+        if event is not None:
+            self._sync_tree_focus()
         if self._tree_key_job:
             try:
                 self.win.after_cancel(self._tree_key_job)
