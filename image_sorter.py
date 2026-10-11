@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.28"
+VERSION = "1.46.29"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -24311,10 +24311,18 @@ class ImageSorter:
 
         total_folder = len(self.images) + self.moved_count + len(self.skipped)
         pos          = self.current_index + 1 if self.images else 0
-        moved_str    = f"  OK {self.moved_count}/{total_folder}" if self.moved_count else ""
+        # Larghezza fissa = cifre del totale: passare da 9 a 10 non sposta
+        # piu' il resto della barra. Riempitivo U+2007 (spazio "figura", largo
+        # quanto una cifra): ("TkFixedFont", 10) in tupla non e' davvero
+        # monospazio (Tk ripiega su DejaVu Sans, spazio normale 4 px vs 9)
+        w            = len(str(total_folder))
+        def _fix(n):
+            return str(n).rjust(w, "\u2007")
+        moved_str    = (f"  OK {_fix(self.moved_count)}/{total_folder}"
+                        if self.moved_count else "")
 
         self.progress_label.config(
-            text=f"  {pos}/{total_folder}{moved_str}")
+            text=f"  {_fix(pos)}/{total_folder}{moved_str}")
         try:
             if self.stats_label and self.stats_label.winfo_exists():
                 self.stats_label.config(
