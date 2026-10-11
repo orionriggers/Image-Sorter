@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.31"
+VERSION = "1.46.32"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -8397,6 +8397,7 @@ class FolderBrowser:
         self.tree.bind("<Button-5>", lambda e: (self.tree.yview_scroll(1, "units"), "break")[1])
         self.tree.bind("<MouseWheel>", lambda e: (self.tree.yview_scroll(-1 if e.delta > 0 else 1, "units"), "break")[1])
         self.tree.bind("<<TreeviewOpen>>",  self._on_open)
+        self.tree.bind("<ButtonPress-1>",   self._on_tree_press)
         self.tree.bind("<ButtonRelease-1>", self._on_click)
         self.tree.bind("<Double-Button-1>", self._on_double_click)
         self.tree.bind("<Button-3>",        self._on_tree_right_click)
@@ -14089,7 +14090,42 @@ class FolderBrowser:
         if iid:
             self._expand_node(iid)
 
+    def _on_tree_arrow(self, event):
+        """Il nodo sotto il mouse se il click e' sulla freccia di
+        apertura/chiusura, altrimenti None."""
+        try:
+            elem = self.tree.identify_element(event.x, event.y)
+        except tk.TclError:
+            return None
+        if not (elem.endswith("indicator") or elem.endswith("disclosure")):
+            return None
+        return self.tree.identify_row(event.y) or None
+
+    def _on_tree_press(self, event):
+        """Click sulla freccia di un nodo: apre/chiude e basta.
+
+        Il comportamento standard di ttk, oltre ad aprire il nodo, lo
+        SELEZIONA e gli da' il focus: al rilascio _on_click lo prendeva
+        per un click sulla cartella e ricaricava tutta la griglia delle
+        anteprime (anche se la cartella mostrata non cambiava). Qui si
+        apre/chiude a mano e "break" ferma la selezione di ttk."""
+        iid = self._on_tree_arrow(event)
+        if not iid:
+            return None
+        self.tree.focus_set()
+        if self.tree.get_children(iid):
+            if self.tree.item(iid, "open"):
+                self.tree.item(iid, open=False)
+            else:
+                # Popola i figli PRIMA di aprire: aprire con item(open=True)
+                # non genera <<TreeviewOpen>>, quindi _on_open non scatta
+                self._expand_node(iid)
+                self.tree.item(iid, open=True)
+        return "break"
+
     def _on_click(self, event):
+        if self._on_tree_arrow(event):
+            return   # solo apertura/chiusura nodo, vedi _on_tree_press
         iid = self.tree.focus()
         if not iid:
             return
