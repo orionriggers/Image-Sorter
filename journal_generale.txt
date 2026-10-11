@@ -2322,6 +2322,30 @@ Misure (1592 file, xvfb): inserimento in cima -> compare in 0,6 s,
 tutti i posti aggiornati in 1,4 s, blocco massimo 165 ms.
 REGOLA: nuovi gestori su una cella della griglia devono leggere
 cell._fpath, MAI catturare il percorso alla creazione.
+v1.46.29-33 (11/10/2026), piccoli fix con insegnamenti generali:
+- ("TkFixedFont", N) scritto come TUPLA NON e' monospazio: Tk lo prende
+  per un nome di famiglia inesistente e ripiega su DejaVu Sans
+  (spazio 4 px, cifre 9 px). Il monospazio vero e' solo il font con
+  nome "TkFixedFont" usato da solo. Per allineare numeri in quel font:
+  riempire con U+2007 (spazio "figura", largo come una cifra), non con
+  spazi normali (contatore n/totale nella barra della main).
+- Finestra Deck a monitor (KeypadPopup): dopo un click ridà il fuoco
+  alla main (_give_focus_back/_then_main), solo se il fuoco e' ancora
+  nel Deck, per non toglierlo a un dialogo appena aperto.
+- Un solo _tooltip(widget, testo|funzione) globale (prima: una copia
+  locale nella barra della main e una generica mai usata dalla v1.25).
+  Bind con add=True. Usato anche in Naviga.
+- ttk.Treeview: un click sulla FRECCIA di un nodo, oltre ad aprirlo, lo
+  SELEZIONA e gli da' il focus (ttk::treeview::Press). Naviga
+  (_on_tree_press) gestisce a mano la freccia e restituisce "break".
+  I binding del widget scattano PRIMA di quelli di classe: per leggere
+  il nodo dopo una freccia della tastiera (che sposta la selezione nel
+  binding di classe) serve un after (_on_tree_key, 250 ms, che serve
+  anche a non caricare ogni cartella attraversata tenendo premuto).
+  item(open=True) NON genera <<TreeviewOpen>>: popolare i figli prima.
+  Click sulla cartella gia' mostrata: nessuna ricarica (_show_tree_folder).
+- TEST: due event_generate("<ButtonPress-1>") senza time= vengono letti
+  da Tk come DOPPIO click (tempo 0 per entrambi). Passare time= distinti.
 
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE

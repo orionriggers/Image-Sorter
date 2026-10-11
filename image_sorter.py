@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.32"
+VERSION = "1.46.33"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -8399,6 +8399,13 @@ class FolderBrowser:
         self.tree.bind("<<TreeviewOpen>>",  self._on_open)
         self.tree.bind("<ButtonPress-1>",   self._on_tree_press)
         self.tree.bind("<ButtonRelease-1>", self._on_click)
+        # Frecce nell'albero: la selezione la sposta gia' ttk (binding di
+        # classe, eseguito DOPO questo), la griglia segue con un ritardo
+        # breve — vedi _on_tree_key
+        self._tree_key_job = None
+        for _tk in ("<KeyPress-Up>", "<KeyPress-Down>",
+                    "<KeyPress-Left>", "<KeyPress-Right>"):
+            self.tree.bind(_tk, self._on_tree_key)
         self.tree.bind("<Double-Button-1>", self._on_double_click)
         self.tree.bind("<Button-3>",        self._on_tree_right_click)
         # Tag per il colore cartella personalizzato (vedi
@@ -14126,7 +14133,32 @@ class FolderBrowser:
     def _on_click(self, event):
         if self._on_tree_arrow(event):
             return   # solo apertura/chiusura nodo, vedi _on_tree_press
-        iid = self.tree.focus()
+        self._show_tree_folder(self.tree.focus())
+
+    def _on_tree_key(self, event):
+        """Freccia nell'albero: la griglia mostra la cartella selezionata.
+
+        Questo binding scatta PRIMA di quello di classe di ttk che sposta
+        davvero la selezione, quindi il nodo nuovo si legge dopo. Ritardo
+        di 250 ms ripartito ad ogni tasto: tenendo premuta la freccia non
+        si carica ogni cartella attraversata, solo quella dove ci si ferma."""
+        if self._tree_key_job:
+            try:
+                self.win.after_cancel(self._tree_key_job)
+            except Exception:
+                pass
+        def _go():
+            self._tree_key_job = None
+            try:
+                self._show_tree_folder(self.tree.focus())
+            except tk.TclError:
+                pass
+        self._tree_key_job = self.win.after(250, _go)
+
+    def _show_tree_folder(self, iid):
+        """Mostra nella griglia la cartella del nodo iid (click o frecce).
+        Niente ricarica se e' gia' quella mostrata: la griglia si aggiorna
+        gia' da sola se il contenuto cambia da fuori."""
         if not iid:
             return
         vals = self.tree.item(iid, "values")
@@ -14134,6 +14166,8 @@ class FolderBrowser:
             return
         path = vals[0]
         if not os.path.isdir(path):
+            return
+        if path == getattr(self, "_current_folder", None):
             return
         self._path_var.set(path)
         self.sorter.config["last_browse_dir"] = path
