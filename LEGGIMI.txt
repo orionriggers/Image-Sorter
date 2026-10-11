@@ -1,8 +1,8 @@
-IMAGE SORTER v1.46
+IMAGE SORTER v1.47
 ==================
 Un programma per gestire, visualizzare e smistare immagini, video e PDF.
 
-Versione        : 1.46
+Versione        : 1.47
 Linguaggio      : Python 3.8+
 Interfaccia     : tkinter + Pillow
 Piattaforma     : Linux (testato su Linux Mint / Ubuntu)
@@ -42,11 +42,11 @@ AVVIO
 
 FILE DEL PROGRAMMA
 ------------------
-  image_sorter.py    programma principale           v1.46.0
-  disk_analyzer.py   analisi utilizzo disco         v1.46.0
-  timeline.py        timeline e mappa GPS           v1.46.0
-  exif_editor.py     editor metadati EXIF           v1.46.0
-  translations.py    stringhe IT/EN                 v1.46.0
+  image_sorter.py    programma principale           v1.47.0
+  disk_analyzer.py   analisi utilizzo disco         v1.47.0
+  timeline.py        timeline e mappa GPS           v1.47.0
+  exif_editor.py     editor metadati EXIF           v1.47.0
+  translations.py    stringhe IT/EN                 v1.47.0
   installa.sh        script di installazione        v1.36.4
 
 TASTI RAPIDI PRINCIPALI
@@ -1121,3 +1121,67 @@ NOVITÀ v1.45 → v1.46
     dentro un'altra finestra (es. una conferma dentro Timeline/EXIF
     editor/Analisi cartelle); coperto anche l'avviso "premi CANC di
     nuovo" (disegnato sul canvas, non una finestra separata)
+
+NOVITÀ v1.46 → v1.47
+--------------------
+Naviga
+  - Frecce: per default muovono la selezione fra le anteprime (anche
+    appena aperta la finestra, senza cliccare la griglia); dopo un clic
+    nell'albero delle cartelle muovono invece la cartella selezionata,
+    e la griglia la segue (← → chiudono/aprono il nodo). Funzionano
+    anche le frecce del tastierino numerico
+  - Albero: aprire/chiudere la freccia di una cartella non ricarica più
+    la griglia, e cliccare la cartella già mostrata non la ricarica
+  - La cartella mostrata si aggiorna da sola quando file vengono
+    aggiunti, tolti o modificati da fuori (controllo ogni 2 secondi),
+    senza ricostruire la griglia; voce "Aggiorna" anche nel tasto
+    destro su file e cartelle; aggiornamento automatico anche dopo aver
+    cestinato doppioni
+  - Miniatura e anteprima aggiornate subito dopo ritaglio,
+    ridimensionamento, rotazione e annulla (anche da Timeline); stelle,
+    colori e tag cambiati altrove (visualizzatore, deck, finestra Tag,
+    Timeline) si vedono subito in griglia, anteprima e nuvola tag
+  - CANC come nel visualizzatore: primo CANC = avviso nella barra di
+    stato, secondo CANC (o Invio) = cestina, niente più popup
+  - Più video selezionati: voce "Riproduci in sequenza" (un solo
+    player, nell'ordine dei clic); doppio clic su un video apre anche
+    il player esterno; l'anteprima segue l'ultimo file aggiunto con
+    Ctrl+clic
+  - Cartelle molto grandi: griglia e Lista divise in blocchi (prima
+    oltre ~32.000 pixel di altezza le righe si sovrapponevano o
+    restavano vuote); cache delle miniature limitata in MB (400)
+    invece che in numero di voci; PNG a 16 bit con miniatura
+  - Anteprima spenta resta spenta alla riapertura; Albero riacceso
+    torna alla sua larghezza; chiusura della finestra immediata anche
+    con migliaia di miniature
+  - Suggerimenti al passaggio del mouse sui bottoni meno chiari
+    ([ ] preferiti, x del filtro, S/M/L, ordinamento, Filtro *, vista,
+    cronologia e preferiti con il percorso completo)
+Ritaglio
+  - "Trova foto": riconosce la foto dentro uno screenshot da cellulare
+    (barre dell'app sopra e sotto) e ci adatta la selezione; casella
+    "Selezione auto" per farlo ad ogni immagine
+  - Magnete anche sui bordi che occupano solo una parte dell'immagine
+  - Invio = "Ritaglia prossimo"; la barra del ritaglio resta ferma
+    passando da un'immagine all'altra; comandi deck "Ritaglia prossimo"
+    e "Successiva" con icone proprie
+  - CANC+CANC cestina e passa alla successiva restando nel ritaglio;
+    video, PDF e file danneggiati vengono saltati invece di dare errore
+  - Popup su due righe (doppio clic sul titolo: riga unica)
+Finestra principale e Impostazioni
+  - Contatore n/totale a larghezza fissa: passare da 9 a 10 (o da 99 a
+    100) non sposta più la barra
+  - Finestra Deck a monitor: dopo un clic su un tasto il fuoco torna
+    alla finestra principale, le frecce funzionano subito
+  - Alla chiusura, la domanda sul cestino ha anche "Annulla" (non esce)
+  - Tag evidenziati in grassetto non spostano più gli altri
+  - Impostazioni > Stream Deck: tasti trascinabili (sposta/scambia,
+    anche su altre pagine); Impostazioni > Info: riga "Log errori" con
+    bottone per aprire il file
+Traduzioni (v1.47.0)
+  - Tradotti in inglese i testi nuovi della serie 1.46 (Impostazioni,
+    suggerimenti al passaggio del mouse, bottone vista di Naviga, che
+    dopo un clic tornava in italiano)
+  - Tabella scorciatoie in inglese allineata a quella italiana (mancavano
+    Esc, I e "Info EXIF"); in entrambe aggiunte le frecce di Naviga e il
+    doppio CANC

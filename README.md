@@ -1,4 +1,4 @@
-# Image Sorter v1.46.0
+# Image Sorter v1.47.0
 
 **Visualizzatore e smistatore di immagini, video e PDF per Linux**
 **Image, video, and PDF viewer & sorter for Linux**
@@ -22,9 +22,9 @@ Image Sorter nasce per una necessità concreta: scorrere in fretta grandi quanti
 
 - **Navigazione rapida** tra immagini, video e PDF con frecce o rotella mouse
 - **Smistamento con un tasto** — tasti 1–9 e 0 per spostare, Ctrl+1–9/0 per copiare nelle destinazioni configurate (anche da tastierino numerico)
-- **Browser cartelle** con anteprima thumbnail, selezione multipla e operazioni batch
+- **Browser cartelle** con anteprima thumbnail, selezione multipla e operazioni batch; si aggiorna da solo quando i file cambiano da fuori, anche con cartelle di migliaia di file; frecce sulle anteprime o, dopo un clic, sull'albero delle cartelle
 - **Valutazione a stelle (0–5) e colorlabel multiple** per foto/video/PDF, non a vicenda esclusive — visibili e modificabili direttamente sotto ogni miniatura, nell'anteprima, nel menu tasto destro, e in un overlay dedicato sull'immagine principale; filtrabili in Naviga e nella barra laterale della Timeline
-- **Ritaglio interattivo** con 8 handle, griglia dei terzi, blocco proporzioni (inclusa l'opzione "Originale", che blocca il rapporto esatto della foto aperta) e undo (Ctrl+Z)
+- **Ritaglio interattivo** con 8 handle, griglia dei terzi, blocco proporzioni (inclusa l'opzione "Originale", che blocca il rapporto esatto della foto aperta), magnete sui bordi, "Trova foto" per ritagliare la foto dentro uno screenshot da cellulare, "Ritaglia prossimo" (Invio) per ritagliare in serie, e undo (Ctrl+Z)
 - **Rotazione non distruttiva** con undo
 - **Ricerca doppioni** — SHA256 a tre fasi, nome+dimensione, confronto A vs B tra cartelle con anteprima affiancata e selezione multipla
 - **Timeline con mappa GPS** — vista cronologica con filtri per anno/luogo/cartella/valutazione/colore, apertura diretta sulla mappa dei file georeferenziati
@@ -198,7 +198,8 @@ image-sorter/
 | `R` | Impostazioni |
 | `Ctrl+R` | Rinomina file corrente |
 | `Ctrl+T` | Apre la finestra Tag sul file corrente |
-| `Q` / `Esc` | Esci |
+| `Esc` | Chiude la finestra aperta, altrimenti esce |
+| `Q` | Esci |
 
 ---
 
@@ -216,7 +217,7 @@ Supporto per qualunque modello **Elgato Stream Deck** riconosciuto dalla libreri
 
 - **`deck_core.py`** gestisce la connessione USB, il disegno dei tasti e l'esecuzione delle azioni, sia in modalità preset (smistamento rapido, stessi tasti 1-9-0 del software) sia in modalità idle (pagine configurabili con azioni libere per tasto: apri cartella/applicazione/URL, scorciatoia da tastiera, muto/smuto, testo).
 - **`deck_daemon.py`** è un processo separato che tiene il dispositivo fisico attivo anche quando Image Sorter è chiuso, cedendo automaticamente il controllo quando si apre una finestra del programma e riprendendoselo alla chiusura.
-- Oltre 29 comandi diretti a singolo tasto (ruota, elimina, zoom, invia a un editor esterno, e altri), ciascuno con icona personalizzabile.
+- 33 comandi diretti a singolo tasto (ruota, elimina, zoom, invia a un editor esterno, e altri), ciascuno con icona personalizzabile.
 
 ---
 
@@ -252,9 +253,9 @@ Image Sorter was built around a concrete need: quickly browsing large batches of
 
 - **Fast browsing** through images, video, and PDFs with arrow keys or the mouse wheel
 - **One-key sorting** — keys 1–9 and 0 move files, Ctrl+1–9/0 copy them, into configured destinations (numeric keypad works too)
-- **Folder browser** with thumbnail previews, multi-select, and batch operations
+- **Folder browser** with thumbnail previews, multi-select, and batch operations; updates by itself when files change from outside, even in folders with thousands of files; arrow keys on the thumbnails or, after a click, on the folder tree
 - **Star ratings (0–5) and multiple color labels** for photos/videos/PDFs, non-exclusive — visible and editable right under every thumbnail, in the preview pane, in the right-click menu, and via a dedicated overlay on the main image; filterable in the browser and in the Timeline sidebar
-- **Interactive cropping** with 8 handles, a rule-of-thirds grid, aspect-ratio locking (including an "Original" option matching the exact proportions of the photo being cropped), and undo (Ctrl+Z)
+- **Interactive cropping** with 8 handles, a rule-of-thirds grid, aspect-ratio locking (including an "Original" option matching the exact proportions of the photo being cropped), edge magnet, "Find photo" to crop the photo inside a phone screenshot, "Crop next" (Enter) for batch cropping, and undo (Ctrl+Z)
 - **Non-destructive rotation** with undo
 - **Duplicate finder** — three-stage SHA256, name+size matching, and an A-vs-B folder comparison mode with side-by-side preview and multi-select
 - **GPS-mapped timeline** — chronological view with filters by year/location/folder/rating/color, opening geotagged files directly on a map
@@ -428,7 +429,8 @@ image-sorter/
 | `R` | Settings |
 | `Ctrl+R` | Rename current file |
 | `Ctrl+T` | Open Tag window for current file |
-| `Q` / `Esc` | Quit |
+| `Esc` | Close the open window, otherwise quit |
+| `Q` | Quit |
 
 ---
 
@@ -446,7 +448,7 @@ Supports any **Elgato Stream Deck** model recognized by the `python-elgato-strea
 
 - **`deck_core.py`** handles the USB connection, key rendering, and action dispatch, in both preset mode (quick sorting, same 1-9-0 keys as the software) and idle mode (configurable pages with free per-key actions: open folder/app/URL, keyboard shortcut, mute/unmute, text).
 - **`deck_daemon.py`** is a separate process that keeps the physical device responsive even while Image Sorter is closed, automatically handing control back and forth as app windows open and close.
-- Over 29 direct one-press commands (rotate, delete, zoom, send to an external editor, and more), each with a customizable icon.
+- 33 direct one-press commands (rotate, delete, zoom, send to an external editor, and more), each with a customizable icon.
 
 ---
 

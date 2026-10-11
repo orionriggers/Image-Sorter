@@ -235,8 +235,8 @@
 <nav class="toc">
   <div class="brand">
     <div class="name">IMAGE SORTER</div>
-    <div class="ver">Manual v1.45.x</div>
-    <a class="lang-switch" href="manuale_image_sorter_1.45.html">Versione italiana →</a>
+    <div class="ver">Manual v1.47.x</div>
+    <a class="lang-switch" href="manuale_image_sorter_1.47.html">Versione italiana →</a>
   </div>
   <a href="#intro"><span class="toc-num">00</span> Introduction</a>
   <a href="#installazione"><span class="toc-num">01</span> Installation</a>
@@ -721,10 +721,13 @@ associated destination; <span class="kbd">Ctrl</span>+number copies it, leaving 
     <div class="feature"><h3>Magnet</h3><p>Automatic snapping of the crop line.</p></div>
     <div class="feature"><h3>Ritaglia (Crop)</h3><p>Overwrites or renames the file, with a confirmation dialog.</p></div>
     <div class="feature"><h3>Ritaglia e avanza (Crop and advance)</h3><p>No confirmation is asked; moves to the next image, closing the crop window.</p></div>
-    <div class="feature"><h3>Ritaglia prossimo (Crop next)</h3><p>No confirmation is asked; moves to the next image keeping the same crop settings active.</p></div>
+    <div class="feature"><h3>Ritaglia prossimo (Crop next)</h3><p>No confirmation is asked; moves to the next image keeping the same crop settings active. Also with <span class="kbd">Enter</span>, or from the Stream Deck key of the same name.</p></div>
+    <div class="feature"><h3>Trova foto (Find photo)</h3><p>Detects the photo inside a phone screenshot (app bars above and below) and fits the selection to it. With the <strong>Selezione auto</strong> (Auto select) checkbox it does so on every image.</p></div>
 
 
-     <div class="callout"><span class="label">Magnet</span> While cropping, moving a handle close to a guide line (rule-of-thirds grid, image edge, center) snaps it there automatically within a small tolerance distance, making precise, aligned crops easier without manual pixel-perfect positioning. Can be turned off for free control of the crop. Holding <span class="kbd">Shift</span> while dragging inverts the active mode.</div>
+     <div class="callout"><span class="label">Magnet</span> While cropping, moving a handle close to a guide line (rule-of-thirds grid, image edge, center) snaps it there automatically within a small tolerance distance, making precise, aligned crops easier without manual pixel-perfect positioning. It also snaps to edges covering only part of the image, searched along the stretch covered by the side being dragged. Can be turned off for free control of the crop. Holding <span class="kbd">Shift</span> while dragging inverts the active mode.</div>
+
+     <div class="callout"><span class="label">While cropping</span> the <span class="kbd">→</span>/<span class="kbd">←</span> keys move to the next/previous image staying in crop mode, skipping videos, PDFs and damaged files; <span class="kbd">Del</span> twice trashes the file and moves to the next one, still in crop mode. The command bar spans two lines: double-click its title to fold it into a single line.</div>
 
 
 
@@ -760,16 +763,18 @@ associated destination; <span class="kbd">Ctrl</span>+number copies it, leaving 
         quickly reaching the main folders. In the thumbnail grid, besides
         the arrow keys, <span class="kbd">PageUp</span>/<span class="kbd">PageDown</span>
         jump one screen at a time, and <span class="kbd">Home</span>/<span class="kbd">End</span>
-        go to the first/last file.</p>
+        go to the first/last file. Arrow keys act on the thumbnails; after a
+        click in the tree they move the selected folder instead, and the grid
+        follows it (<span class="kbd">←</span>/<span class="kbd">→</span> collapse/expand the node).</p>
       </div>
           <div class="feature">
         <h3>Favorites []</h3>
         <p>Stores up to 3 favorite folders by clicking the <span class="kbd">[]</span> button
-        with a folder selected in the right-hand tree column.</p>
+        for the folder currently open (the tree is in the left-hand column).</p>
       </div>
       <div class="feature">
       <h3>Three thumbnail views</h3>
-        <p>Griglia / Vista / Elenco (Grid / View / List) cycles the display type in the central pane.</p>
+        <p>Griglia / Lista / Elenco (Grid / List / Details) cycles the display type in the central pane.</p>
       </div>
       <div class="feature">
         <h3>Sorting and filtering</h3>
@@ -802,6 +807,27 @@ associated destination; <span class="kbd">Ctrl</span>+number copies it, leaving 
         up as a colored border and text in the icon grid, as colored text
         in list view, and as the node color in the tree — Privacy always
         takes visual precedence.</p>
+      </div>
+      <div class="feature">
+        <h3>Always up to date</h3>
+        <p>The folder shown updates by itself when files are added, removed
+        or modified from outside, without rebuilding the grid; stars, colors
+        and tags changed in other windows show up immediately too. To force a
+        refresh: right-click → "Aggiorna" (Refresh).</p>
+      </div>
+      <div class="feature">
+        <h3>Trash and videos</h3>
+        <p><span class="kbd">Del</span> on the selected files works like in the
+        viewer: a second <span class="kbd">Del</span> (or <span class="kbd">Enter</span>)
+        confirms. With several videos selected, right-click → "Riproduci in
+        sequenza" (Play in sequence) sends them to a single player, in click
+        order.</p>
+      </div>
+      <div class="feature">
+        <h3>Tooltips</h3>
+        <p>Hovering over the less obvious buttons (<span class="kbd">[ ]</span>, the
+        filter <span class="kbd">x</span>, S/M/L, sorting, view) shows a short
+        explanation; on favorites and history, the full path.</p>
       </div>
 
     </div>
@@ -912,7 +938,7 @@ associated destination; <span class="kbd">Ctrl</span>+number copies it, leaving 
 
 
     <img src="storico.png" alt="History window with the list of recent, recoverable operations">
- <div class="callout"><span class="label">Transit trash</span> Deleted files aren't removed directly: they stay in a transit folder until emptying is confirmed.</div>
+ <div class="callout"><span class="label">Transit trash</span> Deleted files aren't removed directly: they stay in a transit folder until emptying is confirmed. On exit, if the transit folder isn't empty, you are asked what to do: <strong>Svuota</strong> (Empty), <strong>Apri cartella</strong> (Open folder), <strong>Lascia lì</strong> (Leave it) or <strong>Annulla</strong> (Cancel), which stops the exit and keeps the program open.</div>
 
 
   </section>
@@ -1022,7 +1048,9 @@ associated destination; <span class="kbd">Ctrl</span>+number copies it, leaving 
     (added with the "+ Pag." button, and removed automatically once empty),
     a grid mirroring the physical key layout, and an editor to assign an
     action to each selected key (open folder/app/URL, keyboard shortcut,
-    mute/unmute, text, page change, one of the direct commands).</p>
+    mute/unmute, text, page change, one of the direct commands).
+    Keys can be dragged: onto an empty key they move, onto a used one they
+    swap, also to another page or onto "+ Pag.".</p>
 
 
     <!-- TODO screenshot: needs retaking — the current image (v1.38.7)
@@ -1036,7 +1064,8 @@ associated destination; <span class="kbd">Ctrl</span>+number copies it, leaving 
     <h3 class="subhead" id="imp-info">Info <span class="subtag">// language and information</span></h3>
     <p class="desc">Interface language selector (automatically reopens
     Settings translated after the change), the program's logo, and
-    version/license information.</p>
+    version/license information. The <strong>Error log</strong> row shows
+    where the error file is, with a button to open it.</p>
 
 
     <img src="impostazioni_info.png" alt="Info tab in Settings, with the language selector and version information">
@@ -1087,6 +1116,12 @@ associated destination; <span class="kbd">Ctrl</span>+number copies it, leaving 
         <h3>Touch-friendly buttons</h3>
         <p>This control panel is optimized for quickly finding and managing
         destination keys — using a touchscreen is the best way to use it!</p>
+      </div>
+      <div class="feature">
+        <h3>Keyboard always ready</h3>
+        <p>After clicking a Deck key, focus goes back to the main window: the
+        arrow keys move to the next image right away, without clicking the
+        image first.</p>
       </div>
     </div>
 
@@ -1223,8 +1258,8 @@ associated destination; <span class="kbd">Ctrl</span>+number copies it, leaving 
         application, a URL, a keyboard shortcut, mute/unmute, text.</p>
       </div>
       <div class="feature">
-        <h3>Over 30 direct commands</h3>
-        <p>Rotate, delete, zoom, send to an external editor and more — each
+        <h3>33 direct commands</h3>
+        <p>Rotate, delete, zoom, send to an external editor, crop next and more — each
         assignable to a key with a customizable icon.</p>
       </div>
       <div class="feature">
@@ -1297,6 +1332,8 @@ associated destination; <span class="kbd">Ctrl</span>+number copies it, leaving 
       <tr><td><span class="kbd">C</span></td><td>Rotate 90° clockwise</td></tr>
       <tr><td><span class="kbd">A</span></td><td>Rotate 90° counter-clockwise</td></tr>
       <tr><td><span class="kbd">K</span></td><td>Crop</td></tr>
+      <tr><td><span class="kbd">→</span> / <span class="kbd">←</span> while cropping</td><td>Next / previous image</td></tr>
+      <tr><td><span class="kbd">Enter</span> while cropping</td><td>Crop next</td></tr>
       <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">Z</span></td><td>Undo last crop</td></tr>
 
       <tr><th colspan="2">Multi-page PDF</th></tr>
@@ -1307,6 +1344,9 @@ associated destination; <span class="kbd">Ctrl</span>+number copies it, leaving 
       <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">N</span></td><td>Create a new subfolder in the open folder</td></tr>
       <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">A</span></td><td>Select all files</td></tr>
       <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">C</span>/<span class="kbd">X</span>/<span class="kbd">V</span></td><td>Copy / Cut / Paste</td></tr>
+      <tr><td><span class="kbd">Del</span>, then <span class="kbd">Del</span> or <span class="kbd">Enter</span></td><td>Trash the selected files</td></tr>
+      <tr><td><span class="kbd">↑</span><span class="kbd">↓</span><span class="kbd">←</span><span class="kbd">→</span></td><td>Move the selection between thumbnails</td></tr>
+      <tr><td><span class="kbd">↑</span><span class="kbd">↓</span><span class="kbd">←</span><span class="kbd">→</span> after clicking the tree</td><td>Previous / next folder (← → collapse / expand)</td></tr>
       <tr><td><span class="kbd">PageUp</span> / <span class="kbd">PageDown</span></td><td>Thumbnail grid: jump one screen forward/back</td></tr>
       <tr><td><span class="kbd">Home</span> / <span class="kbd">End</span></td><td>Thumbnail grid: first / last file</td></tr>
       <tr><td>Keys <span class="kbd">1</span>–<span class="kbd">9</span> (with an active selection)</td><td>Move the selected files to the matching preset</td></tr>
@@ -1318,7 +1358,7 @@ associated destination; <span class="kbd">Ctrl</span>+number copies it, leaving 
 </div>
 
 <footer>
-  Image Sorter v1.45.x — Manual including an installation section.
+  Image Sorter v1.47.x — Manual including an installation section.
   Creative Commons Attribution (CC BY) — Carlo Porrone, 2026.
 </footer>
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.35"
+VERSION = "1.47.0"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -2126,6 +2126,26 @@ def preset_color(config, preset_name, fallback=None):
 
 HUD_DIM      = "#1a3a5a"
 
+def _tooltip_tr(txt):
+    """Traduce il testo di un suggerimento se la lingua non e' l'italiano.
+    Le parti separate da "  |  " si traducono una per una (es. percorso +
+    "destro: ..."); "Tasto: X" diventa "Key: X". Ciò che non e' nel
+    dizionario _IT_EN resta com'e' (es. un percorso)."""
+    try:
+        if load_config().get("language", "it") == "it":
+            return txt
+    except Exception:
+        return txt
+    out = []
+    for part in txt.split("  |  "):
+        if part in _IT_EN:
+            part = _IT_EN[part]
+        elif part.startswith("Tasto: "):
+            part = "Key: " + part[len("Tasto: "):]
+        out.append(part)
+    return "  |  ".join(out)
+
+
 def _tooltip(widget, text):
     """Suggerimento al passaggio del mouse, centrato sotto il widget.
 
@@ -2144,6 +2164,7 @@ def _tooltip(widget, text):
             return
         if not txt:
             return
+        txt = _tooltip_tr(txt)
         tip[0] = tk.Toplevel(widget)
         tip[0].withdraw()
         tip[0].overrideredirect(True)
@@ -8285,7 +8306,7 @@ class FolderBrowser:
                                    activebackground=HIGHLIGHT, activeforeground="white",
                                    command=self._toggle_view_mode)
         self._view_btn.pack(side="left", padx=1)
-        _tooltip(self._view_btn, "Cambia vista: griglia / lista")
+        _tooltip(self._view_btn, "Cambia vista: griglia / lista / elenco")
 
 
         # Checkbox cartelle nascoste
@@ -9429,8 +9450,13 @@ class FolderBrowser:
         colors = {"grid": ACCENT_COLOR, "list": HUD_CYAN, "tree": WARNING}
         fgs    = {"grid": TEXT_COLOR,   "list": "#0a1a2e", "tree": "#0a1a2e"}
         if self._view_btn:
+            _lbl = labels.get(self._view_mode, "Lista")
+            # Tradotto qui: _translate_widgets agisce solo all'apertura
+            # della finestra, dopo il primo click tornava in italiano
+            if self.sorter.config.get("language", "it") != "it":
+                _lbl = _IT_EN.get(_lbl, _lbl)
             self._view_btn.config(
-                text=labels.get(self._view_mode, "Lista"),
+                text=_lbl,
                 bg=colors.get(self._view_mode, ACCENT_COLOR),
                 fg=fgs.get(self._view_mode, TEXT_COLOR))
         if self._current_folder:

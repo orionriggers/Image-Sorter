@@ -1,6 +1,6 @@
 IMAGE SORTER - JOURNAL GENERALE DI PROGETTO
 ======================================================================
-Aggiornato a: v1.46.0 (bump coordinato di chiusura sessione 11/09/2026)
+Aggiornato a: v1.47.0 (bump coordinato di chiusura sessione 11/10/2026)
 Autore: Carlo Porrone
 
 Questo file sostituisce, come quadro d'insieme, i singoli journal di
@@ -21,9 +21,9 @@ Carlo Porrone con Claude come programmatore, su Linux Mint/Ubuntu
 (Cinnamon, X11), lanciata di solito con doppio clic, non da terminale.
 
 ===========================================================================
-STRUTTURA DEL PROGETTO (v1.46.0)
+STRUTTURA DEL PROGETTO (v1.47.0)
 ===========================================================================
-  image_sorter.py    Programma principale (~28.400 righe), GUI Tkinter
+  image_sorter.py    Programma principale (~30.300 righe), GUI Tkinter
   timeline.py         Timeline e mappa GPS
   exif_editor.py       Editor metadati EXIF
   disk_analyzer.py     Analisi utilizzo disco (sunburst/treemap)
@@ -2356,6 +2356,45 @@ v1.46.29-33 (11/10/2026), piccoli fix con insegnamenti generali:
   passi "di comodo" (click) che lo stato reale non ha.
 - TEST: due event_generate("<ButtonPress-1>") senza time= vengono letti
   da Tk come DOPPIO click (tempo 0 per entrambi). Passare time= distinti.
+
+v1.47.0 — BUMP COORDINATO (11/10/2026), chiusura della serie 1.46.1-35.
+Controlli fatti prima del bump:
+- py_compile/pyflakes su tutti i .py (solo avvisi noti), bash -n
+  installa.sh. Spostamenti/rinomine: nessun punto nuovo dalla 1.46.0;
+  audit completo di os.rename/shutil.move/os.replace: tutti coperti da
+  metadata_store.rename_path o via move_to_transit (che lo chiama);
+  restano solo scritture atomiche sullo stesso file e send_to_trash
+  (eliminazione definitiva dal transito).
+- Test di avvio generale (xvfb, cartella isolata, IT e EN): Impostazioni
+  con tutte le schede, Storico, Naviga nelle tre viste, Timeline, Tag,
+  Deck a monitor 1/2/N colonne, rotazioni, overlay EXIF — nessun errore,
+  log vuoto.
+Traduzioni (translations.py 1.47.0):
+- Chiavi T() it/en gia' allineate. Tabella SHORTCUTS: l'inglese aveva
+  meno voci in "Panels & windows" (Esc mancante, era "Q / Esc") e in
+  "EXIF editor" (I e "Info EXIF" mancanti): allineate. Aggiunte in
+  entrambe le frecce di Naviga e il doppio Canc.
+- _IT_EN: testi nuovi della serie 1.46 (Impostazioni, suggerimenti,
+  "Elenco"). I suggerimenti si traducono in _tooltip_tr() (parti
+  separate da "  |  ", "Tasto: X" -> "Key: X"). Bottone vista di Naviga:
+  dopo un clic tornava in italiano (_translate_widgets agisce solo
+  all'apertura) — ora tradotto in _toggle_view_mode. Corretto anche il
+  suggerimento della v1.46.31: le viste sono tre (griglia/lista/elenco).
+- LIMITE NOTO, NON TOCCATO: _translate_menu() esiste ma non e' chiamata
+  da nessuna parte — i menu contestuali (Naviga e altri) restano in
+  italiano anche in inglese. Lavoro a parte, da decidere con Carlo.
+Documentazione: LEGGIMI/README_en (intestazione, tabella file, NOVITA'/
+WHAT'S NEW v1.46 -> v1.47), README.md (titolo, caratteristiche di
+Naviga e ritaglio, Esc distinto da Q, 33 comandi deck). Manuale HTML
+rinominato 1.45 -> 1.47 (git mv, index.html aggiornato) e aggiornato:
+ritaglio (Trova foto, Selezione auto, Invio, magnete sui bordi parziali,
+callout "durante il ritaglio"), Naviga (frecce/albero, Sempre
+aggiornata, Cestino e video, Suggerimenti; corretti "Griglia / Vista /
+Elenco" -> Lista e "albero a destra" -> sinistra), Impostazioni (tasti
+deck trascinabili, Log errori), finestra Deck (fuoco alla main),
+cestino di transito (domanda alla chiusura con Annulla), scorciatoie.
+I tre <p> non chiusi segnalati dal controllo HTML c'erano gia' nella
+1.45 (separatori prima delle immagini), lasciati.
 
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE

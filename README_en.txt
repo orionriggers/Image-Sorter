@@ -1,8 +1,8 @@
-IMAGE SORTER v1.46
+IMAGE SORTER v1.47
 ==================
 A program to manage, view, and sort images, videos, and PDFs.
 
-Version         : 1.46
+Version         : 1.47
 Language        : Python 3.8+
 Interface       : tkinter + Pillow
 Platform        : Linux (tested on Linux Mint / Ubuntu)
@@ -42,11 +42,11 @@ LAUNCH
 
 PROGRAM FILES
 -------------
-  image_sorter.py    main program                   v1.46.0
-  disk_analyzer.py   disk usage analyzer            v1.46.0
-  timeline.py        timeline and GPS map           v1.46.0
-  exif_editor.py     EXIF metadata editor           v1.46.0
-  translations.py    IT/EN strings                  v1.46.0
+  image_sorter.py    main program                   v1.47.0
+  disk_analyzer.py   disk usage analyzer            v1.47.0
+  timeline.py        timeline and GPS map           v1.47.0
+  exif_editor.py     EXIF metadata editor           v1.47.0
+  translations.py    IT/EN strings                  v1.47.0
   installa.sh        installation script            v1.36.4
 
 MAIN SHORTCUTS
@@ -968,3 +968,66 @@ WHAT'S NEW v1.45 -> v1.46
     confirmation dialog inside Timeline/EXIF editor/Disk analyzer); also
     covers the "press DEL again" warning (drawn on the canvas, not a
     separate window)
+
+WHAT'S NEW v1.46 -> v1.47
+-------------------------
+Folder browser (Naviga)
+  - Arrow keys: by default they move the selection between thumbnails
+    (also right after opening the window, without clicking the grid);
+    after a click in the folder tree they move the selected folder
+    instead, and the grid follows it (Left/Right collapse/expand the
+    node). Numeric keypad arrows work too
+  - Tree: opening/closing a folder's arrow no longer reloads the grid,
+    and clicking the folder already shown does not reload it
+  - The folder shown updates by itself when files are added, removed
+    or modified from outside (checked every 2 seconds), without
+    rebuilding the grid; "Refresh" entry also in the right-click menu
+    on files and folders; automatic refresh after trashing duplicates
+  - Thumbnail and preview updated right after crop, resize, rotation
+    and undo (also from Timeline); stars, colours and tags changed
+    elsewhere (viewer, deck, Tag window, Timeline) show up immediately
+    in the grid, preview and tag cloud
+  - DEL works like in the viewer: first DEL = warning in the status
+    bar, second DEL (or Enter) = trash, no more popup
+  - Several videos selected: "Play in sequence" entry (one player, in
+    click order); double click on a video also opens the external
+    player; the preview follows the last file added with Ctrl+click
+  - Very large folders: grid and List split into blocks (beyond ~32,000
+    pixels of height rows used to overlap or stay empty); thumbnail
+    cache limited in MB (400) instead of number of entries; 16-bit PNGs
+    get a thumbnail
+  - Preview turned off stays off on reopening; Tree turned back on
+    returns to its width; closing the window is immediate even with
+    thousands of thumbnails
+  - Tooltips on the less obvious buttons ([ ] favourites, filter x,
+    S/M/L, sort, Filter *, view, history and favourites with the full
+    path)
+Crop
+  - "Find photo": detects the photo inside a phone screenshot (app bars
+    above and below) and fits the selection to it; "Auto select"
+    checkbox to do it on every image
+  - Magnet also on edges covering only part of the image
+  - Enter = "Crop next"; the crop bar stays put when moving from one
+    image to the next; deck commands "Crop next" and "Next" with their
+    own icons
+  - DEL+DEL trashes and moves to the next image staying in crop mode;
+    videos, PDFs and damaged files are skipped instead of raising an
+    error
+  - Two-line popup (double click on the title: single line)
+Main window and Settings
+  - Fixed-width n/total counter: going from 9 to 10 (or 99 to 100) no
+    longer shifts the bar
+  - On-screen Deck window: after clicking a key, focus goes back to
+    the main window, arrow keys work immediately
+  - On exit, the trash question also has "Cancel" (does not quit)
+  - Tags highlighted in bold no longer shift the others
+  - Settings > Stream Deck: draggable keys (move/swap, also across
+    pages); Settings > Info: "Error log" row with a button to open the
+    file
+Translations (v1.47.0)
+  - New texts of the 1.46 series translated into English (Settings,
+    tooltips, Naviga view button, which reverted to Italian after one
+    click)
+  - English shortcut table aligned with the Italian one (Esc, I and
+    "EXIF info" were missing); Naviga arrow keys and double DEL added
+    to both

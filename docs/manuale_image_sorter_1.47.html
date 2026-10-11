@@ -235,8 +235,8 @@
 <nav class="toc">
   <div class="brand">
     <div class="name">IMAGE SORTER</div>
-    <div class="ver">Manuale v1.45.x</div>
-    <a class="lang-switch" href="manuale_image_sorter_1.45_en.html">English version →</a>
+    <div class="ver">Manuale v1.47.x</div>
+    <a class="lang-switch" href="manuale_image_sorter_1.47_en.html">English version →</a>
   </div>
   <a href="#intro"><span class="toc-num">00</span> Introduzione</a>
   <a href="#installazione"><span class="toc-num">01</span> Installazione</a>
@@ -716,10 +716,13 @@ associata; con <span class="kbd">Ctrl</span>+numero viene copiato lasciando inta
     <div class="feature"><h3>Magnete</h3><p>Aggancio automatico della linea di ritaglio.</p></div>
     <div class="feature"><h3>Ritaglia</h3><p>Per sovrascrivere o per rinominare il file, con finestra di conferma.</p></div> 
     <div class="feature"><h3>Ritaglia e avanza</h3><p>Non viene richiesta conferma e si passa all'immagine successiva chiudendo la finestra di ritaglio.</p></div> 
-    <div class="feature"><h3>Ritaglia prossimo</h3><p>Non viene richiesta conferma e si passa all'immagine successiva con le stesse impostazioni di ritaglio attive.</p></div> 
+    <div class="feature"><h3>Ritaglia prossimo</h3><p>Non viene richiesta conferma e si passa all'immagine successiva con le stesse impostazioni di ritaglio attive. Anche con <span class="kbd">Invio</span>, o dal tasto omonimo dello Stream Deck.</p></div>
+    <div class="feature"><h3>Trova foto</h3><p>Riconosce la foto dentro uno screenshot da cellulare (barre dell'app sopra e sotto) e ci adatta la selezione. Con la casella <strong>Selezione auto</strong> lo fa da solo ad ogni immagine.</p></div> 
 
 
-     <div class="callout"><span class="label">Magnete</span> Durante il ritaglio, avvicinando un handle a una linea guida (griglia dei terzi, bordo dell'immagine, centro) questo vi si aggancia automaticamente entro una piccola distanza di tolleranza, facilitando ritagli precisi e allineati senza necessità di posizionamento manuale millimetrico. Disattivabile per un controllo libero del ritaglio. Tenendo premuto <span class="kbd">Shift</span> mentre si trascina, si inverte la modalità attiva.</div>
+     <div class="callout"><span class="label">Magnete</span> Durante il ritaglio, avvicinando un handle a una linea guida (griglia dei terzi, bordo dell'immagine, centro) questo vi si aggancia automaticamente entro una piccola distanza di tolleranza, facilitando ritagli precisi e allineati senza necessità di posizionamento manuale millimetrico. Aggancia anche i bordi che occupano solo una parte dell'immagine, cercati nel tratto coperto dal lato che si sta trascinando. Disattivabile per un controllo libero del ritaglio. Tenendo premuto <span class="kbd">Shift</span> mentre si trascina, si inverte la modalità attiva.</div>
+
+     <div class="callout"><span class="label">Durante il ritaglio</span> le frecce <span class="kbd">→</span>/<span class="kbd">←</span> passano all'immagine successiva/precedente restando nel ritaglio, saltando video, PDF e file danneggiati; <span class="kbd">Canc</span> due volte cestina il file e passa al successivo, sempre nel ritaglio. La barra dei comandi sta su due righe: doppio clic sul titolo per raccoglierla in una riga sola.</div>
 
 
 
@@ -757,16 +760,18 @@ associata; con <span class="kbd">Ctrl</span>+numero viene copiato lasciando inta
         raggiungere rapidamente le cartelle principali. Nella griglia
         miniature, oltre alle frecce, <span class="kbd">PagSu</span>/<span class="kbd">PagGiù</span>
         saltano una schermata alla volta e <span class="kbd">Home</span>/<span class="kbd">Fine</span>
-        vanno al primo/ultimo file.</p>
+        vanno al primo/ultimo file. Le frecce agiscono sulle miniature; dopo un clic
+        nell'albero muovono invece la cartella selezionata, e la griglia la
+        segue (<span class="kbd">←</span>/<span class="kbd">→</span> chiudono/aprono il nodo).</p>
       </div>
           <div class="feature">
         <h3>Preferiti []</h3>
         <p>Memorizza fino a 3 cartelle preferite cliccando il bottone  <span class="kbd">[]</span> con
-        una cartella selezionata nell'albero della colonna a destra.</p>
+        la cartella aperta (l'albero è nella colonna a sinistra).</p>
       </div>
       <div class="feature">
       <h3>Tre visualizzazioni diverse come miniature</h3>
-        <p>Griglia / Vista / Elenco cambia il tipo di visualizzazione sulla schermata centrale, a rotazione.</p>
+        <p>Griglia / Lista / Elenco cambia il tipo di visualizzazione sulla schermata centrale, a rotazione.</p>
       </div>
       <div class="feature">
         <h3>Ordinamento e filtro</h3>
@@ -800,6 +805,27 @@ associata; con <span class="kbd">Ctrl</span>+numero viene copiato lasciando inta
         Il colore compare come bordo e testo colorato nella griglia icone,
         come testo colorato in vista lista e come colore del nodo
         nell'albero — la privacy ha sempre la precedenza visiva.</p>
+      </div>
+      <div class="feature">
+        <h3>Sempre aggiornata</h3>
+        <p>La cartella mostrata si aggiorna da sola quando file vengono
+        aggiunti, tolti o modificati da fuori, senza ricostruire la griglia;
+        anche stelle, colori e tag cambiati in altre finestre compaiono
+        subito. Per forzare un aggiornamento: tasto destro → "Aggiorna".</p>
+      </div>
+      <div class="feature">
+        <h3>Cestino e video</h3>
+        <p><span class="kbd">Canc</span> sui file selezionati funziona come nel
+        visualizzatore: un secondo <span class="kbd">Canc</span> (o <span class="kbd">Invio</span>)
+        conferma. Con più video selezionati, tasto destro → "Riproduci in
+        sequenza" li manda a un solo player, nell'ordine dei clic.</p>
+      </div>
+      <div class="feature">
+        <h3>Suggerimenti</h3>
+        <p>Passando il mouse sui bottoni meno ovvi (<span class="kbd">[ ]</span>, la
+        <span class="kbd">x</span> del filtro, S/M/L, ordinamento, vista) compare
+        una breve spiegazione; sui preferiti e sulla cronologia, il percorso
+        completo.</p>
       </div>
 
     </div>
@@ -908,7 +934,7 @@ associata; con <span class="kbd">Ctrl</span>+numero viene copiato lasciando inta
    
 
     <img src="storico.png" alt="Finestra Storico con l'elenco delle operazioni recenti e recuperabili">
- <div class="callout"><span class="label">Cestino di transito</span> I file eliminati non vengono cancellati direttamente: restano in una cartella di transito fino alla conferma di svuotamento.</div>
+ <div class="callout"><span class="label">Cestino di transito</span> I file eliminati non vengono cancellati direttamente: restano in una cartella di transito fino alla conferma di svuotamento. Alla chiusura del programma, se il transito non è vuoto, viene chiesto cosa fare: <strong>Svuota</strong>, <strong>Apri cartella</strong>, <strong>Lascia lì</strong> oppure <strong>Annulla</strong>, che ferma l'uscita e lascia il programma aperto.</div>
 
 
   </section>
@@ -1019,7 +1045,9 @@ associata; con <span class="kbd">Ctrl</span>+numero viene copiato lasciando inta
     spariscono da sole se restano vuote), una griglia che rispecchia la
     disposizione fisica dei tasti, e un editor per assegnare un'azione a
     ciascun tasto selezionato (apri cartella/app/URL, scorciatoia da
-    tastiera, muto/smuto, testo, cambio pagina, uno dei comandi diretti).</p>
+    tastiera, muto/smuto, testo, cambio pagina, uno dei comandi diretti).
+    I tasti si possono trascinare: su un tasto vuoto si spostano, su uno
+    occupato si scambiano, anche verso un'altra pagina o su "+ Pag.".</p>
 
 
     <!-- TODO screenshot: da rifare — l'immagine attuale (v1.38.7) precede
@@ -1033,7 +1061,9 @@ associata; con <span class="kbd">Ctrl</span>+numero viene copiato lasciando inta
     <h3 class="subhead" id="imp-info">Info <span class="subtag">// lingua e informazioni</span></h3>
     <p class="desc">Selettore della lingua dell'interfaccia (riapre
     automaticamente le Impostazioni tradotte dopo il cambio), il logo del
-    programma, e le informazioni di versione/licenza.</p>
+    programma, e le informazioni di versione/licenza. La riga <strong>Log
+    errori</strong> mostra dove si trova il file degli errori, con un bottone
+    per aprirlo.</p>
     
 
     <img src="impostazioni_info.png" alt="Scheda Info di Impostazioni, con selettore lingua e informazioni di versione">
@@ -1082,6 +1112,12 @@ associata; con <span class="kbd">Ctrl</span>+numero viene copiato lasciando inta
         <h3>Bottoni touch</h3>
         <p>Questo pannello di controllo è ottimizzato per la rapida gestione e 
         individuazione dei tasti destinazione, usare uno schermo touch è la soluzione migliore!</p>
+      </div>
+      <div class="feature">
+        <h3>Tastiera sempre pronta</h3>
+        <p>Dopo un clic su un tasto del Deck il fuoco torna alla finestra
+        principale: le frecce passano subito all'immagine successiva, senza
+        dover cliccare sull'immagine.</p>
       </div>
     </div>
 
@@ -1220,8 +1256,8 @@ associata; con <span class="kbd">Ctrl</span>+numero viene copiato lasciando inta
         applicazione, URL, scorciatoia da tastiera, muto/smuto, testo.</p>
       </div>
       <div class="feature">
-        <h3>Oltre 30 comandi diretti</h3>
-        <p>Ruota, elimina, zoom, invia a un editor esterno e altri — ciascuno
+        <h3>33 comandi diretti</h3>
+        <p>Ruota, elimina, zoom, invia a un editor esterno, ritaglia prossimo e altri — ciascuno
         assegnabile a un tasto con icona personalizzabile.</p>
       </div>
       <div class="feature">
@@ -1294,6 +1330,8 @@ associata; con <span class="kbd">Ctrl</span>+numero viene copiato lasciando inta
       <tr><td><span class="kbd">C</span></td><td>Ruota 90° orario</td></tr>
       <tr><td><span class="kbd">A</span></td><td>Ruota 90° antiorario</td></tr>
       <tr><td><span class="kbd">K</span></td><td>Ritaglia</td></tr>
+      <tr><td><span class="kbd">→</span> / <span class="kbd">←</span> durante il ritaglio</td><td>Immagine successiva / precedente</td></tr>
+      <tr><td><span class="kbd">Invio</span> durante il ritaglio</td><td>Ritaglia prossimo</td></tr>
       <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">Z</span></td><td>Annulla ultimo crop</td></tr>
 
       <tr><th colspan="2">PDF multipagina</th></tr>
@@ -1304,6 +1342,9 @@ associata; con <span class="kbd">Ctrl</span>+numero viene copiato lasciando inta
       <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">N</span></td><td>Crea nuova sottocartella nella cartella aperta</td></tr>
       <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">A</span></td><td>Seleziona tutti i file</td></tr>
       <tr><td><span class="kbd">Ctrl</span>+<span class="kbd">C</span>/<span class="kbd">X</span>/<span class="kbd">V</span></td><td>Copia / Taglia / Incolla</td></tr>
+      <tr><td><span class="kbd">Canc</span>, poi <span class="kbd">Canc</span> o <span class="kbd">Invio</span></td><td>Cestina i file selezionati</td></tr>
+      <tr><td><span class="kbd">↑</span><span class="kbd">↓</span><span class="kbd">←</span><span class="kbd">→</span></td><td>Sposta la selezione fra le miniature</td></tr>
+      <tr><td><span class="kbd">↑</span><span class="kbd">↓</span><span class="kbd">←</span><span class="kbd">→</span> dopo un clic nell'albero</td><td>Cartella precedente / successiva (← → chiude / apre)</td></tr>
       <tr><td><span class="kbd">PagSu</span> / <span class="kbd">PagGiù</span></td><td>Griglia miniature: salta una schermata avanti/indietro</td></tr>
       <tr><td><span class="kbd">Home</span> / <span class="kbd">Fine</span></td><td>Griglia miniature: primo / ultimo file</td></tr>
       <tr><td>Tasti <span class="kbd">1</span>–<span class="kbd">9</span> (con selezione attiva)</td><td>Sposta i file selezionati nel preset corrispondente</td></tr>
@@ -1315,7 +1356,7 @@ associata; con <span class="kbd">Ctrl</span>+numero viene copiato lasciando inta
 </div>
 
 <footer>
-  Image Sorter v1.45.x — Manuale con sezione installazione.
+  Image Sorter v1.47.x — Manuale con sezione installazione.
   Creative Commons Attribution (CC BY) — Carlo Porrone, 2026.
 </footer>
 

@@ -1,5 +1,5 @@
 # translations.py — Testi e traduzioni IT/EN
-VERSION = "1.46.4"
+VERSION = "1.47.0"
 #
 # COME AGGIUNGERE UNA NUOVA LINGUA
 # 1. Aggiungi un blocco in LANG:  "xx": { "lang_name": "Nome", "app_name": "Image Sorter", ... }
@@ -291,7 +291,9 @@ SHORTCUTS = {
             ("Ctrl + N",                           "Crea nuova sottocartella nella cartella aperta"),
             ("Ctrl + A",                           "Seleziona tutti i file"),
             ("Ctrl + C / X / V",                   "Copia / Taglia / Incolla"),
-            ("Canc",                               "Cestina file selezionati"),
+            ("Canc, poi Canc o Invio",             "Cestina file selezionati (conferma col secondo tasto)"),
+            ("\u2191\u2193\u2190\u2192",                   "Sposta la selezione fra le anteprime"),
+            ("\u2191\u2193\u2190\u2192  dopo clic nell'albero", "Cartella precedente/successiva (\u2190 \u2192 chiude/apre)"),
             ("Click singolo",                      "Seleziona file o cartella"),
             ("Ctrl + click",                       "Aggiunge/rimuove dalla selezione"),
             ("Shift + click",                      "Seleziona range contiguo"),
@@ -393,7 +395,8 @@ SHORTCUTS = {
             ("R",                                  "Settings"),
             ("Ctrl + R",                           "Rename current file"),
             ("Ctrl + T",                           "Open Tag window for current file"),
-            ("Q  /  Esc",                          "Quit"),
+            ("Esc",                                "Close open window / quit"),
+            ("Q",                                  "Quit"),
         ]),
         ("Image editing", [
             ("C",                                  "Rotate 90\u00b0 clockwise"),
@@ -420,7 +423,9 @@ SHORTCUTS = {
             ("Ctrl + N",                           "Create new subfolder in the open folder"),
             ("Ctrl + A",                           "Select all files"),
             ("Ctrl + C / X / V",                   "Copy / Cut / Paste"),
-            ("Delete",                             "Trash selected files"),
+            ("Delete, then Delete or Enter",       "Trash selected files (confirm with the second key)"),
+            ("\u2191\u2193\u2190\u2192",                   "Move selection between thumbnails"),
+            ("\u2191\u2193\u2190\u2192  after clicking the tree", "Previous/next folder (\u2190 \u2192 collapse/expand)"),
             ("Single click",                       "Select file or folder"),
             ("Ctrl + click",                       "Add/remove from selection"),
             ("Shift + click",                      "Select contiguous range"),
@@ -481,6 +486,8 @@ SHORTCUTS = {
             ("Delete backups",                     "Deletes all saved crop backups"),
         ]),
         ("EXIF editor", [
+            ("I",                                  "EXIF info overlay on the image"),
+            ("Right click > EXIF info",            "EXIF info popup (also from the browser)"),
             ("Right click > Edit EXIF...",         "Opens dialog (also on multiple selection)"),
             ("Current time",                       "Set shot date to current time"),
             ("Apply to all",                       "Write data to all selected files"),
@@ -958,4 +965,26 @@ _IT_EN = {
     "IPTC / XMP": "IPTC / XMP",
     "  Cartella": "  Folder",
     "1x": "1x",
+    # Serie 1.46 (Impostazioni, Naviga, suggerimenti al passaggio del mouse)
+    "Colore R,G,B:": "Colour R,G,B:",
+    "Log errori:": "Error log:",
+    "Apri file": "Open file",
+    "Aggiorna": "Refresh",
+    "Aggiungi la cartella corrente ai preferiti (max 3)":
+        "Add the current folder to favourites (max 3)",
+    "Togli la cartella corrente dai preferiti":
+        "Remove the current folder from favourites",
+    "Cancella il filtro per nome": "Clear the name filter",
+    "Anteprime piccole": "Small thumbnails",
+    "Anteprime medie": "Medium thumbnails",
+    "Anteprime grandi": "Large thumbnails",
+    "Ordina per nome": "Sort by name",
+    "Ordina per dimensione": "Sort by size",
+    "Ordina per data di modifica": "Sort by modification date",
+    "Ordina per data di scatto (EXIF)": "Sort by capture date (EXIF)",
+    "Filtra per valutazione, colore e tag": "Filter by rating, colour and tag",
+    "Cambia vista: griglia / lista / elenco": "Switch view: grid / list / details",
+    "Elenco": "Details",
+    "destro: togli dai preferiti": "right-click: remove from favourites",
+    "destro: impostazioni Deck": "right-click: Deck settings",
 }  # fine _IT_EN

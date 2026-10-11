@@ -12,7 +12,7 @@ rating/tag), e ~25 principi codificati da bug reali già risolti. Questo file
 
 ## Struttura e versioning
 
-- `image_sorter.py` — programma principale (~24.600 righe)
+- `image_sorter.py` — programma principale (~30.300 righe)
 - `timeline.py`, `exif_editor.py`, `disk_analyzer.py`, `translations.py` —
   moduli "core": **stesso numero di versione**, bump coordinato quando si
   toccano insieme più file (secondo numero), altrimenti solo il terzo numero
