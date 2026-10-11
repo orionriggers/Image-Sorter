@@ -1190,3 +1190,11 @@ Traduzioni (v1.47.0)
     sono tradotti, comprese le voci con numeri o nomi ("Convert to JPG
     (3 files)"). Su un file già JPG non compare più "Converti in JPG
     (0 file)"
+  - v1.47.2: in inglese restavano in italiano i testi creati dopo
+    l'apertura di una finestra (schede di Impostazioni come Tag e Info,
+    vista lista e filtro di Naviga, barra laterale di Timeline, finestra
+    Tag, "Usati" nello Storico): ora ogni testo viene tradotto nel
+    momento in cui compare. Aggiunte le voci mancanti (Tag e Gruppi Tag,
+    Alfabetico / Uso recente / Frequenza, Stream Deck gestito da Image
+    Sorter, Privacy > Modifica...). Il bottone Naviga della barra
+    principale in inglese si chiama "Browser"

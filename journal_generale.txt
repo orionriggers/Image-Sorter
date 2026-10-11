@@ -2416,6 +2416,32 @@ image_sorter gira come __main__ e timeline importa una copia completa.
 Per test fedeli su Timeline: caricare image_sorter.py con
 spec_from_file_location sotto un ALTRO nome (es. "is_main").
 
+v1.47.2 (image_sorter, translations; timeline 1.47.1): traduzione alla
+comparsa. Segnalato da Carlo: in inglese restavano in italiano testi di
+Impostazioni (Tag, Info, Stream Deck), lo Storico ("Usati"), ecc.
+CAUSA GENERALE: _translate_widgets agisce una volta, all'apertura della
+finestra (o del tab, con after(50)); tutto cio' che si crea dopo (vista
+lista e popup filtro di Naviga, barra laterale di Timeline dopo la
+scansione, finestra Tag che non la chiamava affatto) restava italiano.
+ARCHITETTURA: root.bind_all("<Map>", _auto_translate) in ImageSorter.
+__init__: ogni Label/Button/Checkbutton/Radiobutton/Labelframe viene
+tradotto (via _tr_text) quando compare. Lingua in _UI_LANG[0] (non
+rilegge il config per ogni widget), aggiornata in __init__ e in
+_apply_lang. Costo misurato: 600 celle in Naviga = ~2.600 eventi, 17 ms
+totali in inglese, 2 ms in italiano. NON copre i testi cambiati con
+config(text=...) su un widget gia' a schermo (messaggi di stato): per
+quelli _ui(txt) (traduce solo se lingua != it) o, in timeline.py,
+_status() importa _tr_text e legge la lingua da sorter.config.
+ATTENZIONE: timeline/disk_analyzer importano una SECONDA copia di
+image_sorter (il programma gira come __main__): li' _UI_LANG resta "it",
+quindi da quei moduli usare _tr_text + lingua dalla config, non _ui().
+Controllo completo (xvfb, inglese, tutte le finestre, solo widget
+visibili, testi uguali a stringhe letterali del sorgente): restano solo
+testi neutri (tasti, nomi propri, estensioni, "Preset:", "Tag:").
+Timeline: menu Vista con etichetta "Grid" in inglese (valore interno
+invariato). Bottone btn_browse in inglese: "Browser" (prima "Browse").
+Ortografia inglese dell'interfaccia: americana, come il manuale.
+
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE
 ===========================================================================

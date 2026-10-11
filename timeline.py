@@ -1,5 +1,5 @@
 # timeline.py — Timeline, mappa GPS, scansione ricorsiva
-VERSION = "1.47.0"
+VERSION = "1.47.1"
 # Visualizzazione profonda: scansione ricorsiva, timeline per data/luogo, mappa GPS
 # Dipendenze: reverse_geocode, folium (pip install reverse-geocode folium)
 
@@ -758,9 +758,12 @@ class DeepBrowser:
 
         # Vista — OptionMenu compatto
         self._view_var = tk.StringVar(value="Timeline")
-        self._view_map = {"Timeline": "timeline", "Griglia": "grid"}
+        # Etichetta nella lingua scelta; il valore interno resta "grid"
+        _vlang = (self.sorter.config.get("language","it") if self.sorter else "it")
+        _vgrid = "Griglia" if _vlang == "it" else "Grid"
+        self._view_map = {"Timeline": "timeline", _vgrid: "grid"}
         view_om = tk.OptionMenu(tb, self._view_var,
-                                "Timeline", "Griglia",
+                                "Timeline", _vgrid,
                                 command=lambda _: self._apply_view())
         view_om.config(font=("TkFixedFont",8,"bold"), bg=ACCENT_COLOR,
                        fg=TEXT_COLOR, activebackground=HIGHLIGHT,
@@ -3791,6 +3794,14 @@ class DeepBrowser:
 
     # ── Utility ───────────────────────────────────────────────────────────────
     def _status(self, text, color=None):
+        # Messaggi scritti dopo la comparsa dell'etichetta: la traduzione
+        # automatica (<Map>) non li vede, si traducono qui
+        if self.sorter and self.sorter.config.get("language", "it") != "it":
+            try:
+                from image_sorter import _tr_text
+                text = _tr_text(text)
+            except Exception:
+                pass
         self._status_lbl.config(text=tk_safe(text),
                                 fg=color or MUTED_COLOR)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.47.1"
+VERSION = "1.47.2"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -749,6 +749,43 @@ def _translate_widgets(widget, lang):
     except Exception: pass
     for child in widget.winfo_children():
         _translate_widgets(child, lang)
+
+# Lingua dell'interfaccia in memoria, per _auto_translate (che scatta per
+# ogni widget mostrato e non puo' rileggere il file di configurazione ogni
+# volta). Aggiornata all'avvio (ImageSorter.__init__) e al cambio lingua.
+_UI_LANG = ["it"]
+
+def _ui(txt):
+    """Testo per un widget gia' a schermo (config(text=...) dopo la sua
+    comparsa, che _auto_translate non vede): tradotto se la lingua non e'
+    l'italiano."""
+    return txt if _UI_LANG[0] == "it" else _tr_text(txt)
+
+_AUTO_TR_CLASSES = ("Label", "Button", "Checkbutton", "Radiobutton",
+                    "Labelframe")
+
+def _auto_translate(event):
+    """<Map> su tutta l'applicazione: traduce ogni etichetta o bottone nel
+    momento in cui compare. Copre il contenuto creato DOPO l'apertura di
+    una finestra (vista lista di Naviga, popup, barra laterale di Timeline
+    dopo la scansione, finestre senza _translate_widgets), che la
+    traduzione una tantum all'apertura non vedeva. Solo testi noti
+    (_tr_text): nomi di file e cartelle restano come sono."""
+    if _UI_LANG[0] == "it":
+        return
+    w = event.widget
+    try:
+        if w.winfo_class() not in _AUTO_TR_CLASSES:
+            return
+        t = w.cget("text")
+        if not t:
+            return
+        n = _tr_text(t)
+        if n != t:
+            w.configure(text=n)
+    except Exception:
+        pass
+
 
 def _translate_menu(menu, lang=None):
     """Traduce le voci di un Menu tk, sottomenu compresi (vedi _tr_text).
@@ -21397,6 +21434,7 @@ class SettingsDialog:
         """Salva la lingua e riapre la finestra impostazioni tradotta."""
         lang = self._lang_var.get()
         self.config["language"] = lang
+        _UI_LANG[0] = lang
         save_config(self.config)
         # Riapri le impostazioni con la nuova lingua
         self.sorter._settings_dialog = None
@@ -21685,7 +21723,7 @@ class SettingsDialog:
                     parent=self.win):
                 return
             shutil.rmtree(bdir, ignore_errors=True)
-            self._bak_size_lbl.config(text="Usati: 0 KB")
+            self._bak_size_lbl.config(text=_ui("Usati: 0 KB"))
 
         tk.Button(btn_row, text="Elimina backup",
                   font=("TkFixedFont", 8),
@@ -21726,7 +21764,7 @@ class SettingsDialog:
             sz = _backup_dir_size(self.config)
             sz_str = (f"{sz/1024:.0f} KB" if sz < 1024**2
                       else f"{sz/1024**2:.1f} MB")
-            self._bak_size_lbl.config(text=f"Usati: {sz_str}")
+            self._bak_size_lbl.config(text=_ui(f"Usati: {sz_str}"))
 
         def _reset_bdir():
             _bdir_var.set(BACKUP_DIR)
@@ -22682,6 +22720,9 @@ class ImageSorter:
         self.root          = root
         self.source_folder = source_folder
         self.config        = load_config()
+        _UI_LANG[0] = self.config.get("language", "it")
+        # Traduzione dei widget man mano che compaiono (vedi _auto_translate)
+        root.bind_all("<Map>", _auto_translate, add="+")
         _ensure_ratings_flags_deck_page(self.config)
         self.history       = []
         ImageSorter._all_instances.append(self)

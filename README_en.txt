@@ -1036,3 +1036,10 @@ Translations (v1.47.0)
     translated, including entries with numbers or names ("Convert to
     JPG (3 files)"). "Convert to JPG (0 files)" no longer appears on a
     file that is already a JPG
+  - v1.47.2: in English, texts created after a window opened stayed in
+    Italian (Settings tabs such as Tags and Info, Naviga list view and
+    filter, Timeline sidebar, Tag window, "Usati" in History): every
+    text is now translated as it appears on screen. Missing entries
+    added (Tags and Tag Groups, Alphabetical / Recently used /
+    Frequency, Stream Deck managed by Image Sorter, Privacy > Edit...).
+    The Naviga button in the main toolbar is now called "Browser"

@@ -1,5 +1,5 @@
 # translations.py — Testi e traduzioni IT/EN
-VERSION = "1.47.1"
+VERSION = "1.47.2"
 #
 # COME AGGIUNGERE UNA NUOVA LINGUA
 # 1. Aggiungi un blocco in LANG:  "xx": { "lang_name": "Nome", "app_name": "Image Sorter", ... }
@@ -169,7 +169,7 @@ LANG = {
         "btn_settings":     "Settings",
         "btn_history":      "History",
         "btn_timeline":     "Timeline",
-        "btn_browse":       "Browse",
+        "btn_browse":       "Browser",
         "btn_play":         "Play",
         # Timeline sort
         "sort_shot":        "Shot",
@@ -966,14 +966,14 @@ _IT_EN = {
     "  Cartella": "  Folder",
     "1x": "1x",
     # Serie 1.46 (Impostazioni, Naviga, suggerimenti al passaggio del mouse)
-    "Colore R,G,B:": "Colour R,G,B:",
+    "Colore R,G,B:": "Color R,G,B:",
     "Log errori:": "Error log:",
     "Apri file": "Open file",
     "Aggiorna": "Refresh",
     "Aggiungi la cartella corrente ai preferiti (max 3)":
-        "Add the current folder to favourites (max 3)",
+        "Add the current folder to favorites (max 3)",
     "Togli la cartella corrente dai preferiti":
-        "Remove the current folder from favourites",
+        "Remove the current folder from favorites",
     "Cancella il filtro per nome": "Clear the name filter",
     "Anteprime piccole": "Small thumbnails",
     "Anteprime medie": "Medium thumbnails",
@@ -982,10 +982,10 @@ _IT_EN = {
     "Ordina per dimensione": "Sort by size",
     "Ordina per data di modifica": "Sort by modification date",
     "Ordina per data di scatto (EXIF)": "Sort by capture date (EXIF)",
-    "Filtra per valutazione, colore e tag": "Filter by rating, colour and tag",
+    "Filtra per valutazione, colore e tag": "Filter by rating, color and tag",
     "Cambia vista: griglia / lista / elenco": "Switch view: grid / list / details",
     "Elenco": "Details",
-    "destro: togli dai preferiti": "right-click: remove from favourites",
+    "destro: togli dai preferiti": "right-click: remove from favorites",
     "destro: impostazioni Deck": "right-click: Deck settings",
     # Menu contestuali (tasto destro) — tradotti in _post_menu dalla v1.47.1
     "Cestina questo file": "Trash this file",
@@ -1021,6 +1021,42 @@ _IT_EN = {
     "Ripristina batch (era stato spostato)": "Restore batch (was moved)",
     "Ripristina originale (era stato ritagliato)": "Restore original (was cropped)",
     "Ripristina originale (era stato ridimensionato)": "Restore original (was resized)",
+    # Testi rimasti in italiano (controllo completo dell'interfaccia, v1.47.2)
+    "Stream Deck gestito da Image Sorter e dal demone di autostart.":
+        "Stream Deck managed by Image Sorter and the autostart daemon.",
+    "Stream Deck non connesso": "Stream Deck not connected",
+    "Nome etichetta": "Label name",
+    "Percorso (vuoto = AUTO)": "Path (empty = AUTO)",
+    "Modifica": "Edit",
+    "Aspetto:": "Appearance:",
+    "Gestione tag e Gruppi Tag": "Tags and Tag Groups",
+    "Gruppi Tag": "Tag Groups",
+    "Tag nel gruppo selezionato:": "Tags in the selected group:",
+    "(seleziona un gruppo per gestirne i tag)": "(select a group to manage its tags)",
+    "Ordine dei tag nella nuvola (Ctrl+T, Naviga, Timeline):":
+        "Tag order in the cloud (Ctrl+T, Browser, Timeline):",
+    "Alfabetico": "Alphabetical",
+    "Uso recente": "Recently used",
+    "Frequenza": "Frequency",
+    ".mp4  .mov  .avi  .mkv  .webm  .m4v  .flv  (richiede ffmpeg)":
+        ".mp4  .mov  .avi  .mkv  .webm  .m4v  .flv  (requires ffmpeg)",
+    ".pdf  (richiede poppler-utils)": ".pdf  (requires poppler-utils)",
+    "rilevati automaticamente tramite magic bytes": "detected automatically via magic bytes",
+    "Scrivania": "Desktop",
+    "Documenti": "Documents",
+    "  |  Filtro:": "  |  Filter:",
+    "Dim": "Size",
+    "Data": "Date",
+    "Scatto": "Shot",
+    "Filtro *": "Filter *",
+    "Valutazione minima:": "Minimum rating:",
+    "Colore:": "Color:",
+    "(nessun tag in libreria)": "(no tags in the library)",
+    "(nessun tag ancora nella libreria)": "(no tags in the library yet)",
+    "Cancella filtro": "Clear filter",
+    "Ruotato": "Rotated",
+    "Tutti i file": "All files",
+    "  Anno": "  Year",
     # Modelli per _Tf (segnaposto {..}, formattati dopo la traduzione)
     'Mostra "{f}" in file manager': 'Show "{f}" in file manager',
     'Apri "{f}" in Image Sorter': 'Open "{f}" in Image Sorter',
@@ -1047,6 +1083,7 @@ _IT_EN_PATTERNS = [
     (r"^Modifica con (?P<p>[^.].*)$",                   "Edit with {p}"),
     (r"^Assegna la posizione di (?P<f>.+) ai selezionati(?P<sp>\s+)\((?P<n>\d+)\)$",
                                                        "Assign the location of {f} to the selected files{sp}({n})"),
+    (r"^Usati: (?P<x>.+)$",                             "Used: {x}"),
     # "<testo> (3 file)" e "<testo> (3 file)..."
     (r"^(?P<t_b>.+?)(?P<sp>\s+)\((?P<n>\d+) file\)(?P<e>\.*)$", "{t_b}{sp}({n} file{s}){e}"),
     # "<testo>  (3)": conteggio della selezione in coda
