@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.29"
+VERSION = "1.46.30"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -15398,7 +15398,8 @@ class KeypadPopup:
                 # questo, attivare il preset da questo bottone dopo aver
                 # cambiato colonna dal menu a tendina attivava ancora
                 # quello vecchio.
-                command=lambda col=ci: self._switch_preset(self._col_presets[col])
+                command=lambda col=ci: (self._switch_preset(self._col_presets[col]),
+                                         self._give_focus_back())
             )
             act_btn.grid(row=2, column=ci, sticky="ew",
                    padx=(PAD_OUT if ci == 0 else PAD_IN,
@@ -15410,13 +15411,13 @@ class KeypadPopup:
         # Con tre colonne ci stanno INDIETRO / SALTA / CANC. Ogni colonna
         # in piu' libera spazio per un'altra azione sul file corrente,
         # invece di lasciare la riga mezza vuota.
-        nav = [("< INDIETRO", "#4a90e2", self.sorter._go_back),
-               ("SALTA >",    WARNING,   self.sorter._skip),
-               ("CANC",       "#c0392b", self._delete_current)]
+        nav = [("< INDIETRO", "#4a90e2", self._then_main(self.sorter._go_back)),
+               ("SALTA >",    WARNING,   self._then_main(self.sorter._skip)),
+               ("CANC",       "#c0392b", self._then_main(self._delete_current))]
         if ncols >= 4:
             nav.append(("RITAGLIA", SUCCESS,   self._crop_current))
         if ncols >= 5:
-            nav.append(("RUOTA",    "#9b59b6", self._rotate_current_90))
+            nav.append(("RUOTA",    "#9b59b6", self._then_main(self._rotate_current_90)))
 
         if ncols >= 3:
             for ci, (txt, bg_c, cmd) in enumerate(nav[:ncols]):
@@ -15433,30 +15434,30 @@ class KeypadPopup:
             tk.Button(w, text="< INDIETRO", font=("TkFixedFont", 9, "bold"),
                       bg="#4a90e2", fg="white", relief="flat",
                       activebackground=HIGHLIGHT,
-                      command=self.sorter._go_back).grid(
+                      command=self._then_main(self.sorter._go_back)).grid(
                       row=3, column=0, sticky="ew",
                       padx=(PAD_OUT, PAD_IN), pady=(PAD_IN, PAD_IN),
                       ipady=self.BTN_IPAD)
             tk.Button(w, text="SALTA >", font=("TkFixedFont", 9, "bold"),
                       bg=WARNING, fg="white", relief="flat",
                       activebackground=HIGHLIGHT,
-                      command=self.sorter._skip).grid(
+                      command=self._then_main(self.sorter._skip)).grid(
                       row=3, column=1, sticky="ew",
                       padx=(PAD_IN, PAD_OUT), pady=(PAD_IN, PAD_IN),
                       ipady=self.BTN_IPAD)
             tk.Button(w, text="CANC", font=("TkFixedFont", 9, "bold"),
                       bg="#c0392b", fg="white", relief="flat",
                       activebackground=HIGHLIGHT,
-                      command=self._delete_current).grid(
+                      command=self._then_main(self._delete_current)).grid(
                       row=4, column=0, columnspan=2, sticky="ew",
                       padx=PAD_OUT, pady=(PAD_IN, PAD_OUT),
                       ipady=self.BTN_IPAD)
             w.rowconfigure(4, weight=0)
         else:  # ncols == 1
             for ri, (txt, bg_c, cmd) in enumerate([
-                    ("< INDIETRO", "#4a90e2", self.sorter._go_back),
-                    ("SALTA >",    WARNING,   self.sorter._skip),
-                    ("CANC",       "#c0392b", self._delete_current)]):
+                    ("< INDIETRO", "#4a90e2", self._then_main(self.sorter._go_back)),
+                    ("SALTA >",    WARNING,   self._then_main(self.sorter._skip)),
+                    ("CANC",       "#c0392b", self._then_main(self._delete_current))]):
                 tk.Button(w, text=txt, font=("TkFixedFont", 9, "bold"),
                           bg=bg_c, fg="white", relief="flat",
                           activebackground=HIGHLIGHT,
@@ -15863,6 +15864,31 @@ class KeypadPopup:
         except (IndexError, TypeError):
             return
         self.sorter._move_to_preset(key, pname)
+        self._give_focus_back()
+
+    def _give_focus_back(self):
+        """Ridà il fuoco tastiera alla finestra principale dopo un click
+        sul Deck: senza, le frecce (e le altre scorciatoie) finivano al
+        Deck invece che alla main, finché non si cliccava sulla main.
+        Solo se il fuoco e' ancora nel Deck: se intanto si e' aperto un
+        dialogo o un'altra finestra (es. ritaglio), non glielo si toglie."""
+        def _do():
+            try:
+                fw = self.win.focus_get()
+                if fw is not None and fw.winfo_toplevel() is not self.win:
+                    return
+                self.sorter.root.focus_force()
+            except Exception:
+                pass
+        self.win.after_idle(_do)
+
+    def _then_main(self, cmd):
+        """Avvolge un comando del Deck: lo esegue e poi ridà il fuoco
+        alla finestra principale (vedi _give_focus_back)."""
+        def _run():
+            cmd()
+            self._give_focus_back()
+        return _run
 
     def _swap_slots(self, orig, dest):
         """Scambia etichetta e percorso fra due tasti.
