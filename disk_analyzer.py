@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """disk_analyzer.py — Analizzatore utilizzo disco"""
-VERSION = "1.47.0"
+VERSION = "1.47.1"
 
 import os, sys, threading
 import tkinter as tk
@@ -59,6 +59,12 @@ def tk_safe(t): return "".join(c if ord(c)<0x10000 else "?" for c in str(t))
 
 def _post_menu(menu, x, y, root_win=None):
     """Mostra menu e chiude al click fuori — compatibile X11/Linux."""
+    # Traduzione delle voci come in image_sorter._post_menu (se disponibile)
+    try:
+        from image_sorter import _translate_menu
+        _translate_menu(menu)
+    except Exception:
+        pass
     _bid = [None]
     def _close(e):
         try:

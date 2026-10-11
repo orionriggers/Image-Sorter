@@ -1185,3 +1185,8 @@ Traduzioni (v1.47.0)
   - Tabella scorciatoie in inglese allineata a quella italiana (mancavano
     Esc, I e "Info EXIF"); in entrambe aggiunte le frecce di Naviga e il
     doppio CANC
+  - v1.47.1: in inglese i menu del tasto destro (Naviga, visualizzatore,
+    Timeline, Analisi cartelle, doppioni) restavano in italiano: ora
+    sono tradotti, comprese le voci con numeri o nomi ("Convert to JPG
+    (3 files)"). Su un file già JPG non compare più "Converti in JPG
+    (0 file)"

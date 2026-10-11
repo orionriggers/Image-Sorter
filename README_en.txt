@@ -1031,3 +1031,8 @@ Translations (v1.47.0)
   - English shortcut table aligned with the Italian one (Esc, I and
     "EXIF info" were missing); Naviga arrow keys and double DEL added
     to both
+  - v1.47.1: in English the right-click menus (Naviga, viewer, Timeline,
+    Disk analyzer, duplicates) stayed in Italian: they are now
+    translated, including entries with numbers or names ("Convert to
+    JPG (3 files)"). "Convert to JPG (0 files)" no longer appears on a
+    file that is already a JPG

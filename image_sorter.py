@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.47.0"
+VERSION = "1.47.1"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -683,13 +683,45 @@ def _load_translations():
         spec.loader.exec_module(mod)
         return (getattr(mod, "LANG", {}),
                 getattr(mod, "SHORTCUTS", {}),
-                getattr(mod, "_IT_EN", {}))
+                getattr(mod, "_IT_EN", {}),
+                getattr(mod, "_IT_EN_PATTERNS", []))
     except Exception:
-        return None, None, {}
+        return None, None, {}, []
 
-_LANG_DATA, _SHORTCUTS_DATA, _IT_EN_FROM_FILE = _load_translations()
+(_LANG_DATA, _SHORTCUTS_DATA, _IT_EN_FROM_FILE,
+ _IT_EN_PATTERNS_FROM_FILE) = _load_translations()
 
 _IT_EN = _IT_EN_FROM_FILE
+_IT_EN_PATTERNS = []
+import re as _re
+for _rx, _tpl in (_IT_EN_PATTERNS_FROM_FILE or []):
+    try:
+        _IT_EN_PATTERNS.append((_re.compile(_rx), _tpl))
+    except _re.error:
+        pass
+
+
+def _tr_text(txt):
+    """Testo italiano dell'interfaccia -> inglese: prima tale e quale in
+    _IT_EN, poi con i modelli _IT_EN_PATTERNS (testi con numeri o nomi
+    dentro, es. "Converti in JPG (3 file)"). Se non trova nulla lo
+    restituisce invariato."""
+    if not isinstance(txt, str) or not txt:
+        return txt
+    if txt in _IT_EN:
+        return _IT_EN[txt]
+    for rx, tpl in _IT_EN_PATTERNS:
+        m = rx.match(txt)
+        if not m:
+            continue
+        g = {k: (_tr_text(v) if k.startswith("t_") else v)
+             for k, v in m.groupdict().items()}
+        g["s"] = "" if g.get("n") == "1" else "s"
+        try:
+            return tpl.format(**g)
+        except (KeyError, IndexError, ValueError):
+            return txt
+    return txt
 
 def _translate_widgets(widget, lang):
     """Scorre tutti i widget e traduce i testi noti IT→EN."""
@@ -701,6 +733,10 @@ def _translate_widgets(widget, lang):
             t = widget.cget("text")
             if t in mapping:
                 widget.config(text=mapping[t])
+            else:
+                n = _tr_text(t)
+                if n != t:
+                    widget.config(text=n)
         elif cls == "Notebook":
             # Traduce le etichette dei tab ttk.Notebook
             for tab_id in widget.tabs():
@@ -714,18 +750,31 @@ def _translate_widgets(widget, lang):
     for child in widget.winfo_children():
         _translate_widgets(child, lang)
 
-def _translate_menu(menu, lang):
-    """Traduce le voci di un Menu tk."""
+def _translate_menu(menu, lang=None):
+    """Traduce le voci di un Menu tk, sottomenu compresi (vedi _tr_text).
+    Chiamata da _post_menu, quindi vale per tutti i menu contestuali:
+    prima esisteva ma non la chiamava nessuno, e in inglese i menu
+    restavano in italiano. lang=None: la lingua delle impostazioni."""
+    if lang is None:
+        try:
+            lang = load_config().get("language", "it")
+        except Exception:
+            return
     if lang == "it": return
-    mapping = _IT_EN
     try:
         last = menu.index("end")
         if last is None: return
         for i in range(last+1):
             try:
+                if menu.type(i) in ("separator", "tearoff"):
+                    continue
                 t = menu.entrycget(i, "label")
-                if t in mapping:
-                    menu.entryconfig(i, label=mapping[t])
+                n = _tr_text(t)
+                if n != t:
+                    menu.entryconfig(i, label=n)
+                if menu.type(i) == "cascade":
+                    sub = menu.nametowidget(menu.entrycget(i, "menu"))
+                    _translate_menu(sub, lang)
             except Exception: pass
     except Exception: pass
 
@@ -3761,6 +3810,9 @@ def _post_menu(menu, x, y, root_win=None):
     # Calcolando prima l'ingombro e ribaltando il menu verso l'alto o
     # verso sinistra, il puntatore resta sempre su un angolo, fuori dalle
     # voci — la stessa situazione in cui il menu ha sempre funzionato.
+    # Tradotto qui, PRIMA di misurarlo: unico punto da cui passano tutti
+    # i menu contestuali
+    _translate_menu(menu)
     try:
         menu.update_idletasks()
         _mw, _mh = menu.winfo_reqwidth(), menu.winfo_reqheight()
@@ -14518,13 +14570,22 @@ class FolderBrowser:
         conv_targets = [f for f in targets
                         if os.path.splitext(f)[1].lower()
                         in {".webp",".png",".bmp",".tiff",".gif",".jpg",".jpeg",".avif",".pnm",".pbm",".pgm",".ppm",".heic",".heif"}]
-        if conv_targets:
+        # Conteggi con lo stesso criterio di _convert_batch (salta i file
+        # gia' nel formato di arrivo); voce mostrata solo se c'e' qualcosa
+        # da convertire — prima su un .jpg compariva "Converti in JPG (0 file)"
+        _n_jpg = sum(1 for f in conv_targets
+                     if os.path.splitext(f)[1].lower() != ".jpg")
+        _n_gif = sum(1 for f in conv_targets
+                     if os.path.splitext(f)[1].lower() != ".gif")
+        if _n_jpg or _n_gif:
             menu.add_separator()
+        if _n_jpg:
             menu.add_command(
-                label=f"Converti in JPG ({len([f for f in conv_targets if os.path.splitext(f)[1].lower() != '.jpg'])} file)",
+                label=f"Converti in JPG ({_n_jpg} file)",
                 command=lambda t=conv_targets: self.sorter._convert_batch(t, "jpg"))
+        if _n_gif:
             menu.add_command(
-                label=f"Converti in GIF ({len(conv_targets)} file)",
+                label=f"Converti in GIF ({_n_gif} file)",
                 command=lambda t=conv_targets: self.sorter._convert_batch(t, "gif"))
 
         # Preset di destinazione — presenti nel menu della Timeline ma non
@@ -26102,6 +26163,10 @@ class ImageSorter:
                   bg=PANEL_COLOR, fg=MUTED_COLOR,
                   relief="flat",
                   command=win.destroy).pack(fill="x", padx=6, pady=(2,6), ipady=2)
+
+        # Traduzione prima di misurare (in inglese le voci hanno un'altra
+        # larghezza): prima questo menu restava sempre in italiano
+        _translate_widgets(win, self.config.get("language", "it"))
 
         # Posiziona vicino al click, aggiusta se esce dallo schermo
         win.update_idletasks()

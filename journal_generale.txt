@@ -2380,9 +2380,8 @@ Traduzioni (translations.py 1.47.0):
   dopo un clic tornava in italiano (_translate_widgets agisce solo
   all'apertura) — ora tradotto in _toggle_view_mode. Corretto anche il
   suggerimento della v1.46.31: le viste sono tre (griglia/lista/elenco).
-- LIMITE NOTO, NON TOCCATO: _translate_menu() esiste ma non e' chiamata
-  da nessuna parte — i menu contestuali (Naviga e altri) restano in
-  italiano anche in inglese. Lavoro a parte, da decidere con Carlo.
+- (Risolto in v1.47.1, vedi sotto) _translate_menu() esisteva ma non
+  la chiamava nessuno: menu contestuali sempre in italiano.
 Documentazione: LEGGIMI/README_en (intestazione, tabella file, NOVITA'/
 WHAT'S NEW v1.46 -> v1.47), README.md (titolo, caratteristiche di
 Naviga e ritaglio, Esc distinto da Q, 33 comandi deck). Manuale HTML
@@ -2395,6 +2394,27 @@ deck trascinabili, Log errori), finestra Deck (fuoco alla main),
 cestino di transito (domanda alla chiusura con Annulla), scorciatoie.
 I tre <p> non chiusi segnalati dal controllo HTML c'erano gia' nella
 1.45 (separatori prima delle immagini), lasciati.
+
+v1.47.1 (image_sorter, translations, disk_analyzer): menu contestuali
+tradotti. ARCHITETTURA: _tr_text(txt) = unico traduttore IT->EN dei testi
+dell'interfaccia: prima _IT_EN tale e quale, poi _IT_EN_PATTERNS
+(translations.py, regex con gruppi; i gruppi "t_*" tradotti a loro volta,
+{s} = plurale inglese di n). _translate_menu(menu, lang=None) usa
+_tr_text, scende nei sottomenu, legge la lingua da load_config() se non
+passata; chiamata da _post_menu PRIMA di misurare il menu (unico punto
+da cui passano tutti i menu contestuali; disk_analyzer ha una copia di
+_post_menu e la importa). _translate_widgets usa _tr_text per i testi
+non trovati tali e quali. Il menu tasto destro del visualizzatore
+(_show_image_menu, Toplevel di bottoni) non era mai tradotto: ora
+_translate_widgets prima di posizionarlo. Corretto anche "Converti in
+JPG (0 file)" su un .jpg (conteggi come _convert_batch, voce solo se >0).
+TEST — TRAPPOLA: importare image_sorter come modulo "image_sorter" nel
+test fa caricare timeline.py mentre image_sorter e' a meta': il suo
+"from image_sorter import ..." fallisce e timeline usa le copie di
+riserva (qui: _post_menu senza traduzione). Nel programma vero
+image_sorter gira come __main__ e timeline importa una copia completa.
+Per test fedeli su Timeline: caricare image_sorter.py con
+spec_from_file_location sotto un ALTRO nome (es. "is_main").
 
 ===========================================================================
 COME RIPARTIRE IN UNA NUOVA SESSIONE

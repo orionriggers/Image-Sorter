@@ -1,5 +1,5 @@
 # translations.py — Testi e traduzioni IT/EN
-VERSION = "1.47.0"
+VERSION = "1.47.1"
 #
 # COME AGGIUNGERE UNA NUOVA LINGUA
 # 1. Aggiungi un blocco in LANG:  "xx": { "lang_name": "Nome", "app_name": "Image Sorter", ... }
@@ -987,4 +987,68 @@ _IT_EN = {
     "Elenco": "Details",
     "destro: togli dai preferiti": "right-click: remove from favourites",
     "destro: impostazioni Deck": "right-click: Deck settings",
+    # Menu contestuali (tasto destro) — tradotti in _post_menu dalla v1.47.1
+    "Cestina questo file": "Trash this file",
+    "Sposta nel cestino": "Move to trash",
+    "Nessun file nel gruppo": "No files in the group",
+    "Ritaglia...": "Crop...",
+    "Ridimensiona...": "Resize...",
+    "Tag...": "Tags...",
+    "Proprietà...": "Properties...",
+    "Ruota 90 orario": "Rotate 90 CW",
+    "Ruota 90 antiorario": "Rotate 90 CCW",
+    "Ruota 90° orario": "Rotate 90° CW",
+    "Ruota 90° antiorario": "Rotate 90° CCW",
+    "Ruota orario  [C]": "Rotate CW  [C]",
+    "Ruota antiorario  [A]": "Rotate CCW  [A]",
+    "Play video": "Play video",
+    "Apri PDF": "Open PDF",
+    "Senza conferma per questa sessione": "No confirmation for this session",
+    "Sposta": "Move",
+    "Naviga qui": "Browse here",
+    "Naviga su": "Browse up",
+    "Apri nel browser Image Sorter": "Open in the Image Sorter browser",
+    "Assegna questa posizione ai selezionati":
+        "Assign this location to the selected files",
+    "Ripristina": "Restore",
+    "Ripristina (spostato)": "Restore (moved)",
+    "Ripristina batch": "Restore batch",
+    "Rimuovi questa copia": "Remove this copy",
+    "Ripristina originale (ritagliato)": "Restore original (cropped)",
+    "Ripristina originale (ridimensionato)": "Restore original (resized)",
+    "Annulla taglia (riporta all'origine)": "Undo cut (move back to origin)",
+    "Ripristina (era stato spostato)": "Restore (was moved)",
+    "Ripristina batch (era stato spostato)": "Restore batch (was moved)",
+    "Ripristina originale (era stato ritagliato)": "Restore original (was cropped)",
+    "Ripristina originale (era stato ridimensionato)": "Restore original (was resized)",
+    # Modelli per _Tf (segnaposto {..}, formattati dopo la traduzione)
+    'Mostra "{f}" in file manager': 'Show "{f}" in file manager',
+    'Apri "{f}" in Image Sorter': 'Open "{f}" in Image Sorter',
+    'Filtra risultati su "{f}"': 'Filter results to "{f}"',
+    'Tieni "{a}" (+{n} sottocartelle), cestina "{b}" e le sue':
+        'Keep "{a}" (+{n} subfolders), trash "{b}" and its subfolders',
+    'Tieni "{b}" (+{n} sottocartelle), cestina "{a}" e le sue':
+        'Keep "{b}" (+{n} subfolders), trash "{a}" and its subfolders',
 }  # fine _IT_EN
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Testi con parti variabili (numeri, nomi): provati in ordine quando il testo
+# non e' tale e quale in _IT_EN. I gruppi con nome che inizia per "t_" vengono
+# tradotti a loro volta (stesse regole); gli altri restano com'erano.
+# Nel modello inglese {s} vale "s" se il gruppo n e' diverso da 1.
+# ──────────────────────────────────────────────────────────────────────────────
+_IT_EN_PATTERNS = [
+    (r"^(?P<n>\d+) file selezionati$",                 "{n} file{s} selected"),
+    (r"^Cestina i (?P<n>\d+) file selezionati$",       "Trash the {n} selected file{s}"),
+    (r"^Riproduci in sequenza \((?P<n>\d+) video\)$", "Play in sequence ({n} video{s})"),
+    (r"^Incolla qui \((?P<t_m>Sposta|Copia) (?P<n>\d+) file\)$",
+                                                       "Paste here ({t_m} {n} file{s})"),
+    (r"^Apri (?P<n>\d+) cartell[ae] in file manager$", "Open {n} folder{s} in file manager"),
+    (r"^Modifica con (?P<p>[^.].*)$",                   "Edit with {p}"),
+    (r"^Assegna la posizione di (?P<f>.+) ai selezionati(?P<sp>\s+)\((?P<n>\d+)\)$",
+                                                       "Assign the location of {f} to the selected files{sp}({n})"),
+    # "<testo> (3 file)" e "<testo> (3 file)..."
+    (r"^(?P<t_b>.+?)(?P<sp>\s+)\((?P<n>\d+) file\)(?P<e>\.*)$", "{t_b}{sp}({n} file{s}){e}"),
+    # "<testo>  (3)": conteggio della selezione in coda
+    (r"^(?P<t_b>.+?)(?P<sp>\s+)\((?P<n>\d+)\)$",       "{t_b}{sp}({n})"),
+]
