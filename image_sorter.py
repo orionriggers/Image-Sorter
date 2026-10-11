@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Image Sorter
 # Python 3.8+ / tkinter / Linux
-VERSION = "1.46.34"
+VERSION = "1.46.35"
 #
 # Struttura classi:
 #   DuplicateFinder     — ricerca doppioni (3 tab: SHA256, rapida, A vs B)
@@ -8407,9 +8407,9 @@ class FolderBrowser:
                     "<KeyPress-Left>", "<KeyPress-Right>"):
             self.tree.bind(_tk, self._on_tree_key)
         # Frecce del tastierino numerico (NumLock spento): ttk non le
-        # gestisce affatto. E frecce premute con il fuoco sulla finestra
+        # gestisce affatto. Frecce premute con il fuoco sulla finestra
         # stessa (appena aperta, o dopo un click su un bottone): vanno
-        # all'albero — vedi _on_win_arrow
+        # alla griglia delle anteprime — vedi _on_win_arrow
         for _kp, _dir in (("<KP_Up>", "up"), ("<KP_Down>", "down"),
                           ("<KP_Left>", "left"), ("<KP_Right>", "right")):
             self.tree.bind(_kp, lambda e, d=_dir: self._tree_keynav(d))
@@ -14151,12 +14151,19 @@ class FolderBrowser:
 
     def _on_win_arrow(self, event, direction):
         """Freccia con il fuoco sulla finestra Naviga in se' (nessun campo,
-        griglia o albero attivo): la si passa all'albero. Il binding di
-        finestra scatta anche per le frecce premute dentro un campo di
-        testo o sulla griglia (bindtag del toplevel): li' si ignora."""
+        griglia o albero attivo): va alla griglia delle anteprime, scelta
+        di Carlo — l'albero riceve le frecce solo dopo un click su di
+        esso (che gli da' il fuoco). Il binding di finestra scatta anche
+        per le frecce premute dentro un campo di testo, sulla griglia o
+        nell'albero (bindtag del toplevel): li' si ignora."""
         if event.widget is not self.win:
             return None
-        return self._tree_keynav(direction)
+        try:
+            self._thumb_canvas.focus_set()
+        except tk.TclError:
+            return None
+        self._on_arrow(event)
+        return "break"
 
     def _tree_keynav(self, direction):
         """Muove la selezione dell'albero come le frecce di ttk e fa

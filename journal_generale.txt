@@ -2349,9 +2349,10 @@ v1.46.29-33 (11/10/2026), piccoli fix con insegnamenti generali:
   appena aperta Naviga le frecce non facevano nulla (il test della
   v1.46.33 cliccava prima un nodo e non lo vedeva). Ora _expand_to imposta
   anche tree.focus(), e le frecce col fuoco sulla finestra Naviga stessa
-  (event.widget is self.win: non campi testo ne' griglia) vanno all'albero
-  (_on_win_arrow); frecce del tastierino (KP_*) aggiunte, ttk non le
-  gestisce. TEST: riprodurre lo scenario reale dall'apertura, senza
+  (event.widget is self.win: non campi testo ne' griglia) vanno alla
+  GRIGLIA (_on_win_arrow; v1.46.35, scelta di Carlo: l'albero riceve le
+  frecce solo dopo un click su di esso); frecce del tastierino (KP_*)
+  aggiunte all'albero, ttk non le gestisce. TEST: riprodurre lo scenario reale dall'apertura, senza
   passi "di comodo" (click) che lo stato reale non ha.
 - TEST: due event_generate("<ButtonPress-1>") senza time= vengono letti
   da Tk come DOPPIO click (tempo 0 per entrambi). Passare time= distinti.
